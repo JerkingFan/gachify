@@ -43,6 +43,7 @@ services:
       GACHIFY_S3_BUCKET_MASTERS: ${GACHIFY_S3_BUCKET_MASTERS:-gachify-masters}
       GACHIFY_S3_PATH_STYLE: "true"
       GACHIFY_JWT_SECRET: ${GACHIFY_JWT_SECRET:?Set GACHIFY_JWT_SECRET in .env (min 32 chars)}
+      GACHIFY_SEED_SECRET: ${GACHIFY_SEED_SECRET:?Set GACHIFY_SEED_SECRET in .env}
       GACHIFY_CORS_ORIGINS: ${GACHIFY_CORS_ORIGINS:-http://localhost}
       GACHIFY_PUBLIC_API_URL: ${GACHIFY_PUBLIC_API_URL:-http://localhost}
     depends_on:
@@ -127,6 +128,7 @@ services:
     environment:
       GACHIFY_SEED_API_URL: http://api:8080
       GACHIFY_SEED_WAIT_SEC: ${GACHIFY_SEED_WAIT_SEC:-120}
+      GACHIFY_SEED_SECRET: ${GACHIFY_SEED_SECRET:?Set GACHIFY_SEED_SECRET in .env}
     depends_on:
       api:
         condition: service_healthy

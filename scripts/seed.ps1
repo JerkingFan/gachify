@@ -10,13 +10,17 @@ function Invoke-Api {
     param(
         [string]$Method,
         [string]$Path,
-        [object]$Body = $null
+        [object]$Body = $null,
+        [switch]$Seed
     )
-    $uri = "$ApiBase/api/v1$Path"
+    $uri = if ($Seed) { "$ApiBase/internal/seed$Path" } else { "$ApiBase/api/v1$Path" }
     $params = @{
         Method      = $Method
         Uri         = $uri
         ContentType = "application/json"
+    }
+    if ($env:GACHIFY_SEED_SECRET) {
+        $params.Headers = @{ "X-Gachify-Seed-Key" = $env:GACHIFY_SEED_SECRET }
     }
     if ($null -ne $Body) {
         $params.Body = ($Body | ConvertTo-Json -Depth 10 -Compress)
@@ -52,7 +56,7 @@ function Get-OrCreateUser([string]$Handle, [string]$DisplayName, [hashtable]$Per
             handle        = $Handle
             display_name  = $DisplayName
             gachi_persona = $Persona
-        }
+        } -Seed
     }
 }
 
@@ -129,7 +133,7 @@ $tracks = @(
 Write-DevStep "Creating demo tracks"
 $created = 0
 foreach ($t in $tracks) {
-    $out = Invoke-Api POST "/tracks" $t
+    $out = Invoke-Api POST "/tracks" $t -Seed
     Write-Host "  + $($out.title)"
     $created++
 }

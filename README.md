@@ -83,15 +83,13 @@ The web app proxies `/api` to the backend (see `apps/web/vite.config.ts`).
 ### Smoke test
 
 ```powershell
-# Create a creator
-curl -X POST http://localhost:8080/api/v1/users `
+# Register a user (public API)
+curl -X POST http://localhost:8080/api/v1/auth/register `
   -H "Content-Type: application/json" `
-  -d '{"handle":"dungeon_master","display_name":"Dungeon Master","gachi_persona":{"flair":"♂️"}}'
+  -d '{"email":"demo@gachify.local","password":"password123","handle":"dungeon_master","display_name":"Dungeon Master"}'
 
-# Create a track (replace CREATOR_ID)
-curl -X POST http://localhost:8080/api/v1/tracks `
-  -H "Content-Type: application/json" `
-  -d '{"creator_id":"CREATOR_ID","title":"Deep Dark Fantasy (Orchestral Mix)","duration_ms":247000,"status":"published","gachi_metadata":{"gachi_power_level":87,"deepness_score":9.4,"grunt_count":42}}'
+# Upload a track (requires Bearer token — see Creator Hub section)
+# POST /api/v1/creator/uploads/init
 
 # List published tracks
 curl http://localhost:8080/api/v1/tracks
@@ -104,12 +102,12 @@ curl http://localhost:8080/api/v1/tracks
 | GET | `/health/live` | Liveness |
 | GET | `/health/ready` | Readiness (DB ping) |
 | GET | `/api/v1/` | API meta |
-| POST | `/api/v1/users` | Register user |
 | GET | `/api/v1/users/{id}` | Get user |
 | GET | `/api/v1/users/by-handle/{handle}` | Get by handle |
-| POST | `/api/v1/tracks` | Create track |
 | GET | `/api/v1/tracks` | List tracks (`?status=`, `?creator_id=`, `?q=`, `?limit=`, `?offset=`) — includes `creator`, `total`, `has_more` |
 | GET | `/api/v1/tracks/{id}` | Get track |
+| POST | `/internal/seed/users` | Create user (dev or `X-Gachify-Seed-Key`) — for `seed.ps1` / Docker seed |
+| POST | `/internal/seed/tracks` | Create track (dev or seed key) — demo catalog only |
 | POST | `/api/v1/auth/register` | Register (email, password, handle) |
 | POST | `/api/v1/auth/login` | Login → JWT |
 | POST | `/api/v1/auth/refresh` | Refresh access token |

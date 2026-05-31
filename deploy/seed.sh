@@ -28,10 +28,19 @@ api() {
   method="$1"
   path="$2"
   body="${3:-}"
+  seed="${4:-}"
+  url="$API/api/v1$path"
+  headers=""
+  if [ -n "$seed" ]; then
+    url="$API/internal/seed$path"
+  fi
+  if [ -n "${GACHIFY_SEED_SECRET:-}" ]; then
+    headers="-H X-Gachify-Seed-Key:$GACHIFY_SEED_SECRET"
+  fi
   if [ -n "$body" ]; then
-    curl -sf -X "$method" -H "Content-Type: application/json" -d "$body" "$API/api/v1$path"
+    curl -sf -X "$method" -H "Content-Type: application/json" $headers -d "$body" "$url"
   else
-    curl -sf -X "$method" "$API/api/v1$path"
+    curl -sf -X "$method" $headers "$url"
   fi
 }
 
@@ -44,7 +53,7 @@ get_or_create_user() {
     echo "$existing"
     return 0
   fi
-  api POST "/users" "{\"handle\":\"$handle\",\"display_name\":\"$display\",\"gachi_persona\":$persona}"
+  api POST "/users" "{\"handle\":\"$handle\",\"display_name\":\"$display\",\"gachi_persona\":$persona}" seed
 }
 
 echo "seed: creating users"
@@ -63,9 +72,9 @@ PREVIEW="https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3"
 PREVIEW2="https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3"
 
 echo "seed: creating tracks"
-api POST "/tracks" "{\"creator_id\":\"$id1\",\"title\":\"Deep Dark Fantasy (Dungeon Orchestral Mix)\",\"duration_ms\":247000,\"status\":\"published\",\"gachi_metadata\":{\"gachi_power_level\":87,\"deepness_score\":9.4,\"dominant_male_sample\":\"boy_next_door\",\"grunt_count\":42,\"bpm\":128.5,\"mood_tags\":[\"dungeon\",\"brotherhood\"],\"preview_url\":\"$PREVIEW\"}}"
-api POST "/tracks" "{\"creator_id\":\"$id1\",\"title\":\"Slaves to the Rhythm (Bass Boosted Mix)\",\"duration_ms\":198000,\"status\":\"published\",\"gachi_metadata\":{\"gachi_power_level\":72,\"deepness_score\":6.2,\"dominant_male_sample\":\"van_darkholme\",\"grunt_count\":28,\"bpm\":140,\"mood_tags\":[\"slap_bass\",\"club\"],\"preview_url\":\"$PREVIEW2\"}}"
-api POST "/tracks" "{\"creator_id\":\"$id2\",\"title\":\"Boy Next Door — Orchestral Brotherhood\",\"duration_ms\":312000,\"status\":\"published\",\"gachi_metadata\":{\"gachi_power_level\":91,\"deepness_score\":8.8,\"dominant_male_sample\":\"boy_next_door\",\"grunt_count\":55,\"bpm\":96,\"mood_tags\":[\"orchestral\",\"dungeon\",\"deep\"],\"preview_url\":\"$PREVIEW\"}}"
-api POST "/tracks" "{\"creator_id\":\"$id2\",\"title\":\"Fucking Slave (Continuous Mix Vol.1)\",\"duration_ms\":1800000,\"status\":\"published\",\"gachi_metadata\":{\"gachi_power_level\":95,\"deepness_score\":9.9,\"is_continuous_mix\":true,\"wessratost_level\":8,\"mood_tags\":[\"continuous\",\"dungeon\"],\"preview_url\":\"$PREVIEW2\"}}"
+api POST "/tracks" "{\"creator_id\":\"$id1\",\"title\":\"Deep Dark Fantasy (Dungeon Orchestral Mix)\",\"duration_ms\":247000,\"status\":\"published\",\"gachi_metadata\":{\"gachi_power_level\":87,\"deepness_score\":9.4,\"dominant_male_sample\":\"boy_next_door\",\"grunt_count\":42,\"bpm\":128.5,\"mood_tags\":[\"dungeon\",\"brotherhood\"],\"preview_url\":\"$PREVIEW\"}}" seed
+api POST "/tracks" "{\"creator_id\":\"$id1\",\"title\":\"Slaves to the Rhythm (Bass Boosted Mix)\",\"duration_ms\":198000,\"status\":\"published\",\"gachi_metadata\":{\"gachi_power_level\":72,\"deepness_score\":6.2,\"dominant_male_sample\":\"van_darkholme\",\"grunt_count\":28,\"bpm\":140,\"mood_tags\":[\"slap_bass\",\"club\"],\"preview_url\":\"$PREVIEW2\"}}" seed
+api POST "/tracks" "{\"creator_id\":\"$id2\",\"title\":\"Boy Next Door — Orchestral Brotherhood\",\"duration_ms\":312000,\"status\":\"published\",\"gachi_metadata\":{\"gachi_power_level\":91,\"deepness_score\":8.8,\"dominant_male_sample\":\"boy_next_door\",\"grunt_count\":55,\"bpm\":96,\"mood_tags\":[\"orchestral\",\"dungeon\",\"deep\"],\"preview_url\":\"$PREVIEW\"}}" seed
+api POST "/tracks" "{\"creator_id\":\"$id2\",\"title\":\"Fucking Slave (Continuous Mix Vol.1)\",\"duration_ms\":1800000,\"status\":\"published\",\"gachi_metadata\":{\"gachi_power_level\":95,\"deepness_score\":9.9,\"is_continuous_mix\":true,\"wessratost_level\":8,\"mood_tags\":[\"continuous\",\"dungeon\"],\"preview_url\":\"$PREVIEW2\"}}" seed
 
 echo "seed: done"

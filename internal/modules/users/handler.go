@@ -22,13 +22,12 @@ func NewHandler(repo *Repository) *Handler {
 
 func (h *Handler) Routes() chi.Router {
 	r := chi.NewRouter()
-	r.Post("/", h.create)
 	r.Get("/{id}", h.getByID)
 	r.Get("/by-handle/{handle}", h.getByHandle)
 	return r
 }
 
-func (h *Handler) create(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 	var in domain.CreateUserInput
 	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
 		httpserver.Error(w, http.StatusBadRequest, "invalid_json", "request body must be valid JSON")

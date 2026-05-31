@@ -29,6 +29,7 @@ type Config struct {
 	PlaybackTokenTTL   time.Duration
 	PlaybackSegmentTTL time.Duration
 	PublicAPIBaseURL   string
+	SeedSecret         string
 }
 
 func Load() (Config, error) {
@@ -51,6 +52,7 @@ func Load() (Config, error) {
 		S3UsePathStyle:   getEnv("GACHIFY_S3_PATH_STYLE", "true") == "true",
 		UploadMaxBytes:     100 * 1024 * 1024,
 		PublicAPIBaseURL:   getEnv("GACHIFY_PUBLIC_API_URL", "http://localhost:8080"),
+		SeedSecret:         os.Getenv("GACHIFY_SEED_SECRET"),
 	}
 
 	var err error

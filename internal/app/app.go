@@ -14,6 +14,7 @@ import (
 	"github.com/gachify/gachify/internal/modules/creator"
 	"github.com/gachify/gachify/internal/modules/health"
 	"github.com/gachify/gachify/internal/modules/library"
+	"github.com/gachify/gachify/internal/modules/seed"
 	"github.com/gachify/gachify/internal/modules/streaming"
 	"github.com/gachify/gachify/internal/modules/users"
 	streamtoken "github.com/gachify/gachify/internal/platform/streaming"
@@ -73,6 +74,7 @@ func New(ctx context.Context) (*App, error) {
 	}
 	creatorSvc := creator.NewService(catalogRepo, s3, redisQ)
 	creatorH := creator.NewHandler(creatorSvc)
+	seedH := seed.NewHandler(userH, catalogH)
 
 	playbackSigner := streamtoken.NewTokenSigner(cfg.JWTSecret, cfg.PlaybackTokenTTL)
 	streamSvc := streaming.NewService(catalogRepo, s3, playbackSigner, cfg.PlaybackSegmentTTL)
@@ -83,6 +85,11 @@ func New(ctx context.Context) (*App, error) {
 	r.Use(httpserver.CommonMiddleware(log)...)
 	r.Get("/health/live", healthH.Live)
 	r.Get("/health/ready", healthH.Ready)
+
+	r.Route("/internal/seed", func(seedR chi.Router) {
+		seedR.Use(platformauth.SeedGuard(cfg.Env, cfg.SeedSecret))
+		seedR.Mount("/", seedH.Routes())
+	})
 
 	r.Route("/api/v1", func(api chi.Router) {
 		api.Get("/", func(w http.ResponseWriter, _ *http.Request) {
