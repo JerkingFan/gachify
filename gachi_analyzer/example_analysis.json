@@ -1,0 +1,166 @@
+{
+  "schema_version": "1.0",
+  "analyzer_version": "1.0.0",
+  "analyzed_at": "2026-05-31T14:20:00+00:00",
+  "track_title": "♂️Deep♂️Dark♂️Fantasy (Aniki Remix)",
+  "input_file": "van_darkholme_deep_remix.flac",
+  "input_path": "/uploads/creator-hub/van_darkholme_deep_remix.flac",
+  "duration_sec": 214.5,
+  "bpm": 128.4,
+  "bpm_secondary": 64.2,
+  "tempo_changes": [
+    { "time_sec": 48.0, "from_bpm": 128.0, "to_bpm": 145.2 },
+    { "time_sec": 112.0, "from_bpm": 145.2, "to_bpm": 128.0 }
+  ],
+  "key": "D",
+  "mode": "minor",
+  "danceability": 0.7823,
+  "energy": {
+    "rms_mean": 0.142,
+    "rms_max": 0.891,
+    "spectral_centroid_mean": 2847.3,
+    "spectral_rolloff_mean": 6120.5,
+    "energy_score": 0.81
+  },
+  "spectral": {
+    "mfcc_mean": [-312.4, 84.2, 12.1],
+    "mfcc_std": [98.2, 22.4, 8.7],
+    "spectral_contrast_mean": [22.1, 18.4, 16.2],
+    "zcr_mean": 0.0842,
+    "zcr_std": 0.0312
+  },
+  "structure": [
+    { "label": "intro", "start_sec": 0.0, "end_sec": 18.5 },
+    { "label": "verse", "start_sec": 18.5, "end_sec": 52.0 },
+    { "label": "drop", "start_sec": 52.0, "end_sec": 98.0 },
+    { "label": "bridge", "start_sec": 98.0, "end_sec": 128.0 },
+    { "label": "drop", "start_sec": 128.0, "end_sec": 178.0 },
+    { "label": "outro", "start_sec": 178.0, "end_sec": 214.5 }
+  ],
+  "valence": 0.421,
+  "arousal": 0.887,
+  "discrete_emotions": {
+    "aggressive": 0.312,
+    "euphoric": 0.198,
+    "melancholic": 0.045,
+    "dark": 0.221,
+    "epic": 0.156,
+    "funny/troll": 0.068
+  },
+  "dominant_emotion": "aggressive",
+  "emotions_timeline": [
+    {
+      "start_sec": 0.0,
+      "end_sec": 1.0,
+      "valence": 0.38,
+      "arousal": 0.62,
+      "emotions": {
+        "aggressive": 0.18,
+        "euphoric": 0.12,
+        "melancholic": 0.08,
+        "dark": 0.28,
+        "epic": 0.22,
+        "funny/troll": 0.12
+      }
+    },
+    {
+      "start_sec": 52.0,
+      "end_sec": 53.0,
+      "valence": 0.51,
+      "arousal": 0.95,
+      "emotions": {
+        "aggressive": 0.42,
+        "euphoric": 0.28,
+        "melancholic": 0.02,
+        "dark": 0.15,
+        "epic": 0.08,
+        "funny/troll": 0.05
+      }
+    },
+    {
+      "start_sec": 130.5,
+      "end_sec": 131.5,
+      "valence": 0.72,
+      "arousal": 0.91,
+      "emotions": {
+        "aggressive": 0.08,
+        "euphoric": 0.15,
+        "melancholic": 0.01,
+        "dark": 0.05,
+        "epic": 0.04,
+        "funny/troll": 0.67
+      }
+    }
+  ],
+  "troll_moments": [
+    { "time_sec": 130.5, "troll_score": 0.89 }
+  ],
+  "gachi": {
+    "has_deep_stone": true,
+    "stone_count": 17,
+    "dominant_stone_type": "♂️AH",
+    "stone_timestamps": [12.4, 24.8, 53.1, 67.2, 89.0, 102.3, 131.0, 145.6, 162.1, 178.9],
+    "stone_events": [
+      { "time_sec": 53.1, "type": "♂️AH", "confidence": 0.91 },
+      { "time_sec": 131.0, "type": "Fucking slave", "confidence": 0.87 },
+      { "time_sec": 145.6, "type": "Spank", "confidence": 0.79 }
+    ],
+    "wackiness_score": 0.734,
+    "brother_power_index": 0.891,
+    "deepness_score": 0.856
+  },
+  "has_deep_stone": true,
+  "stone_count": 17,
+  "dominant_stone_type": "♂️AH",
+  "stone_timestamps": [12.4, 24.8, 53.1, 67.2, 89.0, 102.3, 131.0, 145.6, 162.1, 178.9],
+  "stone_events": [
+    { "time_sec": 53.1, "type": "♂️AH", "confidence": 0.91 },
+    { "time_sec": 131.0, "type": "Fucking slave", "confidence": 0.87 }
+  ],
+  "wackiness_score": 0.734,
+  "brother_power_index": 0.891,
+  "deepness_score": 0.856,
+  "sample_sources": [
+    {
+      "source_id": "deep_dark_fantasy",
+      "title": "Van Darkholme — Deep Dark Fantasy",
+      "max_confidence": 0.92,
+      "hits": [
+        { "remix_time_sec": 52.5, "source_time_sec": 42.5, "confidence": 0.92 },
+        { "remix_time_sec": 128.0, "source_time_sec": 0.0, "confidence": 0.85 }
+      ]
+    },
+    {
+      "source_id": "billy_herrington_wrestling",
+      "title": "Billy Herrington — Wrestling",
+      "max_confidence": 0.81,
+      "hits": [
+        { "remix_time_sec": 131.2, "source_time_sec": 18.0, "confidence": 0.81 }
+      ]
+    }
+  ],
+  "originality": {
+    "originality_ratio": 0.712,
+    "unmodified_sample_ratio": 0.28,
+    "has_overlay_production": true,
+    "semantic_novelty_score": 0.68,
+    "copyright_risk": "low",
+    "details": {
+      "stems": { "harmonic_ratio": 0.42, "percussive_ratio": 0.58 },
+      "sample_covered_sec": 60.1
+    }
+  },
+  "originality_ratio": 0.712,
+  "auto_tags": [
+    "aniki-workout",
+    "deep-dark-fantasy",
+    "wacky",
+    "stone-heavy",
+    "aggressive",
+    "minor"
+  ],
+  "waveform_image_path": "/analysis_viz/van_darkholme_deep_remix_waveform.png",
+  "spectrogram_image_path": "/analysis_viz/van_darkholme_deep_remix_spectrogram.png",
+  "emotions_heatmap_path": "/analysis_viz/van_darkholme_deep_remix_emotions.png",
+  "processing_time_sec": 42.3
+}

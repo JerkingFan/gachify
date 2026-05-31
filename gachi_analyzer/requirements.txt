@@ -1,0 +1,25 @@
+# GachiMIR analyzer — pinned for reproducible Creator Hub workers
+# Core MIR
+librosa==0.10.2.post1
+soundfile==0.12.1
+audioread==3.0.1
+numpy==1.26.4
+scipy==1.13.1
+matplotlib==3.9.2
+tqdm==4.66.5
+pydub==0.25.1
+
+# Optional ML / separation (enable via GACHI_USE_* env vars)
+torch==2.3.1
+torchaudio==2.3.1
+transformers==4.44.2
+
+# Database export
+psycopg2-binary==2.9.9
+
+# Optional — install separately if needed (platform-specific wheels):
+# essentia==2.1b6.dev1110
+# madmom==0.16.1
+# spleeter==2.4.0
+# demucs==4.0.1
+# openl3==0.4.2
