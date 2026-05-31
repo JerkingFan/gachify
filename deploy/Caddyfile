@@ -1,0 +1,19 @@
+{
+	email {$ACME_EMAIL}
+}
+
+# HTTP for IP / default; HTTPS auto-enabled when GACHIFY_DOMAIN is a real public hostname
+:80 {
+	encode gzip
+	reverse_proxy web:80
+}
+
+{$GACHIFY_DOMAIN} {
+	encode gzip
+	reverse_proxy web:80
+}
+
+# Presigned HLS segment URLs (set GACHIFY_S3_PUBLIC_ENDPOINT to http(s)://host:9000)
+:9000 {
+	reverse_proxy minio:9000
+}

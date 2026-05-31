@@ -1,0 +1,14 @@
+.git
+.github
+**/.env
+**/.env.*
+!**/.env.example
+!**/.env.docker.example
+**/node_modules
+apps/web/dist
+**/*.md
+!README.md
+agent-transcripts
+.cursor
+scripts/dev-stop.ps1
+terminals

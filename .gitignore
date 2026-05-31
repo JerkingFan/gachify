@@ -1,0 +1,36 @@
+# Binaries
+/bin/
+/dist/
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Go
+/vendor/
+*.test
+*.out
+coverage.out
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Env & secrets
+.env
+.env.local
+*.pem
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Data volumes (local dev)
+.data/
+.dev/pids.json
+
+# Node
+node_modules/
+apps/web/dist/

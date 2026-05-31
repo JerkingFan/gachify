@@ -1,0 +1,47 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: #404040 transparent;
+  }
+
+  *::-webkit-scrollbar {
+    width: 12px;
+  }
+
+  *::-webkit-scrollbar-thumb {
+    background-color: #404040;
+    border-radius: 8px;
+    border: 3px solid transparent;
+    background-clip: padding-box;
+  }
+
+  body {
+    overflow: hidden;
+  }
+}
+
+@layer components {
+  .btn-icon {
+    @apply flex h-8 w-8 items-center justify-center rounded-full text-spotify-muted transition hover:text-white;
+  }
+
+  .btn-icon-active {
+    @apply text-spotify-green hover:text-spotify-green-hover;
+  }
+
+  .nav-link {
+    @apply flex items-center gap-4 rounded-md px-3 py-2 text-sm font-semibold text-spotify-muted transition hover:text-white;
+  }
+
+  .nav-link-active {
+    @apply text-white;
+  }
+
+  .card-hover {
+    @apply rounded-lg bg-spotify-elevated p-4 transition-colors hover:bg-spotify-highlight;
+  }
+}

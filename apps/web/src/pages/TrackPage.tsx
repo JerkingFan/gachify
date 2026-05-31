@@ -1,0 +1,186 @@
+import { Clock, Heart, Music2, Play } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Link, useParams } from "react-router-dom";
+import { api } from "@/api/client";
+import { TopBar } from "@/components/layout/TopBar";
+import { CoverArt } from "@/components/ui/CoverArt";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { PageHeaderSkeleton } from "@/components/ui/Skeleton";
+import { TrackRow } from "@/components/ui/TrackRow";
+import { TrackRowSkeleton } from "@/components/ui/Skeleton";
+import { parseGachiMeta, formatDuration } from "@/lib/tracks";
+import { useAuthStore } from "@/store/authStore";
+import { useLibraryStore } from "@/store/libraryStore";
+import { usePlayerStore } from "@/store/playerStore";
+import type { Track, User } from "@/types";
+
+export function TrackPage() {
+  const { id } = useParams<{ id: string }>();
+  const [track, setTrack] = useState<Track | null>(null);
+  const [creator, setCreator] = useState<User | null>(null);
+  const [related, setRelated] = useState<Track[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const playTrack = usePlayerStore((s) => s.playTrack);
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const toggleLiked = useLibraryStore((s) => s.toggleLiked);
+  const isLikedFn = useLibraryStore((s) => s.isLiked);
+  const [liked, setLiked] = useState(false);
+
+  useEffect(() => {
+    if (!id) return;
+    setLoading(true);
+    setError(null);
+    void (async () => {
+      try {
+        const t = await api.getTrack(id);
+        setTrack(t);
+        setLiked(isLikedFn(t.id));
+        const [u, all] = await Promise.all([
+          api.getUser(t.creator_id).catch(() => null),
+          api.getTracks({ limit: 100, status: "published" }),
+        ]);
+        setCreator(u);
+        setRelated(
+          all.items.filter((x) => x.creator_id === t.creator_id && x.id !== t.id).slice(0, 8),
+        );
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Failed to load track");
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, [id, isLikedFn]);
+
+  if (loading) {
+    return (
+      <>
+        <TopBar />
+        <PageHeaderSkeleton />
+        <div className="px-6">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <TrackRowSkeleton key={i} />
+          ))}
+        </div>
+      </>
+    );
+  }
+
+  if (error || !track) {
+    return (
+      <>
+        <TopBar />
+        <EmptyState
+          icon={Music2}
+          title="Track not found"
+          description={error ?? "This remix may have been removed."}
+          actionLabel="Go home"
+          actionTo="/"
+        />
+      </>
+    );
+  }
+
+  const meta = parseGachiMeta(track);
+  const queue = [track, ...related];
+
+  return (
+    <>
+      <div className="bg-gradient-gachi">
+        <TopBar gradient />
+        <div className="flex flex-col gap-6 px-6 pb-8 md:flex-row md:items-end">
+          <CoverArt track={track} size="xl" className="shadow-2xl" />
+          <div className="min-w-0 flex-1 pb-2">
+            <p className="text-xs font-semibold uppercase">Remix</p>
+            <h1 className="mt-2 text-3xl font-black md:text-5xl">{track.title}</h1>
+            {creator && (
+              <Link
+                to={`/artist/${creator.id}`}
+                className="mt-2 inline-block text-sm font-semibold text-white hover:underline"
+              >
+                {creator.display_name}
+              </Link>
+            )}
+            <p className="mt-2 text-sm text-spotify-muted">
+              {formatDuration(track.duration_ms)} · ♂️ Power {meta.gachi_power_level ?? "—"}
+              {meta.deepness_score != null && ` · Deepness ${meta.deepness_score}`}
+            </p>
+            <div className="mt-6 flex flex-wrap items-center gap-3">
+              <button
+                type="button"
+                onClick={() => playTrack(track, queue)}
+                className="flex h-14 w-14 items-center justify-center rounded-full bg-spotify-green text-black shadow-xl hover:scale-105"
+              >
+                <Play className="h-7 w-7" fill="currentColor" />
+              </button>
+              {isAuthenticated && (
+                <button
+                  type="button"
+                  onClick={() => void toggleLiked(track.id, true).then(setLiked)}
+                  className={`rounded-full border border-white/30 p-3 ${liked ? "text-spotify-green" : "text-white"}`}
+                >
+                  <Heart className="h-6 w-6" fill={liked ? "currentColor" : "none"} />
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="px-6 py-8">
+        {(meta.mood_tags?.length || meta.dominant_male_sample) && (
+          <section className="mb-8">
+            <h2 className="mb-3 text-lg font-bold">About this remix</h2>
+            <dl className="grid gap-2 text-sm sm:grid-cols-2">
+              {meta.dominant_male_sample && (
+                <>
+                  <dt className="text-spotify-muted">Dominant sample</dt>
+                  <dd>{meta.dominant_male_sample.replace(/_/g, " ")}</dd>
+                </>
+              )}
+              {meta.bpm != null && (
+                <>
+                  <dt className="text-spotify-muted">BPM</dt>
+                  <dd>{meta.bpm}</dd>
+                </>
+              )}
+              {meta.grunt_count != null && (
+                <>
+                  <dt className="text-spotify-muted">♂️ Grunts</dt>
+                  <dd>{meta.grunt_count}</dd>
+                </>
+              )}
+              {meta.mood_tags?.map((tag) => (
+                <span
+                  key={tag}
+                  className="mr-2 inline-block rounded-full bg-spotify-highlight px-3 py-1 text-xs"
+                >
+                  {tag}
+                </span>
+              ))}
+            </dl>
+          </section>
+        )}
+
+        {related.length > 0 && (
+          <section>
+            <h2 className="mb-4 text-lg font-bold">More from this creator</h2>
+            <div className="mb-2 grid grid-cols-[16px_4fr_3fr_1fr_40px] gap-4 border-b border-white/10 px-4 pb-2 text-xs uppercase text-spotify-muted">
+              <span>#</span>
+              <span>Title</span>
+              <span className="hidden md:block">Album</span>
+              <span className="flex justify-end">
+                <Clock className="h-3 w-3" />
+              </span>
+              <span />
+            </div>
+            {related.map((t, i) => (
+              <TrackRow key={t.id} track={t} index={i} queue={queue} />
+            ))}
+          </section>
+        )}
+      </div>
+    </>
+  );
+}

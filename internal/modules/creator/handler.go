@@ -1,0 +1,135 @@
+package creator
+
+import (
+	"encoding/json"
+	"errors"
+	"net/http"
+	"strconv"
+
+	"github.com/gachify/gachify/internal/domain"
+	platformauth "github.com/gachify/gachify/internal/platform/auth"
+	"github.com/gachify/gachify/internal/modules/catalog"
+	"github.com/gachify/gachify/internal/platform/httpserver"
+	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
+)
+
+type Handler struct {
+	svc *Service
+}
+
+func NewHandler(svc *Service) *Handler {
+	return &Handler{svc: svc}
+}
+
+func (h *Handler) Routes() chi.Router {
+	r := chi.NewRouter()
+	r.Post("/uploads/init", h.initUpload)
+	r.Post("/uploads/{trackID}/complete", h.completeUpload)
+	r.Get("/uploads/{trackID}/status", h.uploadStatus)
+	r.Get("/tracks", h.listMyTracks)
+	return r
+}
+
+func (h *Handler) initUpload(w http.ResponseWriter, r *http.Request) {
+	uid, ok := platformauth.UserIDFromContext(r.Context())
+	if !ok {
+		httpserver.Error(w, http.StatusUnauthorized, "unauthorized", "login required")
+		return
+	}
+	var in domain.UploadInitInput
+	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
+		httpserver.Error(w, http.StatusBadRequest, "invalid_json", "invalid body")
+		return
+	}
+	out, err := h.svc.InitUpload(r.Context(), uid, in)
+	if errors.Is(err, ErrInvalidFile) {
+		httpserver.Error(w, http.StatusBadRequest, "invalid_file", "allowed: flac, wav, mp3")
+		return
+	}
+	if err != nil {
+		httpserver.Error(w, http.StatusBadRequest, "init_failed", err.Error())
+		return
+	}
+	httpserver.JSON(w, http.StatusCreated, out)
+}
+
+func (h *Handler) completeUpload(w http.ResponseWriter, r *http.Request) {
+	uid, ok := platformauth.UserIDFromContext(r.Context())
+	if !ok {
+		httpserver.Error(w, http.StatusUnauthorized, "unauthorized", "login required")
+		return
+	}
+	trackID, err := uuid.Parse(chi.URLParam(r, "trackID"))
+	if err != nil {
+		httpserver.Error(w, http.StatusBadRequest, "invalid_id", "invalid track id")
+		return
+	}
+	var in domain.UploadCompleteInput
+	_ = json.NewDecoder(r.Body).Decode(&in)
+
+	track, err := h.svc.CompleteUpload(r.Context(), uid, trackID, in.DurationMs)
+	if errors.Is(err, catalog.ErrNotFound) {
+		httpserver.Error(w, http.StatusNotFound, "not_found", "track not found")
+		return
+	}
+	if errors.Is(err, ErrInvalidState) {
+		httpserver.Error(w, http.StatusConflict, "invalid_state", "track is not in draft state")
+		return
+	}
+	if errors.Is(err, ErrObjectMissing) {
+		httpserver.Error(w, http.StatusBadRequest, "upload_missing", "file not found — upload to presigned URL first")
+		return
+	}
+	if errors.Is(err, ErrFileTooLarge) {
+		httpserver.Error(w, http.StatusBadRequest, "file_too_large", "file exceeds 100MB limit")
+		return
+	}
+	if err != nil {
+		httpserver.Error(w, http.StatusInternalServerError, "complete_failed", "failed to complete upload")
+		return
+	}
+	httpserver.JSON(w, http.StatusOK, track)
+}
+
+func (h *Handler) uploadStatus(w http.ResponseWriter, r *http.Request) {
+	uid, ok := platformauth.UserIDFromContext(r.Context())
+	if !ok {
+		httpserver.Error(w, http.StatusUnauthorized, "unauthorized", "login required")
+		return
+	}
+	trackID, err := uuid.Parse(chi.URLParam(r, "trackID"))
+	if err != nil {
+		httpserver.Error(w, http.StatusBadRequest, "invalid_id", "invalid track id")
+		return
+	}
+	track, err := h.svc.GetUploadStatus(r.Context(), uid, trackID)
+	if errors.Is(err, catalog.ErrNotFound) {
+		httpserver.Error(w, http.StatusNotFound, "not_found", "track not found")
+		return
+	}
+	if err != nil {
+		httpserver.Error(w, http.StatusInternalServerError, "internal_error", "failed to get status")
+		return
+	}
+	httpserver.JSON(w, http.StatusOK, track)
+}
+
+func (h *Handler) listMyTracks(w http.ResponseWriter, r *http.Request) {
+	uid, ok := platformauth.UserIDFromContext(r.Context())
+	if !ok {
+		httpserver.Error(w, http.StatusUnauthorized, "unauthorized", "login required")
+		return
+	}
+	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
+	offset, _ := strconv.Atoi(r.URL.Query().Get("offset"))
+	if limit <= 0 {
+		limit = 50
+	}
+	tracks, err := h.svc.ListMyTracks(r.Context(), uid, limit, offset)
+	if err != nil {
+		httpserver.Error(w, http.StatusInternalServerError, "internal_error", "failed to list tracks")
+		return
+	}
+	httpserver.JSON(w, http.StatusOK, map[string]any{"items": tracks})
+}
