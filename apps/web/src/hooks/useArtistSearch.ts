@@ -1,43 +1,21 @@
-import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { api } from "@/api/client";
-import type { ArtistSearchResult } from "@/types";
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
+import { artistKeys } from "@/lib/queryKeys";
 
 export function useArtistSearch(query: string, debounceMs = 300) {
-  const [results, setResults] = useState<ArtistSearchResult[]>([]);
-  const [total, setTotal] = useState(0);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const q = useDebouncedValue(query.trim(), debounceMs);
 
-  useEffect(() => {
-    const q = query.trim();
-    if (!q) {
-      setResults([]);
-      setTotal(0);
-      setError(null);
-      setLoading(false);
-      return;
-    }
+  const result = useQuery({
+    queryKey: artistKeys.search(q),
+    queryFn: () => api.searchArtists({ q, limit: 20 }),
+    enabled: q.length > 0,
+  });
 
-    setLoading(true);
-    const timer = window.setTimeout(() => {
-      void (async () => {
-        try {
-          const res = await api.searchArtists({ q, limit: 20 });
-          setResults(res.items);
-          setTotal(res.total);
-          setError(null);
-        } catch (e) {
-          setError(e instanceof Error ? e.message : "Artist search failed");
-          setResults([]);
-          setTotal(0);
-        } finally {
-          setLoading(false);
-        }
-      })();
-    }, debounceMs);
-
-    return () => window.clearTimeout(timer);
-  }, [query, debounceMs]);
-
-  return { results, total, loading, error };
+  return {
+    results: result.data?.items ?? [],
+    total: result.data?.total ?? 0,
+    loading: q.length > 0 && result.isFetching,
+    error: result.error instanceof Error ? result.error.message : null,
+  };
 }

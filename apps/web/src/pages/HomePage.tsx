@@ -17,7 +17,7 @@ function greeting(): string {
 }
 
 export function HomePage() {
-  const { tracks, loading, error, hasMore, loadMore, loadingMore } = useTracks();
+  const { tracks, loading, error, hasMore, loadMore, loadingMore, refresh } = useTracks();
   const playTrack = usePlayerStore((s) => s.playTrack);
   const setQueue = usePlayerStore((s) => s.setQueue);
 
@@ -79,7 +79,7 @@ export function HomePage() {
                   title="Can't reach the API"
                   description={`${error} — run docker compose up -d && go run ./cmd/api`}
                   actionLabel="Retry"
-                  onAction={() => window.location.reload()}
+                  onAction={() => refresh()}
                 />
               )}
 

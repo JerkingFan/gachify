@@ -1,51 +1,47 @@
-import { useCallback, useEffect, useState } from "react";
+import { useInfiniteQuery } from "@tanstack/react-query";
+import { useMemo } from "react";
 import { api } from "@/api/client";
-import type { Track } from "@/types";
+import { trackKeys } from "@/lib/queryKeys";
+import { dedupeTracks } from "@/lib/tracksQuery";
 
 const PAGE_SIZE = 50;
 
 export function useTracks() {
-  const [tracks, setTracks] = useState<Track[]>([]);
-  const [total, setTotal] = useState(0);
-  const [hasMore, setHasMore] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const fetchPage = useCallback(async (offset: number, append: boolean) => {
-    if (append) setLoadingMore(true);
-    else {
-      setLoading(true);
-      setError(null);
-    }
-    try {
-      const res = await api.getTracks({
+  const query = useInfiniteQuery({
+    queryKey: trackKeys.list({ status: "published" }),
+    queryFn: ({ pageParam }) =>
+      api.getTracks({
         limit: PAGE_SIZE,
-        offset,
+        offset: pageParam,
         status: "published",
-      });
-      setTracks((prev) => (append ? [...prev, ...res.items] : res.items));
-      setTotal(res.total);
-      setHasMore(res.has_more);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to load tracks");
-      if (!append) setTracks([]);
-    } finally {
-      setLoading(false);
-      setLoadingMore(false);
-    }
-  }, []);
+      }),
+    initialPageParam: 0,
+    getNextPageParam: (lastPage, allPages) => {
+      if (!lastPage.has_more) return undefined;
+      return allPages.reduce((n, p) => n + p.items.length, 0);
+    },
+  });
 
-  const refresh = useCallback(() => fetchPage(0, false), [fetchPage]);
+  const tracks = useMemo(
+    () => dedupeTracks(query.data?.pages.flatMap((p) => p.items) ?? []),
+    [query.data],
+  );
 
-  const loadMore = useCallback(() => {
-    if (!hasMore || loadingMore) return;
-    void fetchPage(tracks.length, true);
-  }, [hasMore, loadingMore, tracks.length, fetchPage]);
+  const total = query.data?.pages[0]?.total ?? 0;
+  const hasMore = query.hasNextPage ?? false;
 
-  useEffect(() => {
-    void refresh();
-  }, [refresh]);
-
-  return { tracks, total, hasMore, loading, loadingMore, error, refresh, loadMore };
+  return {
+    tracks,
+    total,
+    hasMore,
+    loading: query.isPending,
+    loadingMore: query.isFetchingNextPage,
+    error: query.error instanceof Error ? query.error.message : null,
+    refresh: () => void query.refetch(),
+    loadMore: () => {
+      if (query.hasNextPage && !query.isFetchingNextPage) {
+        void query.fetchNextPage();
+      }
+    },
+  };
 }

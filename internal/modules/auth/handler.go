@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/gachify/gachify/internal/config"
@@ -33,7 +32,6 @@ func (h *Handler) Routes(tokens *platformauth.TokenService, rl *ratelimit.Limite
 	r.With(rl.Middleware("auth:login", h.cfg.RateLimit.AuthLogin, time.Minute, ratelimit.ByIP)).Post("/login", h.login)
 	r.Post("/refresh", h.refresh)
 	r.Post("/logout", h.logout)
-	r.Get("/oidc/providers", h.oidcProviders)
 
 	r.Group(func(pr chi.Router) {
 		pr.Use(platformauth.Middleware(tokens))
@@ -139,30 +137,4 @@ func (h *Handler) me(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	httpserver.JSON(w, http.StatusOK, u)
-}
-
-func (h *Handler) oidcProviders(w http.ResponseWriter, _ *http.Request) {
-	providers := []map[string]any{}
-	if h.cfg.GoogleClientID != "" {
-		providers = append(providers, map[string]any{
-			"id":          "google",
-			"name":        "Google",
-			"enabled":     true,
-			"authorize_url": "/api/v1/auth/oidc/google/start",
-		})
-	}
-	httpserver.JSON(w, http.StatusOK, map[string]any{"providers": providers})
-}
-
-// OIDC start placeholder — full OAuth flow wired when client credentials are set.
-func (h *Handler) OIDCRoutes() chi.Router {
-	r := chi.NewRouter()
-	r.Get("/google/start", func(w http.ResponseWriter, _ *http.Request) {
-		if strings.TrimSpace(h.cfg.GoogleClientID) == "" {
-			httpserver.Error(w, http.StatusNotImplemented, "oidc_not_configured", "Google OIDC is not configured")
-			return
-		}
-		httpserver.Error(w, http.StatusNotImplemented, "oidc_soon", "Google OIDC callback — configure GACHIFY_GOOGLE_* and implement callback handler")
-	})
-	return r
 }

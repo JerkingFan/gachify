@@ -105,7 +105,6 @@ func New(ctx context.Context) (*App, error) {
 			})
 		})
 		api.Mount("/auth", authH.Routes(tokens, rateLimiter))
-		api.Mount("/auth/oidc", authH.OIDCRoutes())
 		api.Mount("/users", userH.Routes())
 		api.Mount("/tracks", catalogH.Routes())
 		api.Mount("/search", searchH.Routes())
