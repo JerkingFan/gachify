@@ -201,7 +201,7 @@ func normalizeListFilter(f *domain.ListTracksFilter) {
 func buildListWhere(f domain.ListTracksFilter, tableAlias string) (string, []any) {
 	prefix := ""
 	if tableAlias != "" {
-		prefix = tableAlias + "."
+		prefix = strings.TrimSuffix(tableAlias, ".") + "."
 	}
 	q := " WHERE 1=1"
 	args := []any{}

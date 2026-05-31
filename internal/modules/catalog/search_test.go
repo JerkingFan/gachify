@@ -7,6 +7,23 @@ import (
 	"github.com/gachify/gachify/internal/domain"
 )
 
+func ptrStatus(s domain.TrackStatus) *domain.TrackStatus { return &s }
+
+func TestBuildListWhereTableAlias(t *testing.T) {
+	where, args := buildListWhere(domain.ListTracksFilter{
+		Status: ptrStatus(domain.TrackPublished),
+	}, "t.")
+	if strings.Contains(where, "t..") {
+		t.Fatalf("double-dot alias in where: %s", where)
+	}
+	if !strings.Contains(where, "t.status = $1") {
+		t.Fatalf("expected t.status filter, got: %s", where)
+	}
+	if len(args) != 1 || args[0] != "published" {
+		t.Fatalf("unexpected args: %v", args)
+	}
+}
+
 func TestSearchWhereUsesTrgm(t *testing.T) {
 	where, args := buildListWhere(domain.ListTracksFilter{Query: "dungeon"}, "t.")
 	if !strings.Contains(where, "% $") {
