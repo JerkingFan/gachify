@@ -148,11 +148,11 @@ func truncate(s string, max int) string {
 	if len(s) <= max {
 		return s
 	}
-	// FFmpeg prints its banner first; keep the tail where the actual error lives.
-	if max > 20 && len(s) > max {
-		return "…" + s[len(s)-max+1:]
+	if max < 2 {
+		return s[:max]
 	}
-	return s[:max] + "…"
+	// FFmpeg prints its banner first; keep the tail where the actual error lives.
+	return "…" + s[len(s)-(max-1):]
 }
 
 func PrefixKey(trackID string) string {
