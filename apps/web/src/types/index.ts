@@ -93,3 +93,18 @@ export interface PlaylistsResponse {
 export interface LikedResponse {
   track_ids: string[];
 }
+
+export interface ArtistSearchResult {
+  id: string;
+  handle: string;
+  display_name: string;
+  published_tracks: number;
+}
+
+export interface ArtistsSearchResponse {
+  items: ArtistSearchResult[];
+  total: number;
+  limit: number;
+  offset: number;
+  has_more: boolean;
+}

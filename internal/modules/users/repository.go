@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/gachify/gachify/internal/domain"
 	"github.com/google/uuid"
@@ -102,4 +103,71 @@ func (r *Repository) GetByHandle(ctx context.Context, handle string) (domain.Use
 		return domain.User{}, fmt.Errorf("get user by handle: %w", err)
 	}
 	return u, nil
+}
+
+func normalizeArtistSearch(f *domain.SearchArtistsFilter) {
+	if f.Limit <= 0 || f.Limit > 50 {
+		f.Limit = 20
+	}
+	if f.Offset < 0 {
+		f.Offset = 0
+	}
+	f.Query = strings.TrimSpace(f.Query)
+}
+
+func artistSearchWhere(n int) (string, string) {
+	q := fmt.Sprintf("$%d", n)
+	where := fmt.Sprintf(` WHERE (
+		u.display_name %% %s OR u.handle %% %s
+	) AND EXISTS (
+		SELECT 1 FROM tracks t
+		WHERE t.creator_id = u.id AND t.status = 'published'
+	)`, q, q)
+	rank := fmt.Sprintf(`GREATEST(
+		word_similarity(%s, u.display_name),
+		word_similarity(%s, u.handle::text),
+		similarity(u.display_name, %s),
+		similarity(u.handle::text, %s)
+	)`, q, q, q, q)
+	return where, rank
+}
+
+func (r *Repository) CountSearchCreators(ctx context.Context, f domain.SearchArtistsFilter) (int, error) {
+	normalizeArtistSearch(&f)
+	where, _ := artistSearchWhere(1)
+	q := `SELECT COUNT(*) FROM users u` + where
+	var total int
+	if err := r.pool.QueryRow(ctx, q, f.Query).Scan(&total); err != nil {
+		return 0, fmt.Errorf("count artists: %w", err)
+	}
+	return total, nil
+}
+
+func (r *Repository) SearchCreators(ctx context.Context, f domain.SearchArtistsFilter) ([]domain.ArtistSearchResult, error) {
+	normalizeArtistSearch(&f)
+	where, rank := artistSearchWhere(1)
+	q := fmt.Sprintf(`
+		SELECT u.id, u.handle, u.display_name,
+			(SELECT COUNT(*)::int FROM tracks t WHERE t.creator_id = u.id AND t.status = 'published')
+		FROM users u
+		%s
+		ORDER BY %s DESC, u.display_name ASC
+		LIMIT $2 OFFSET $3
+	`, where, rank)
+
+	rows, err := r.pool.Query(ctx, q, f.Query, f.Limit, f.Offset)
+	if err != nil {
+		return nil, fmt.Errorf("search artists: %w", err)
+	}
+	defer rows.Close()
+
+	var out []domain.ArtistSearchResult
+	for rows.Next() {
+		var item domain.ArtistSearchResult
+		if err := rows.Scan(&item.ID, &item.Handle, &item.DisplayName, &item.PublishedTracks); err != nil {
+			return nil, fmt.Errorf("scan artist: %w", err)
+		}
+		out = append(out, item)
+	}
+	return out, rows.Err()
 }

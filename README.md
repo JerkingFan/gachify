@@ -106,8 +106,9 @@ curl http://localhost:8080/api/v1/tracks
 | GET | `/api/v1/` | API meta |
 | GET | `/api/v1/users/{id}` | Get user |
 | GET | `/api/v1/users/by-handle/{handle}` | Get by handle |
-| GET | `/api/v1/tracks` | List tracks (`?status=`, `?creator_id=`, `?q=`, `?limit=`, `?offset=`) — includes `creator`, `total`, `has_more` |
+| GET | `/api/v1/tracks` | List/search tracks (`?q=` uses pg_trgm rank) — `creator`, `total`, `has_more` |
 | GET | `/api/v1/tracks/{id}` | Get track |
+| GET | `/api/v1/search/artists` | Search creators with published tracks (`?q=`, ranked) |
 | POST | `/internal/seed/users` | Create user (dev or `X-Gachify-Seed-Key`) — for `seed.ps1` / Docker seed |
 | POST | `/internal/seed/tracks` | Create track (dev or seed key) — demo catalog only |
 | POST | `/api/v1/auth/register` | Register (email, password, handle) |

@@ -213,23 +213,10 @@ func buildListWhere(f domain.ListTracksFilter, tableAlias string) (string, []any
 		n++
 	}
 	if f.Query != "" {
-		pattern := "%" + escapeILIKE(f.Query) + "%"
-		q += fmt.Sprintf(` AND (
-			%s ILIKE $%d ESCAPE '\'
-			OR u.display_name ILIKE $%d ESCAPE '\'
-			OR u.handle ILIKE $%d ESCAPE '\'
-			OR %sgachi_metadata::text ILIKE $%d ESCAPE '\'
-		)`, prefix+"title", n, n, n, prefix, n)
-		args = append(args, pattern, pattern, pattern, pattern)
+		q += searchWhereSQL(n)
+		args = append(args, f.Query)
 	}
 	return q, args
-}
-
-func escapeILIKE(s string) string {
-	s = strings.ReplaceAll(s, `\`, `\\`)
-	s = strings.ReplaceAll(s, `%`, `\%`)
-	s = strings.ReplaceAll(s, `_`, `\_`)
-	return s
 }
 
 func scanTrackWithCreator(row pgx.Row) (domain.TrackWithCreator, error) {
@@ -274,8 +261,14 @@ func (r *Repository) List(ctx context.Context, f domain.ListTracksFilter) ([]dom
 		JOIN users u ON u.id = t.creator_id`
 	where, args := buildListWhere(f, "t.")
 	q += where
-	n := len(args) + 1
-	q += fmt.Sprintf(" ORDER BY t.created_at DESC LIMIT $%d OFFSET $%d", n, n+1)
+	if f.Query != "" {
+		rankIdx := len(args)
+		q += fmt.Sprintf(" ORDER BY %s DESC, t.created_at DESC LIMIT $%d OFFSET $%d",
+			searchRankSQL(rankIdx), len(args)+1, len(args)+2)
+	} else {
+		n := len(args) + 1
+		q += fmt.Sprintf(" ORDER BY t.created_at DESC LIMIT $%d OFFSET $%d", n, n+1)
+	}
 	args = append(args, f.Limit, f.Offset)
 
 	rows, err := r.pool.Query(ctx, q, args...)

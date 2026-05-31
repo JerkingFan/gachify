@@ -1,4 +1,5 @@
 import type {
+  ArtistsSearchResponse,
   LikedResponse,
   PlaylistsResponse,
   ServerPlaylist,
@@ -157,6 +158,18 @@ export const api = {
     return request<TracksResponse>(`/tracks${qs ? `?${qs}` : ""}`);
   },
 
+  searchArtists(params: {
+    q: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<ArtistsSearchResponse> {
+    const q = new URLSearchParams();
+    q.set("q", params.q.trim());
+    if (params.limit != null) q.set("limit", String(params.limit));
+    if (params.offset != null) q.set("offset", String(params.offset));
+    return request<ArtistsSearchResponse>(`/search/artists?${q.toString()}`);
+  },
+
   getTrack(id: string): Promise<Track> {
     return request<Track>(`/tracks/${id}`);
   },
@@ -179,6 +192,38 @@ export const api = {
 
   getPlaylists(): Promise<PlaylistsResponse> {
     return request<PlaylistsResponse>("/me/playlists", {}, true);
+  },
+
+  createPlaylist(body: {
+    title: string;
+    description?: string;
+    is_public?: boolean;
+  }): Promise<ServerPlaylist> {
+    return request<ServerPlaylist>("/me/playlists", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }, true);
+  },
+
+  updatePlaylist(
+    id: string,
+    body: { title?: string; description?: string; is_public?: boolean },
+  ): Promise<ServerPlaylist> {
+    return request<ServerPlaylist>(`/me/playlists/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    }, true);
+  },
+
+  deletePlaylist(id: string): Promise<void> {
+    return request<void>(`/me/playlists/${id}`, { method: "DELETE" }, true);
+  },
+
+  addTracksToPlaylist(id: string, trackIds: string[]): Promise<ServerPlaylist> {
+    return request<ServerPlaylist>(`/me/playlists/${id}/tracks`, {
+      method: "POST",
+      body: JSON.stringify({ track_ids: trackIds }),
+    }, true);
   },
 
   getPlaylist(id: string): Promise<ServerPlaylist> {

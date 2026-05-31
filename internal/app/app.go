@@ -15,6 +15,7 @@ import (
 	"github.com/gachify/gachify/internal/modules/health"
 	"github.com/gachify/gachify/internal/modules/library"
 	"github.com/gachify/gachify/internal/modules/seed"
+	searchmod "github.com/gachify/gachify/internal/modules/search"
 	"github.com/gachify/gachify/internal/modules/streaming"
 	"github.com/gachify/gachify/internal/modules/users"
 	streamtoken "github.com/gachify/gachify/internal/platform/streaming"
@@ -67,6 +68,7 @@ func New(ctx context.Context) (*App, error) {
 	userH := users.NewHandler(userRepo)
 	catalogRepo := catalog.NewRepository(pool)
 	catalogH := catalog.NewHandler(catalogRepo, rateLimiter, cfg.RateLimit.Search)
+	searchH := searchmod.NewHandler(userRepo, rateLimiter, cfg.RateLimit.Search)
 
 	authRepo := authmod.NewRepository(pool)
 	authSvc := authmod.NewService(authRepo, userRepo, tokens, cfg.JWTAccessTTL)
@@ -106,6 +108,7 @@ func New(ctx context.Context) (*App, error) {
 		api.Mount("/auth/oidc", authH.OIDCRoutes())
 		api.Mount("/users", userH.Routes())
 		api.Mount("/tracks", catalogH.Routes())
+		api.Mount("/search", searchH.Routes())
 		api.Mount("/stream", streamH.Routes())
 
 		api.Group(func(me chi.Router) {

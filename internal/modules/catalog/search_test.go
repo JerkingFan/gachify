@@ -7,35 +7,22 @@ import (
 	"github.com/gachify/gachify/internal/domain"
 )
 
-func TestEscapeILIKE(t *testing.T) {
-	tests := []struct {
-		in   string
-		want string
-	}{
-		{"plain", "plain"},
-		{"100%", "100\\%"},
-		{"a_b", "a\\_b"},
-		{`back\slash`, `back\\slash`},
+func TestSearchWhereUsesTrgm(t *testing.T) {
+	where, args := buildListWhere(domain.ListTracksFilter{Query: "dungeon"}, "t.")
+	if !strings.Contains(where, "% $") {
+		t.Fatalf("expected pg_trgm %% operator in where: %s", where)
 	}
-	for _, tc := range tests {
-		if got := escapeILIKE(tc.in); got != tc.want {
-			t.Fatalf("escapeILIKE(%q) = %q, want %q", tc.in, got, tc.want)
-		}
+	if len(args) != 1 || args[0] != "dungeon" {
+		t.Fatalf("expected single query arg, got %v", args)
 	}
 }
 
-func TestBuildListWhereSearch(t *testing.T) {
-	where, args := buildListWhere(domain.ListTracksFilter{Query: "dungeon"}, "t.")
-	for _, part := range []string{"ILIKE", ".title", "u.display_name", "u.handle", "gachi_metadata"} {
-		if !strings.Contains(where, part) {
-			t.Fatalf("where missing %q: %s", part, where)
-		}
+func TestSearchRankSQL(t *testing.T) {
+	rank := searchRankSQL(1)
+	if !strings.Contains(rank, "similarity(t.title") {
+		t.Fatalf("missing title similarity: %s", rank)
 	}
-	if len(args) != 4 {
-		t.Fatalf("expected 4 args, got %d", len(args))
-	}
-	pattern, ok := args[0].(string)
-	if !ok || pattern != "%dungeon%" {
-		t.Fatalf("unexpected search pattern: %v", args[0])
+	if !strings.Contains(rank, "word_similarity") {
+		t.Fatalf("missing word_similarity: %s", rank)
 	}
 }

@@ -49,9 +49,110 @@ export function PlayerBar() {
     else setLiked(false);
   }, [track?.id, isLikedFn]);
 
+  const transport = (
+    <div className="flex items-center justify-center gap-3 md:gap-4">
+      <button
+        type="button"
+        onClick={toggleShuffle}
+        className={`btn-icon touch-target hidden sm:flex ${shuffle ? "btn-icon-active" : ""}`}
+      >
+        <Shuffle className="h-4 w-4" />
+      </button>
+      <button type="button" onClick={previous} className="btn-icon touch-target">
+        <SkipBack className="h-5 w-5 md:h-5" fill="currentColor" />
+      </button>
+      <button
+        type="button"
+        onClick={togglePlay}
+        disabled={!track}
+        className="flex h-11 w-11 items-center justify-center rounded-full bg-white text-black hover:scale-105 disabled:opacity-50 md:h-9 md:w-9"
+      >
+        {isPlaying ? (
+          <Pause className="h-5 w-5" fill="currentColor" />
+        ) : (
+          <Play className="h-5 w-5 ml-0.5" fill="currentColor" />
+        )}
+      </button>
+      <button type="button" onClick={next} className="btn-icon touch-target">
+        <SkipForward className="h-5 w-5" fill="currentColor" />
+      </button>
+      <button
+        type="button"
+        onClick={cycleRepeat}
+        className={`btn-icon touch-target relative hidden sm:flex ${repeat !== "off" ? "btn-icon-active" : ""}`}
+      >
+        <Repeat className="h-4 w-4" />
+        {repeat === "one" && (
+          <span className="absolute -right-0.5 -top-0.5 text-[8px] font-bold">1</span>
+        )}
+      </button>
+    </div>
+  );
+
   return (
-    <footer className="grid h-[90px] grid-cols-3 items-center border-t border-white/10 bg-spotify-highlight px-4">
-      <div className="flex min-w-0 items-center gap-3">
+    <footer className="fixed bottom-0 left-0 right-0 z-40 border-t border-white/10 bg-spotify-highlight px-3 py-2 md:static md:grid md:h-[90px] md:grid-cols-3 md:items-center md:px-4 md:py-0">
+      {/* Mobile layout */}
+      <div className="flex flex-col gap-2 md:hidden">
+        <div className="flex items-center gap-3">
+          {track ? (
+            <>
+              <Link to={`/track/${track.id}`} className="shrink-0">
+                <CoverArt track={track} size="sm" />
+              </Link>
+              <div className="min-w-0 flex-1">
+                <Link
+                  to={`/track/${track.id}`}
+                  className="block truncate text-sm font-medium text-white"
+                >
+                  {track.title}
+                </Link>
+                <p className="truncate text-xs text-spotify-muted">{getSubtitle(track)}</p>
+              </div>
+              {isAuthenticated ? (
+                <button
+                  type="button"
+                  className={`btn-icon touch-target shrink-0 ${liked ? "text-spotify-green" : ""}`}
+                  onClick={() =>
+                    track && void toggleLiked(track.id, true).then(setLiked)
+                  }
+                >
+                  <Heart className="h-5 w-5" fill={liked ? "currentColor" : "none"} />
+                </button>
+              ) : null}
+              <button
+                type="button"
+                onClick={togglePlay}
+                disabled={!track}
+                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white text-black disabled:opacity-50"
+              >
+                {isPlaying ? (
+                  <Pause className="h-5 w-5" fill="currentColor" />
+                ) : (
+                  <Play className="h-5 w-5 ml-0.5" fill="currentColor" />
+                )}
+              </button>
+            </>
+          ) : (
+            <p className="text-sm text-spotify-muted">Select a track to play</p>
+          )}
+        </div>
+        <div className="flex items-center gap-2 text-[10px] text-spotify-muted">
+          <span className="w-9 text-right tabular-nums">{formatDuration(progressMs)}</span>
+          <input
+            type="range"
+            min={0}
+            max={duration || 100}
+            value={progressMs}
+            disabled={!track}
+            onChange={(e) => seek(Number(e.target.value))}
+            className="player-scrubber h-2 flex-1 accent-white disabled:opacity-40"
+          />
+          <span className="w-9 tabular-nums">{formatDuration(duration)}</span>
+        </div>
+      </div>
+
+      {/* Desktop layout */}
+      <div className="hidden min-w-0 items-center gap-3 md:flex">
         {track ? (
           <>
             <Link to={`/track/${track.id}`} className="shrink-0">
@@ -71,8 +172,7 @@ export function PlayerBar() {
                 type="button"
                 className={`btn-icon ml-2 ${liked ? "text-spotify-green" : ""}`}
                 onClick={() =>
-                  track &&
-                  void toggleLiked(track.id, true).then(setLiked)
+                  track && void toggleLiked(track.id, true).then(setLiked)
                 }
               >
                 <Heart className="h-4 w-4" fill={liked ? "currentColor" : "none"} />
@@ -82,7 +182,7 @@ export function PlayerBar() {
                 <Heart className="h-4 w-4" />
               </Link>
             )}
-            <button type="button" className="btn-icon hidden sm:flex">
+            <button type="button" className="btn-icon hidden lg:flex">
               <Mic2 className="h-4 w-4" />
             </button>
           </>
@@ -91,44 +191,8 @@ export function PlayerBar() {
         )}
       </div>
 
-      <div className="flex max-w-[720px] flex-col items-center justify-center gap-2 justify-self-center">
-        <div className="flex items-center gap-4">
-          <button
-            type="button"
-            onClick={toggleShuffle}
-            className={`btn-icon ${shuffle ? "btn-icon-active" : ""}`}
-          >
-            <Shuffle className="h-4 w-4" />
-          </button>
-          <button type="button" onClick={previous} className="btn-icon">
-            <SkipBack className="h-5 w-5" fill="currentColor" />
-          </button>
-          <button
-            type="button"
-            onClick={togglePlay}
-            disabled={!track}
-            className="flex h-9 w-9 items-center justify-center rounded-full bg-white text-black hover:scale-105 disabled:opacity-50"
-          >
-            {isPlaying ? (
-              <Pause className="h-5 w-5" fill="currentColor" />
-            ) : (
-              <Play className="h-5 w-5 ml-0.5" fill="currentColor" />
-            )}
-          </button>
-          <button type="button" onClick={next} className="btn-icon">
-            <SkipForward className="h-5 w-5" fill="currentColor" />
-          </button>
-          <button
-            type="button"
-            onClick={cycleRepeat}
-            className={`btn-icon relative ${repeat !== "off" ? "btn-icon-active" : ""}`}
-          >
-            <Repeat className="h-4 w-4" />
-            {repeat === "one" && (
-              <span className="absolute -right-0.5 -top-0.5 text-[8px] font-bold">1</span>
-            )}
-          </button>
-        </div>
+      <div className="hidden max-w-[720px] flex-col items-center justify-center gap-2 justify-self-center md:flex">
+        {transport}
         <div className="flex w-full max-w-md items-center gap-2 text-xs text-spotify-muted">
           <span className="w-10 text-right tabular-nums">{formatDuration(progressMs)}</span>
           <input
@@ -138,23 +202,23 @@ export function PlayerBar() {
             value={progressMs}
             disabled={!track}
             onChange={(e) => seek(Number(e.target.value))}
-            className="h-1 flex-1 cursor-pointer appearance-none rounded-full bg-white/30 accent-white disabled:opacity-40"
+            className="player-scrubber h-1 flex-1 cursor-pointer appearance-none rounded-full bg-white/30 accent-white disabled:opacity-40"
           />
           <span className="w-10 tabular-nums">{formatDuration(duration)}</span>
         </div>
       </div>
 
-      <div className="flex items-center justify-end gap-2">
+      <div className="hidden items-center justify-end gap-2 md:flex">
         <button
           type="button"
           onClick={toggleQueuePanel}
-          className={`btn-icon hidden md:flex ${queuePanelOpen ? "text-spotify-green" : ""}`}
+          className={`btn-icon ${queuePanelOpen ? "text-spotify-green" : ""}`}
           aria-label="Queue"
           title={`Queue (${queueLen})`}
         >
           <ListMusic className="h-4 w-4" />
         </button>
-        <button type="button" className="btn-icon hidden md:flex">
+        <button type="button" className="btn-icon hidden lg:flex">
           <Laptop2 className="h-4 w-4" />
         </button>
         <div className="hidden items-center gap-2 sm:flex">

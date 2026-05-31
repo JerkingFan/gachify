@@ -29,6 +29,13 @@ interface LibraryState {
   reset: () => void;
   isLiked: (trackId: string) => boolean;
   toggleLiked: (trackId: string, authenticated: boolean) => Promise<boolean>;
+  createPlaylist: (title: string, description?: string) => Promise<ServerPlaylist>;
+  updatePlaylist: (
+    id: string,
+    patch: { title?: string; description?: string },
+  ) => Promise<ServerPlaylist>;
+  deletePlaylist: (id: string) => Promise<void>;
+  addTracksToPlaylist: (playlistId: string, trackIds: string[]) => Promise<ServerPlaylist>;
 }
 
 export const useLibraryStore = create<LibraryState>((set, get) => ({
@@ -101,6 +108,33 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
     }
     set({ likedIds: next });
     return !liked;
+  },
+
+  async createPlaylist(title, description = "") {
+    const p = await api.createPlaylist({ title, description });
+    set({ playlists: [...get().playlists, p] });
+    return p;
+  },
+
+  async updatePlaylist(id, patch) {
+    const p = await api.updatePlaylist(id, patch);
+    set({
+      playlists: get().playlists.map((pl) => (pl.id === id ? p : pl)),
+    });
+    return p;
+  },
+
+  async deletePlaylist(id) {
+    await api.deletePlaylist(id);
+    set({ playlists: get().playlists.filter((pl) => pl.id !== id) });
+  },
+
+  async addTracksToPlaylist(playlistId, trackIds) {
+    const p = await api.addTracksToPlaylist(playlistId, trackIds);
+    set({
+      playlists: get().playlists.map((pl) => (pl.id === playlistId ? p : pl)),
+    });
+    return p;
   },
 }));
 
