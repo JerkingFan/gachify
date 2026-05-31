@@ -25,7 +25,7 @@ jobs:
       - name: Integration tests
         env:
           INTEGRATION: "1"
-        run: go test ./internal/modules/catalog/... -count=1 -timeout 5m
+        run: go test ./internal/modules/catalog/... ./internal/modules/auth/... ./internal/modules/admin/... -count=1 -timeout 5m
 
   lint-go:
     runs-on: ubuntu-latest
@@ -53,6 +53,12 @@ jobs:
 
       - name: Install
         run: npm ci
+
+      - name: Generate API types from OpenAPI
+        run: npm run gen:api-types
+
+      - name: Verify generated API types are committed
+        run: git diff --exit-code src/api/generated/
 
       - name: Lint
         run: npm run lint
@@ -107,7 +113,8 @@ jobs:
           GACHIFY_DATABASE_URL=postgres://gachify:gachify@localhost:5432/gachify?sslmode=disable \
           GACHIFY_REDIS_URL=redis://localhost:6379/0 \
           GACHIFY_S3_ENDPOINT=http://localhost:9000 \
-          GACHIFY_MODERATION_ENABLED=false \
+          GACHIFY_MODERATION_ENABLED=true \
+          GACHIFY_ADMIN_SECRET=e2e-admin-secret \
           go run ./cmd/api &
           echo $! > /tmp/gachify-api.pid
           GACHIFY_SEED_API_URL=http://localhost:8080 sh deploy/seed.sh
@@ -122,6 +129,7 @@ jobs:
         env:
           GACHIFY_E2E_API_URL: http://localhost:8080
           GACHIFY_E2E_WEB_URL: http://localhost:5173
+          GACHIFY_E2E_ADMIN_SECRET: e2e-admin-secret
         run: npm run test:e2e
 
       - name: Stop stack

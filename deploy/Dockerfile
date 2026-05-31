@@ -4,23 +4,13 @@ FROM golang:1.25-alpine AS builder
 RUN apk add --no-cache git ca-certificates
 WORKDIR /src
 
-# Fallback mirrors help when storage.googleapis.com times out (common on some VPS)
-ARG GOPROXY=https://proxy.golang.org,https://goproxy.io,direct
-ENV GOPROXY=${GOPROXY}
+# vendor/ is committed — no go mod download on slow VPS networks
+ENV GOFLAGS=-mod=vendor
 
 COPY go.mod go.sum ./
-RUN --mount=type=cache,target=/go/pkg/mod \
-    set -e; \
-    for i in 1 2 3 4 5; do \
-      go mod download && exit 0; \
-      echo "go mod download attempt $i failed, retrying..."; \
-      sleep 15; \
-    done; \
-    exit 1
-
+COPY vendor/ vendor/
 COPY . .
-RUN --mount=type=cache,target=/go/pkg/mod \
-    --mount=type=cache,target=/root/.cache/go-build \
+RUN --mount=type=cache,target=/root/.cache/go-build \
     CGO_ENABLED=0 go build -ldflags="-s -w" -o /out/gachify-api ./cmd/api && \
     CGO_ENABLED=0 go build -ldflags="-s -w" -o /out/gachify-worker ./cmd/worker && \
     CGO_ENABLED=0 go build -ldflags="-s -w" -o /out/gachify-migrate ./cmd/migrate

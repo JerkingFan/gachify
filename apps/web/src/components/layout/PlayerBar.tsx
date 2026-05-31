@@ -90,7 +90,7 @@ export function PlayerBar() {
   );
 
   return (
-    <footer className="fixed bottom-0 left-0 right-0 z-40 border-t border-white/10 bg-spotify-highlight px-3 py-2 md:static md:grid md:h-[90px] md:grid-cols-3 md:items-center md:px-4 md:py-0">
+    <footer data-testid="player-bar" className="fixed bottom-0 left-0 right-0 z-40 border-t border-white/10 bg-spotify-highlight px-3 py-2 md:static md:grid md:h-[90px] md:grid-cols-3 md:items-center md:px-4 md:py-0">
       {/* Mobile layout */}
       <div className="flex flex-col gap-2 md:hidden">
         <div className="flex items-center gap-3">

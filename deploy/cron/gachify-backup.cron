@@ -1,0 +1,8 @@
+# Example cron entries (install on prod host as root or deploy user).
+# crontab -e
+#
+# Daily backup at 03:15 UTC
+15 3 * * * cd /opt/gachify && ./deploy/backup.sh >> /var/log/gachify-backup.log 2>&1
+#
+# Monthly restore drill (first Sunday 04:00 UTC) — uses latest backup dir
+0 4 1-7 * 0 cd /opt/gachify && LATEST=$(ls -1dt backups/*/ 2>/dev/null | head -1) && test -n "$LATEST" && ./deploy/restore-drill.sh "$LATEST" --full >> /var/log/gachify-drill.log 2>&1

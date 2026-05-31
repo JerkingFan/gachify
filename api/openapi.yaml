@@ -1,0 +1,1080 @@
+openapi: 3.1.0
+info:
+  title: Gachify API
+  version: 0.6.0
+  description: |
+    HTTP API for the Gachify streaming platform.
+
+    - Public routes under `/api/v1`
+    - Admin moderation under `/internal/admin` (header `X-Gachify-Admin-Key`)
+    - Seed/bootstrap under `/internal/seed` (dev or `X-Gachify-Seed-Key`)
+servers:
+  - url: http://localhost:8080
+    description: Local API
+  - url: https://example.com
+    description: Production (replace with GACHIFY_PUBLIC_API_URL)
+
+tags:
+  - name: health
+  - name: auth
+  - name: users
+  - name: tracks
+  - name: search
+  - name: library
+  - name: creator
+  - name: stream
+  - name: admin
+  - name: seed
+
+paths:
+  /health/live:
+    get:
+      tags: [health]
+      summary: Liveness probe
+      responses:
+        "200":
+          description: Process is up
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LivenessResponse"
+
+  /health/ready:
+    get:
+      tags: [health]
+      summary: Readiness probe (503 when dependencies down)
+      responses:
+        "200":
+          description: All dependencies up
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReadinessResponse"
+        "503":
+          description: Degraded — one or more dependencies down
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReadinessResponse"
+
+  /api/v1/:
+    get:
+      tags: [tracks]
+      summary: API metadata
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  name: { type: string }
+                  version: { type: string }
+                  tagline: { type: string }
+
+  /api/v1/auth/register:
+    post:
+      tags: [auth]
+      summary: Register account
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegisterInput"
+      responses:
+        "201":
+          description: Tokens issued
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TokenResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+
+  /api/v1/auth/login:
+    post:
+      tags: [auth]
+      summary: Login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginInput"
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TokenResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/v1/auth/refresh:
+    post:
+      tags: [auth]
+      summary: Refresh access token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [refresh_token]
+              properties:
+                refresh_token: { type: string }
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TokenResponse"
+
+  /api/v1/auth/logout:
+    post:
+      tags: [auth]
+      summary: Revoke refresh token
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                refresh_token: { type: string }
+      responses:
+        "200":
+          description: Logged out
+
+  /api/v1/auth/me:
+    get:
+      tags: [auth]
+      security: [{ bearerAuth: [] }]
+      summary: Current user
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+
+  /api/v1/auth/forgot-password:
+    post:
+      tags: [auth]
+      summary: Request password reset email
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email: { type: string, format: email }
+      responses:
+        "200":
+          description: Always OK (no email enumeration)
+
+  /api/v1/auth/reset-password:
+    post:
+      tags: [auth]
+      summary: Reset password with token
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token, password]
+              properties:
+                token: { type: string }
+                password: { type: string, minLength: 8 }
+      responses:
+        "200":
+          description: Password updated
+
+  /api/v1/auth/verify-email:
+    post:
+      tags: [auth]
+      summary: Verify email with token
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token]
+              properties:
+                token: { type: string }
+      responses:
+        "200":
+          description: Email verified
+
+  /api/v1/auth/oidc/providers:
+    get:
+      tags: [auth]
+      summary: List configured OIDC providers
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  providers:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id: { type: string }
+                        name: { type: string }
+
+  /api/v1/users/{id}:
+    get:
+      tags: [users]
+      parameters:
+        - $ref: "#/components/parameters/UuidId"
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/v1/users/by-handle/{handle}:
+    get:
+      tags: [users]
+      parameters:
+        - name: handle
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+
+  /api/v1/tracks:
+    get:
+      tags: [tracks]
+      summary: List or search published tracks
+      parameters:
+        - name: q
+          in: query
+          schema: { type: string }
+        - name: status
+          in: query
+          schema: { $ref: "#/components/schemas/TrackStatus" }
+        - name: creator_id
+          in: query
+          schema: { type: string, format: uuid }
+        - name: sort
+          in: query
+          schema:
+            type: string
+            enum: [trending]
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Offset"
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TracksResponse"
+
+  /api/v1/tracks/{id}:
+    get:
+      tags: [tracks]
+      parameters:
+        - $ref: "#/components/parameters/UuidId"
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Track"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/v1/tracks/{id}/play:
+    post:
+      tags: [tracks]
+      summary: Increment play count (idempotent per client session recommended)
+      parameters:
+        - $ref: "#/components/parameters/UuidId"
+      responses:
+        "204":
+          description: Recorded
+
+  /api/v1/search/artists:
+    get:
+      tags: [search]
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema: { type: string }
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Offset"
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ArtistsSearchResponse"
+
+  /api/v1/me/liked:
+    get:
+      tags: [library]
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  track_ids:
+                    type: array
+                    items: { type: string, format: uuid }
+
+  /api/v1/me/liked/{trackID}:
+    put:
+      tags: [library]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: trackID
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Liked
+    delete:
+      tags: [library]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: trackID
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Unliked
+
+  /api/v1/me/playlists:
+    get:
+      tags: [library]
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Playlist"
+    post:
+      tags: [library]
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [title]
+              properties:
+                title: { type: string }
+                description: { type: string }
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Playlist"
+
+  /api/v1/me/playlists/{id}:
+    get:
+      tags: [library]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: "#/components/parameters/UuidId"
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Playlist"
+    patch:
+      tags: [library]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: "#/components/parameters/UuidId"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title: { type: string }
+                description: { type: string }
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Playlist"
+    delete:
+      tags: [library]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: "#/components/parameters/UuidId"
+      responses:
+        "204":
+          description: Deleted
+
+  /api/v1/me/playlists/{id}/tracks:
+    post:
+      tags: [library]
+      security: [{ bearerAuth: [] }]
+      summary: Append tracks
+      parameters:
+        - $ref: "#/components/parameters/UuidId"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [track_ids]
+              properties:
+                track_ids:
+                  type: array
+                  items: { type: string, format: uuid }
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Playlist"
+    put:
+      tags: [library]
+      security: [{ bearerAuth: [] }]
+      summary: Replace playlist track order
+      parameters:
+        - $ref: "#/components/parameters/UuidId"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [track_ids]
+              properties:
+                track_ids:
+                  type: array
+                  items: { type: string, format: uuid }
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Playlist"
+
+  /api/v1/me/playlists/{id}/tracks/{trackID}:
+    delete:
+      tags: [library]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: "#/components/parameters/UuidId"
+        - name: trackID
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Playlist"
+
+  /api/v1/me/recent:
+    get:
+      tags: [library]
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  track_ids:
+                    type: array
+                    items: { type: string, format: uuid }
+    post:
+      tags: [library]
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [track_id]
+              properties:
+                track_id: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Updated
+
+  /api/v1/me/library/import:
+    post:
+      tags: [library]
+      security: [{ bearerAuth: [] }]
+      summary: Import guest localStorage library
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LibraryImportInput"
+      responses:
+        "200":
+          description: Imported
+
+  /api/v1/creator/uploads/init:
+    post:
+      tags: [creator]
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UploadInitInput"
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UploadInitResponse"
+
+  /api/v1/creator/uploads/{trackID}/complete:
+    post:
+      tags: [creator]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: trackID
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                duration_ms: { type: integer }
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Track"
+
+  /api/v1/creator/uploads/{trackID}/retry:
+    post:
+      tags: [creator]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: trackID
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Re-queued
+
+  /api/v1/creator/uploads/{trackID}/status:
+    get:
+      tags: [creator]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: trackID
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Track"
+
+  /api/v1/creator/tracks:
+    get:
+      tags: [creator]
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TracksResponse"
+
+  /api/v1/stream/tracks/{id}/playback:
+    get:
+      tags: [stream]
+      parameters:
+        - $ref: "#/components/parameters/UuidId"
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PlaybackResponse"
+
+  /api/v1/stream/playlist.m3u8:
+    get:
+      tags: [stream]
+      summary: HLS master or variant playlist (requires pt token)
+      parameters:
+        - name: track_id
+          in: query
+          required: true
+          schema: { type: string, format: uuid }
+        - name: pt
+          in: query
+          required: true
+          schema: { type: string }
+        - name: path
+          in: query
+          schema: { type: string }
+      responses:
+        "200":
+          description: MPEG-TS playlist
+          content:
+            application/vnd.apple.mpegurl:
+              schema:
+                type: string
+
+  /api/v1/stream/hls.key:
+    get:
+      tags: [stream]
+      summary: AES-128 HLS key (requires pt token)
+      parameters:
+        - name: track_id
+          in: query
+          required: true
+          schema: { type: string, format: uuid }
+        - name: pt
+          in: query
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Binary key
+
+  /internal/admin/tracks:
+    get:
+      tags: [admin]
+      security: [{ adminKey: [] }]
+      parameters:
+        - name: status
+          in: query
+          schema: { $ref: "#/components/schemas/TrackStatus" }
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/TrackWithCreator"
+                  total: { type: integer }
+
+  /internal/admin/tracks/{id}/approve:
+    post:
+      tags: [admin]
+      security: [{ adminKey: [] }]
+      parameters:
+        - $ref: "#/components/parameters/UuidId"
+      responses:
+        "200":
+          description: Published
+
+  /internal/admin/tracks/{id}/reject:
+    post:
+      tags: [admin]
+      security: [{ adminKey: [] }]
+      parameters:
+        - $ref: "#/components/parameters/UuidId"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason: { type: string }
+      responses:
+        "200":
+          description: Rejected to draft
+
+  /internal/admin/queue/dlq:
+    get:
+      tags: [admin]
+      security: [{ adminKey: [] }]
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/DLQEntry"
+
+  /internal/admin/queue/depths:
+    get:
+      tags: [admin]
+      security: [{ adminKey: [] }]
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/QueueDepths"
+
+  /internal/admin/queue/dlq/retry:
+    post:
+      tags: [admin]
+      security: [{ adminKey: [] }]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [track_id]
+              properties:
+                track_id: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Requeued
+
+  /internal/seed/users:
+    post:
+      tags: [seed]
+      security: [{ seedKey: [] }]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateUserInput"
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+
+  /internal/seed/tracks:
+    post:
+      tags: [seed]
+      security: [{ seedKey: [] }]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateTrackInput"
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Track"
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+    adminKey:
+      type: apiKey
+      in: header
+      name: X-Gachify-Admin-Key
+    seedKey:
+      type: apiKey
+      in: header
+      name: X-Gachify-Seed-Key
+
+  parameters:
+    UuidId:
+      name: id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    Limit:
+      name: limit
+      in: query
+      schema: { type: integer, default: 20, maximum: 100 }
+    Offset:
+      name: offset
+      in: query
+      schema: { type: integer, default: 0, minimum: 0 }
+
+  responses:
+    BadRequest:
+      description: Invalid input
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    Unauthorized:
+      description: Authentication required or invalid
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+
+  schemas:
+    ErrorResponse:
+      type: object
+      properties:
+        error: { type: string }
+        message: { type: string }
+
+    LivenessResponse:
+      type: object
+      properties:
+        status: { type: string, example: ok }
+        service: { type: string }
+
+    ReadinessResponse:
+      type: object
+      properties:
+        status: { type: string, enum: [ok, degraded] }
+        database: { type: string, enum: [up, down] }
+        redis: { type: string, enum: [up, down] }
+        storage: { type: string, enum: [up, down] }
+
+    RegisterInput:
+      type: object
+      required: [email, password, handle]
+      properties:
+        email: { type: string, format: email }
+        password: { type: string, minLength: 8 }
+        handle: { type: string }
+        display_name: { type: string }
+
+    LoginInput:
+      type: object
+      required: [email, password]
+      properties:
+        email: { type: string, format: email }
+        password: { type: string }
+
+    TokenResponse:
+      type: object
+      properties:
+        access_token: { type: string }
+        refresh_token: { type: string }
+        expires_in: { type: integer }
+        token_type: { type: string, example: Bearer }
+        user:
+          $ref: "#/components/schemas/User"
+
+    User:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        email: { type: string }
+        handle: { type: string }
+        display_name: { type: string }
+        tier: { type: string }
+        trash_tolerance: { type: number }
+        gachi_persona: { type: object, additionalProperties: true }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
+    CreateUserInput:
+      type: object
+      required: [handle, display_name]
+      properties:
+        handle: { type: string }
+        display_name: { type: string }
+        gachi_persona: { type: object, additionalProperties: true }
+
+    TrackStatus:
+      type: string
+      enum:
+        - draft
+        - processing
+        - pending_review
+        - published
+        - shadow_banned
+        - removed
+
+    Track:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        creator_id: { type: string, format: uuid }
+        title: { type: string }
+        duration_ms: { type: integer }
+        status: { $ref: "#/components/schemas/TrackStatus" }
+        gachi_metadata: { type: object, additionalProperties: true }
+        play_count: { type: integer }
+        processing_error: { type: string, nullable: true }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
+    CreatorSummary:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        handle: { type: string }
+        display_name: { type: string }
+
+    TrackWithCreator:
+      allOf:
+        - $ref: "#/components/schemas/Track"
+        - type: object
+          properties:
+            creator:
+              $ref: "#/components/schemas/CreatorSummary"
+
+    TracksResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/TrackWithCreator"
+        total: { type: integer }
+        limit: { type: integer }
+        offset: { type: integer }
+        has_more: { type: boolean }
+
+    ArtistsSearchResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            type: object
+            properties:
+              id: { type: string, format: uuid }
+              handle: { type: string }
+              display_name: { type: string }
+              published_tracks: { type: integer }
+        total: { type: integer }
+        limit: { type: integer }
+        offset: { type: integer }
+        has_more: { type: boolean }
+
+    PlaylistItem:
+      type: object
+      properties:
+        track_id: { type: string, format: uuid }
+        position: { type: integer }
+        added_at: { type: string, format: date-time }
+
+    Playlist:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        owner_id: { type: string, format: uuid }
+        title: { type: string }
+        description: { type: string }
+        is_public: { type: boolean }
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/PlaylistItem"
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
+    LibraryImportInput:
+      type: object
+      properties:
+        liked_track_ids:
+          type: array
+          items: { type: string, format: uuid }
+        playlists:
+          type: array
+          items:
+            type: object
+            properties:
+              name: { type: string }
+              description: { type: string }
+              track_ids:
+                type: array
+                items: { type: string, format: uuid }
+
+    UploadInitInput:
+      type: object
+      required: [title, filename, content_type]
+      properties:
+        title: { type: string }
+        filename: { type: string }
+        content_type: { type: string }
+        duration_ms: { type: integer }
+        gachi_metadata: { type: object, additionalProperties: true }
+
+    UploadInitResponse:
+      type: object
+      properties:
+        track_id: { type: string, format: uuid }
+        upload_url: { type: string, format: uri }
+        object_key: { type: string }
+        expires_in_sec: { type: integer }
+
+    CreateTrackInput:
+      type: object
+      required: [creator_id, title, duration_ms, status]
+      properties:
+        creator_id: { type: string, format: uuid }
+        title: { type: string }
+        duration_ms: { type: integer }
+        status: { $ref: "#/components/schemas/TrackStatus" }
+        gachi_metadata: { type: object, additionalProperties: true }
+
+    PlaybackResponse:
+      type: object
+      properties:
+        format: { type: string, example: hls }
+        playlist_url: { type: string }
+        expires_in: { type: integer }
+        duration_ms: { type: integer }
+        fallback_url: { type: string, format: uri }
+
+    QueueDepths:
+      type: object
+      properties:
+        pending: { type: integer }
+        processing: { type: integer }
+        retry: { type: integer }
+        dlq: { type: integer }
+
+    DLQEntry:
+      type: object
+      properties:
+        job:
+          type: object
+          properties:
+            track_id: { type: string, format: uuid }
+            job_id: { type: string, format: uuid }
+        error: { type: string }
+        failed_at: { type: string, format: date-time }

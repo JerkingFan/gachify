@@ -31,6 +31,7 @@ func NewHandler(repo *Repository, rl *ratelimit.Limiter, searchLimit int, cacheS
 func (h *Handler) Routes() chi.Router {
 	r := chi.NewRouter()
 	r.With(h.rl.Middleware("tracks:search", h.searchLimit, time.Minute, ratelimit.ByIP)).Get("/", h.list)
+	r.Get("/{id}/similar", h.similar)
 	r.Get("/{id}", h.getByID)
 	r.Post("/{id}/play", h.recordPlay)
 	return r
@@ -166,6 +167,21 @@ func (h *Handler) recordPlay(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	httpserver.JSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
+func (h *Handler) similar(w http.ResponseWriter, r *http.Request) {
+	id, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		httpserver.Error(w, http.StatusBadRequest, "invalid_id", "track id must be a UUID")
+		return
+	}
+	limit := parseIntDefault(r.URL.Query().Get("limit"), 10)
+	tracks, err := h.repo.ListSimilar(r.Context(), id, limit)
+	if err != nil {
+		httpserver.Error(w, http.StatusInternalServerError, "internal_error", "failed to list similar tracks")
+		return
+	}
+	httpserver.JSON(w, http.StatusOK, map[string]any{"items": tracks})
 }
 
 func parseIntDefault(s string, def int) int {

@@ -6,8 +6,7 @@
 *.so
 *.dylib
 
-# Go
-/vendor/
+# Go (vendor/ is committed for offline Docker builds on VPS)
 *.test
 *.out
 coverage.out
@@ -30,6 +29,7 @@ Thumbs.db
 # Data volumes (local dev)
 .data/
 .dev/pids.json
+backups/
 
 # Node
 node_modules/

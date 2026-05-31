@@ -5,9 +5,18 @@
 	reverse_proxy web:80
 }
 
-# For HTTPS: replace the block above with your domain, e.g.:
-# gachify.example.com {
+# Production HTTPS template — replace :80 block when GACHIFY_DOMAIN is set:
+#
+# {$GACHIFY_DOMAIN} {
 #     encode gzip
+#     header {
+#         Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+#         X-Content-Type-Options "nosniff"
+#         X-Frame-Options "DENY"
+#         Referrer-Policy "strict-origin-when-cross-origin"
+#         -Server
+#     }
 #     reverse_proxy web:80
 # }
+#
 # Set ACME_EMAIL in .env and expose :443 on the caddy service.

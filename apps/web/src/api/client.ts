@@ -205,6 +205,35 @@ export const api = {
     return request<Track>(`/tracks/${id}`);
   },
 
+  getSimilarTracks(id: string, limit = 10): Promise<TracksResponse> {
+    return request<TracksResponse>(`/tracks/${id}/similar?limit=${limit}`);
+  },
+
+  getFeed(limit = 20, offset = 0): Promise<TracksResponse> {
+    return request<TracksResponse>(`/me/feed?limit=${limit}&offset=${offset}`, {}, true);
+  },
+
+  getFollowing(): Promise<{ user_ids: string[] }> {
+    return request<{ user_ids: string[] }>("/me/following", {}, true);
+  },
+
+  followUser(userId: string): Promise<void> {
+    return request<void>(`/me/following/${userId}`, { method: "PUT" }, true);
+  },
+
+  unfollowUser(userId: string): Promise<void> {
+    return request<void>(`/me/following/${userId}`, { method: "DELETE" }, true);
+  },
+
+  getCreatorAnalytics(): Promise<{
+    total_plays: number;
+    published_tracks: number;
+    total_tracks: number;
+    items: Array<{ id: string; title: string; status: string; play_count: number }>;
+  }> {
+    return request("/creator/analytics", {}, true);
+  },
+
   getUser(id: string): Promise<User> {
     return request<User>(`/users/${id}`);
   },

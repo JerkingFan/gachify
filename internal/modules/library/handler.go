@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	"github.com/gachify/gachify/internal/domain"
+	"github.com/gachify/gachify/internal/modules/catalog"
 	platformauth "github.com/gachify/gachify/internal/platform/auth"
 	"github.com/gachify/gachify/internal/platform/httpserver"
 	"github.com/gachify/gachify/internal/platform/recent"
@@ -14,12 +15,13 @@ import (
 )
 
 type Handler struct {
-	repo   *Repository
-	recent *recent.Store
+	repo    *Repository
+	catalog *catalog.Repository
+	recent  *recent.Store
 }
 
-func NewHandler(repo *Repository, recentStore *recent.Store) *Handler {
-	return &Handler{repo: repo, recent: recentStore}
+func NewHandler(repo *Repository, cat *catalog.Repository, recentStore *recent.Store) *Handler {
+	return &Handler{repo: repo, catalog: cat, recent: recentStore}
 }
 
 func (h *Handler) Routes() chi.Router {
@@ -38,6 +40,10 @@ func (h *Handler) Routes() chi.Router {
 	r.Post("/library/import", h.importLibrary)
 	r.Get("/recent", h.listRecent)
 	r.Post("/recent", h.addRecent)
+	r.Get("/feed", h.feed)
+	r.Get("/following", h.listFollowing)
+	r.Put("/following/{userID}", h.follow)
+	r.Delete("/following/{userID}", h.unfollow)
 	return r
 }
 

@@ -210,10 +210,73 @@ docker compose -f docker-compose.yml -f docker-compose.prod.yml -f deploy/docker
 
 | Alert | Condition | Action |
 |-------|-----------|--------|
-| **GachifyNotReady** | `gachify_ready == 0` for 2m | Check `GET /health/ready`, restart failed dependency containers |
+| **GachifyNotReady** | `gachify_ready == 0` for 2m (same as `/health/ready` → 503) | See runbook below |
 | **GachifyDLQNotEmpty** | DLQ depth > 0 for 5m | Open `/admin` → DLQ → Retry; inspect worker logs & ffmpeg |
 | **GachifyQueueBacklog** | pending > 10 for 10m | Scale workers (`GACHIFY_WORKER_REPLICAS`) |
 | **GachifyHighTranscodeDLQRate** | DLQ counter increased in 15m | Same as DLQ — fix storage/ffmpeg, retry jobs |
+
+### Runbook
+
+**1. `/health/ready` returns 503 (GachifyNotReady)**
+
+1. `curl -s http://localhost:8080/health/ready | jq` — note which dependency is `down`.
+2. `docker compose ps` — restart the failed service (`postgres`, `redis`, `minio`).
+3. If storage is down: check MinIO disk/volume; verify `GACHIFY_S3_*` credentials.
+4. Confirm recovery: `gachify_ready` → 1 in Grafana or `/metrics`.
+
+**2. DLQ not empty**
+
+1. Open http://localhost/admin (or Grafana **DLQ size** stat).
+2. Read error message per job; common causes: ffmpeg missing, corrupt upload, S3 permission.
+3. Fix root cause, click **Retry** or `POST /internal/admin/queue/dlq/retry`.
+4. Re-transcode from Creator Hub if track is still `draft`.
+
+**3. Queue backlog**
+
+1. Check worker logs: `docker compose logs worker --tail=100`.
+2. Increase replicas in prod compose or run additional `go run ./cmd/worker` locally.
+3. Watch `gachify_queue_depth{queue="pending"}` decrease in Grafana.
+
+## Backups & disaster recovery
+
+Postgres and MinIO are the durable stores. Automated backup scripts live in `deploy/`.
+
+| Script | Purpose |
+|--------|---------|
+| `deploy/backup.sh` | `pg_dump` (SQL + custom) + `mc mirror` of masters bucket |
+| `deploy/restore.sh` | Restore from a timestamped backup directory |
+| `deploy/restore-drill.sh` | Validate artifacts; `--full` restores into temp DB |
+| `deploy/cron/gachify-backup.cron` | Example cron entries |
+
+```bash
+# Manual backup (prod stack must be running)
+./deploy/backup.sh
+# -> backups/YYYYMMDD-HHMMSS/{gachify.sql,gachify.dump,minio-masters/,manifest.json}
+
+# Monthly drill (artifact check)
+./deploy/restore-drill.sh backups/20260101-120000
+
+# Full drill (isolated DB restore + row counts)
+./deploy/restore-drill.sh backups/20260101-120000 --full
+
+# Disaster restore (requires typing RESTORE)
+./deploy/restore.sh backups/20260101-120000 --yes
+```
+
+Env: `GACHIFY_BACKUP_DIR` (default `./backups`), `GACHIFY_BACKUP_RETAIN_DAYS` (default `14`).
+
+## OpenAPI contract
+
+Machine-readable spec: [`api/openapi.yaml`](api/openapi.yaml) — also served at `GET /api/v1/openapi.yaml`.
+
+Generate TypeScript types for the web app:
+
+```powershell
+cd apps/web
+npm run gen:api-types   # -> src/api/generated/schema.ts
+```
+
+Use `paths`, `components['schemas']`, and operation types from the generated file in new client code. CI runs `gen:api-types` and fails if the spec and generated output drift.
 
 ### Production email
 

@@ -10,6 +10,7 @@ import (
 
 func CommonMiddleware(log *slog.Logger) []func(http.Handler) http.Handler {
 	return []func(http.Handler) http.Handler{
+		SecurityHeaders,
 		middleware.RequestID,
 		middleware.RealIP,
 		middleware.Recoverer,

@@ -32,6 +32,7 @@ export function PlaylistPage() {
   const [editTitle, setEditTitle] = useState("");
   const [editDesc, setEditDesc] = useState("");
   const [busy, setBusy] = useState(false);
+  const [dragIndex, setDragIndex] = useState<number | null>(null);
 
   useEffect(() => {
     if (!id) return;
@@ -107,15 +108,21 @@ export function PlaylistPage() {
     if (!playlist) return;
     const nextIndex = index + direction;
     if (nextIndex < 0 || nextIndex >= trackIds.length) return;
+    await reorderTracks(index, nextIndex);
+  };
+
+  const reorderTracks = async (fromIndex: number, toIndex: number) => {
+    if (!playlist || fromIndex === toIndex) return;
     const ids = [...trackIds];
-    const [item] = ids.splice(index, 1);
-    ids.splice(nextIndex, 0, item);
+    const [item] = ids.splice(fromIndex, 1);
+    ids.splice(toIndex, 0, item);
     setBusy(true);
     try {
       const updated = await setPlaylistTracks(playlist.id, ids);
       setPlaylist(updated);
     } finally {
       setBusy(false);
+      setDragIndex(null);
     }
   };
 
@@ -236,7 +243,20 @@ export function PlaylistPage() {
         </div>
 
         {playlistTracks.map((t, i) => (
-          <div key={t.id} className="group relative">
+          <div
+            key={t.id}
+            className={`group relative ${dragIndex === i ? "opacity-50" : ""}`}
+            draggable={isOwner && !busy}
+            onDragStart={() => setDragIndex(i)}
+            onDragOver={(e) => {
+              if (isOwner) e.preventDefault();
+            }}
+            onDrop={(e) => {
+              e.preventDefault();
+              if (dragIndex != null) void reorderTracks(dragIndex, i);
+            }}
+            onDragEnd={() => setDragIndex(null)}
+          >
             <TrackRow track={t} index={i} queue={playlistTracks} />
             {isOwner && (
               <div className="absolute right-2 top-1/2 flex -translate-y-1/2 gap-1 opacity-0 group-hover:opacity-100">

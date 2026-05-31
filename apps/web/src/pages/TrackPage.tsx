@@ -39,14 +39,12 @@ export function TrackPage() {
         const t = await api.getTrack(id);
         setTrack(t);
         setLiked(isLikedFn(t.id));
-        const [u, all] = await Promise.all([
+        const [u, sim] = await Promise.all([
           api.getUser(t.creator_id).catch(() => null),
-          api.getTracks({ limit: 100, status: "published" }),
+          api.getSimilarTracks(t.id, 8),
         ]);
         setCreator(u);
-        setRelated(
-          all.items.filter((x) => x.creator_id === t.creator_id && x.id !== t.id).slice(0, 8),
-        );
+        setRelated(sim.items);
       } catch (e) {
         setError(e instanceof Error ? e.message : "Failed to load track");
       } finally {
@@ -115,6 +113,7 @@ export function TrackPage() {
             <p className="mt-2 text-sm text-spotify-muted">
               {formatDuration(track.duration_ms)} · ♂️ Power {meta.gachi_power_level ?? "—"}
               {meta.deepness_score != null && ` · Deepness ${meta.deepness_score}`}
+              {track.play_count != null && track.play_count > 0 && ` · ${track.play_count.toLocaleString()} plays`}
             </p>
             <div className="mt-6 flex flex-wrap items-center gap-3">
               <button
@@ -177,7 +176,7 @@ export function TrackPage() {
 
         {related.length > 0 && (
           <section>
-            <h2 className="mb-4 text-lg font-bold">More from this creator</h2>
+            <h2 className="mb-4 text-lg font-bold">Similar remixes</h2>
             <div className="mb-2 grid grid-cols-[16px_4fr_3fr_1fr_40px] gap-4 border-b border-white/10 px-4 pb-2 text-xs uppercase text-spotify-muted">
               <span>#</span>
               <span>Title</span>

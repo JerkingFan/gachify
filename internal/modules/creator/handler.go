@@ -34,6 +34,7 @@ func (h *Handler) Routes() chi.Router {
 	r.Post("/uploads/{trackID}/retry", h.retryUpload)
 	r.Get("/uploads/{trackID}/status", h.uploadStatus)
 	r.Get("/tracks", h.listMyTracks)
+	r.Get("/analytics", h.analytics)
 	return r
 }
 

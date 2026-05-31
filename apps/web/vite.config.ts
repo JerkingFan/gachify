@@ -39,6 +39,24 @@ export default defineConfig({
             },
           },
           {
+            urlPattern: ({ url }) => url.pathname.startsWith("/api/v1/me/feed"),
+            handler: "NetworkFirst",
+            options: {
+              cacheName: "gachify-feed",
+              networkTimeoutSeconds: 5,
+              expiration: { maxEntries: 1, maxAgeSeconds: 60 * 30 },
+            },
+          },
+          {
+            urlPattern: ({ url }) => /^\/api\/v1\/tracks\/[^/]+$/.test(url.pathname),
+            handler: "NetworkFirst",
+            options: {
+              cacheName: "gachify-track-detail",
+              networkTimeoutSeconds: 5,
+              expiration: { maxEntries: 32, maxAgeSeconds: 60 * 60 * 24 },
+            },
+          },
+          {
             urlPattern: ({ url }) => url.pathname.startsWith("/api/v1/tracks"),
             handler: "StaleWhileRevalidate",
             options: {

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/gachify/gachify/internal/config"
+	"github.com/gachify/gachify/api"
 	authmod "github.com/gachify/gachify/internal/modules/auth"
 	"github.com/gachify/gachify/internal/modules/admin"
 	"github.com/gachify/gachify/internal/modules/catalog"
@@ -99,7 +100,7 @@ func New(ctx context.Context) (*App, error) {
 	adminH := admin.NewHandler(catalogRepo, redisQ)
 
 	libRepo := library.NewRepository(pool)
-	libH := library.NewHandler(libRepo, recentStore)
+	libH := library.NewHandler(libRepo, catalogRepo, recentStore)
 	shareH := share.NewHandler(catalogRepo, libRepo, cfg.PublicAPIBaseURL, cfg.FrontendURL)
 
 	creatorSvc := creator.NewService(catalogRepo, s3, redisQ)
@@ -118,6 +119,10 @@ func New(ctx context.Context) (*App, error) {
 	}
 	r.Get("/health/live", healthH.Live)
 	r.Get("/health/ready", healthH.Ready)
+	r.Get("/api/v1/openapi.yaml", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/yaml")
+		_, _ = w.Write(api.OpenAPI)
+	})
 	r.Mount("/share", shareH.Routes())
 	if cfg.MetricsEnabled {
 		r.Handle("/metrics", metrics.Handler())

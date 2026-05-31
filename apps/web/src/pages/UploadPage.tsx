@@ -30,11 +30,21 @@ export function UploadPage() {
   const [message, setMessage] = useState("");
   const [myTracks, setMyTracks] = useState<Track[]>([]);
   const [retryingId, setRetryingId] = useState<string | null>(null);
+  const [analytics, setAnalytics] = useState<{
+    total_plays: number;
+    published_tracks: number;
+  } | null>(null);
 
   const loadMyTracks = useCallback(async () => {
     try {
-      const res = await api.getCreatorTracks();
+      const [res, stats] = await Promise.all([
+        api.getCreatorTracks(),
+        api.getCreatorAnalytics().catch(() => null),
+      ]);
       setMyTracks(res.items);
+      if (stats) {
+        setAnalytics({ total_plays: stats.total_plays, published_tracks: stats.published_tracks });
+      }
     } catch {
       /* ignore */
     }
@@ -150,6 +160,19 @@ export function UploadPage() {
               </p>
             </div>
           </div>
+
+          {analytics && (
+            <div className="mb-6 grid grid-cols-2 gap-3 rounded-lg bg-spotify-elevated p-4 text-sm">
+              <div>
+                <p className="text-spotify-muted">Total plays</p>
+                <p className="text-2xl font-bold tabular-nums">{analytics.total_plays.toLocaleString()}</p>
+              </div>
+              <div>
+                <p className="text-spotify-muted">Published tracks</p>
+                <p className="text-2xl font-bold tabular-nums">{analytics.published_tracks}</p>
+              </div>
+            </div>
+          )}
 
           {step === "form" && (
             <form onSubmit={handleSubmit} className="space-y-6 rounded-xl bg-spotify-elevated p-6">

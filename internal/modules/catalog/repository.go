@@ -307,3 +307,81 @@ func (r *Repository) IncrementPlayCount(ctx context.Context, id uuid.UUID) error
 	}
 	return nil
 }
+
+func (r *Repository) ListSimilar(ctx context.Context, trackID uuid.UUID, limit int) ([]domain.TrackWithCreator, error) {
+	if limit <= 0 {
+		limit = 10
+	}
+	if limit > 50 {
+		limit = 50
+	}
+	q := `SELECT ` + trackColumns + `, u.handle, u.display_name
+		FROM tracks t
+		JOIN users u ON u.id = t.creator_id
+		WHERE t.status = 'published' AND t.id != $1
+		AND (
+			t.creator_id = (SELECT creator_id FROM tracks WHERE id = $1)
+			OR EXISTS (
+				SELECT 1
+				FROM jsonb_array_elements_text(COALESCE(t.gachi_metadata->'mood_tags', '[]'::jsonb)) tag
+				WHERE tag IN (
+					SELECT jsonb_array_elements_text(COALESCE(ref.gachi_metadata->'mood_tags', '[]'::jsonb))
+					FROM tracks ref WHERE ref.id = $1
+				)
+			)
+		)
+		ORDER BY
+			CASE WHEN t.creator_id = (SELECT creator_id FROM tracks WHERE id = $1) THEN 0 ELSE 1 END,
+			t.play_count DESC,
+			t.created_at DESC
+		LIMIT $2`
+	rows, err := r.pool.Query(ctx, q, trackID, limit)
+	if err != nil {
+		return nil, fmt.Errorf("list similar: %w", err)
+	}
+	defer rows.Close()
+	var tracks []domain.TrackWithCreator
+	for rows.Next() {
+		item, err := scanTrackWithCreator(rows)
+		if err != nil {
+			return nil, err
+		}
+		tracks = append(tracks, item)
+	}
+	if tracks == nil {
+		tracks = []domain.TrackWithCreator{}
+	}
+	return tracks, rows.Err()
+}
+
+func (r *Repository) ListPublishedByCreators(ctx context.Context, creatorIDs []uuid.UUID, limit, offset int) ([]domain.TrackWithCreator, error) {
+	if len(creatorIDs) == 0 {
+		return []domain.TrackWithCreator{}, nil
+	}
+	if limit <= 0 {
+		limit = 20
+	}
+	q := `SELECT ` + trackColumns + `, u.handle, u.display_name
+		FROM tracks t
+		JOIN users u ON u.id = t.creator_id
+		WHERE t.status = 'published' AND t.creator_id = ANY($1)
+		ORDER BY t.created_at DESC
+		LIMIT $2 OFFSET $3`
+	rows, err := r.pool.Query(ctx, q, creatorIDs, limit, offset)
+	if err != nil {
+		return nil, fmt.Errorf("list feed: %w", err)
+	}
+	defer rows.Close()
+	var tracks []domain.TrackWithCreator
+	for rows.Next() {
+		item, err := scanTrackWithCreator(rows)
+		if err != nil {
+			return nil, err
+		}
+		tracks = append(tracks, item)
+	}
+	if tracks == nil {
+		tracks = []domain.TrackWithCreator{}
+	}
+	return tracks, rows.Err()
+}
