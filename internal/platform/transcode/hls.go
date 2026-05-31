@@ -62,7 +62,8 @@ func TranscodeToHLS(ctx context.Context, inputPath, destDir string) (HLSResult, 
 		return HLSResult{}, err
 	}
 	ivHex := hex.EncodeToString(iv)
-	keyInfo := fmt.Sprintf("%s\n%s\n%s\n", keyPath, HLSKeyURIPlaceholder, ivHex)
+	// FFmpeg keyinfo: line 1 = key URI in playlist, line 2 = local key file path, line 3 = IV (hex).
+	keyInfo := fmt.Sprintf("%s\n%s\n%s\n", HLSKeyURIPlaceholder, keyPath, ivHex)
 	if err := os.WriteFile(keyInfoPath, []byte(keyInfo), 0o600); err != nil {
 		return HLSResult{}, err
 	}
@@ -91,7 +92,7 @@ func TranscodeToHLS(ctx context.Context, inputPath, destDir string) (HLSResult, 
 		cmd := exec.CommandContext(ctx, "ffmpeg", args...)
 		out, err := cmd.CombinedOutput()
 		if err != nil {
-			return HLSResult{}, fmt.Errorf("ffmpeg %s: %w: %s", v.Name, err, truncate(string(out), 500))
+			return HLSResult{}, fmt.Errorf("ffmpeg %s: %w: %s", v.Name, err, truncate(string(out), 800))
 		}
 	}
 
@@ -146,6 +147,10 @@ func probeDurationMs(ctx context.Context, inputPath string) (int, error) {
 func truncate(s string, max int) string {
 	if len(s) <= max {
 		return s
+	}
+	// FFmpeg prints its banner first; keep the tail where the actual error lives.
+	if max > 20 && len(s) > max {
+		return "…" + s[len(s)-max+1:]
 	}
 	return s[:max] + "…"
 }

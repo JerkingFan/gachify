@@ -23,7 +23,7 @@ func TestTruncate(t *testing.T) {
 	}
 	long := strings.Repeat("x", 20)
 	out := truncate(long, 10)
-	if !strings.HasPrefix(out, strings.Repeat("x", 10)) {
+	if !strings.HasSuffix(out, strings.Repeat("x", 9)) {
 		t.Fatalf("unexpected truncated value: %q", out)
 	}
 }
