@@ -23,7 +23,7 @@ func TestTruncate(t *testing.T) {
 	}
 	long := "banner\n" + strings.Repeat("x", 20)
 	out := truncate(long, 12)
-	if !strings.Contains(out, "xxxxxxxxxxxx") {
+	if out != "…"+strings.Repeat("x", 11) {
 		t.Fatalf("expected tail of ffmpeg output, got: %q", out)
 	}
 }
