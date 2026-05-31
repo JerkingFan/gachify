@@ -1,19 +1,13 @@
-{
-	email {$ACME_EMAIL}
-}
+# MinIO is on host :9000 via docker-compose — do not bind :9000 here (port conflict).
 
-# HTTP for IP / default; HTTPS auto-enabled when GACHIFY_DOMAIN is a real public hostname
 :80 {
 	encode gzip
 	reverse_proxy web:80
 }
 
-{$GACHIFY_DOMAIN} {
-	encode gzip
-	reverse_proxy web:80
-}
-
-# Presigned HLS segment URLs (set GACHIFY_S3_PUBLIC_ENDPOINT to http(s)://host:9000)
-:9000 {
-	reverse_proxy minio:9000
-}
+# For HTTPS: replace the block above with your domain, e.g.:
+# gachify.example.com {
+#     encode gzip
+#     reverse_proxy web:80
+# }
+# Set ACME_EMAIL in .env and expose :443 on the caddy service.
