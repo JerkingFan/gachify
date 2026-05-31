@@ -44,7 +44,8 @@ func main() {
 	if err != nil {
 		log.Fatalf("s3: %v", err)
 	}
-	log.Println("transcode worker started — waiting for jobs on", queue.TranscodeQueueKey)
+	log.Printf("transcode worker started — queue=%s retry=%s dlq=%s max_attempts=%d",
+		queue.TranscodeQueueKey, queue.TranscodeRetryQueueKey, queue.TranscodeDLQKey, cfg.TranscodeMaxAttempts)
 
 	for {
 		select {
@@ -52,6 +53,10 @@ func main() {
 			log.Println("shutting down worker")
 			return
 		default:
+		}
+
+		if err := q.PromoteReadyRetries(ctx); err != nil {
+			log.Printf("promote retries error: %v", err)
 		}
 
 		job, err := q.DequeueTranscode(ctx, 5*time.Second)
@@ -65,7 +70,7 @@ func main() {
 
 		log.Printf("processing track=%s job=%s", job.TrackID, job.JobID)
 		if err := worker.RunTranscode(ctx, cat, st, job.TrackID, job.JobID); err != nil {
-			log.Printf("transcode failed track=%s: %v", job.TrackID, err)
+			worker.HandleFailure(ctx, cat, q, cfg, job, err)
 		} else {
 			log.Printf("transcode done track=%s", job.TrackID)
 		}

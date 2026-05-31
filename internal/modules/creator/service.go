@@ -20,6 +20,7 @@ var (
 	ErrObjectMissing     = errors.New("uploaded file not found in storage")
 	ErrFileTooLarge      = errors.New("file exceeds maximum upload size")
 	ErrInvalidState      = errors.New("track is not in a valid state for this operation")
+	ErrNotRetryable      = errors.New("track is not in a failed state eligible for retry")
 )
 
 var allowedContentTypes = map[string]bool{
@@ -124,6 +125,41 @@ func (s *Service) CompleteUpload(ctx context.Context, creatorID, trackID uuid.UU
 
 func (s *Service) GetUploadStatus(ctx context.Context, creatorID, trackID uuid.UUID) (domain.Track, error) {
 	return s.catalog.GetOwned(ctx, trackID, creatorID)
+}
+
+func (s *Service) RetryTranscode(ctx context.Context, creatorID, trackID uuid.UUID) (domain.Track, error) {
+	track, err := s.catalog.GetOwned(ctx, trackID, creatorID)
+	if err != nil {
+		return domain.Track{}, err
+	}
+	if track.MasterObjectKey == nil || *track.MasterObjectKey == "" {
+		return domain.Track{}, ErrObjectMissing
+	}
+	failed := track.Status == domain.TrackDraft && track.ProcessingError != nil && *track.ProcessingError != ""
+	if !failed {
+		return domain.Track{}, ErrNotRetryable
+	}
+	if _, err := s.storage.HeadObject(ctx, *track.MasterObjectKey); err != nil {
+		return domain.Track{}, ErrObjectMissing
+	}
+
+	jobID, err := s.catalog.CreateTranscodeJob(ctx, trackID)
+	if err != nil {
+		return domain.Track{}, err
+	}
+	if err := s.catalog.UpdateStatus(ctx, trackID, domain.TrackProcessing, nil); err != nil {
+		return domain.Track{}, err
+	}
+	if err := s.queue.EnqueueTranscode(ctx, queue.TranscodeJob{
+		TrackID:    trackID,
+		JobID:      jobID,
+		EnqueuedAt: time.Now().UTC(),
+	}); err != nil {
+		msg := "failed to enqueue transcode job"
+		_ = s.catalog.UpdateStatus(ctx, trackID, domain.TrackDraft, &msg)
+		return domain.Track{}, err
+	}
+	return s.catalog.GetByID(ctx, trackID)
 }
 
 func (s *Service) ListMyTracks(ctx context.Context, creatorID uuid.UUID, limit, offset int) ([]domain.Track, error) {

@@ -227,6 +227,12 @@ export const api = {
     return request<Track>(`/creator/uploads/${trackId}/status`, {}, true);
   },
 
+  retryTranscode(trackId: string): Promise<Track> {
+    return request<Track>(`/creator/uploads/${trackId}/retry`, {
+      method: "POST",
+    }, true);
+  },
+
   getCreatorTracks(): Promise<{ items: Track[] }> {
     return request<{ items: Track[] }>("/creator/tracks?limit=50", {}, true);
   },

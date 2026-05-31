@@ -146,6 +146,7 @@ Open http://localhost:5173/upload (must be logged in).
 |-----|-------------|
 | `POST /api/v1/creator/uploads/init` | Draft track + presigned PUT URL |
 | `POST /api/v1/creator/uploads/{id}/complete` | Verify object → `processing` → enqueue |
+| `POST /api/v1/creator/uploads/{id}/retry` | Re-queue transcode for failed upload (draft + `processing_error`) |
 | `GET /api/v1/creator/uploads/{id}/status` | Poll status |
 | `GET /api/v1/creator/tracks` | Your uploads (all statuses) |
 
@@ -165,6 +166,19 @@ Flow: `draft` → `processing` → `published` (worker runs **ffmpeg** → HLS i
 - Web player uses **hls.js**; falls back to `preview_url` for legacy tracks
 
 Re-upload or re-run worker on old seed tracks to generate HLS packages.
+
+Failed transcodes retry automatically (exponential backoff, default 3 attempts) then land in Redis DLQ (`gachify:transcode:dlq`). Use **Retry transcode** in Creator Hub or `POST /api/v1/creator/uploads/{id}/retry`.
+
+## Tests & CI
+
+```powershell
+go test ./...                              # unit tests
+$env:INTEGRATION=1; go test ./internal/modules/catalog/...  # Postgres via testcontainers
+cd apps/web && npm run lint && npm run build
+bash scripts/smoke-e2e.sh                  # docker infra + API health + seed
+```
+
+GitHub Actions (`.github/workflows/ci.yml`): `go vet`, `go test`, integration tests, web lint + build.
 
 ## Deploy with Docker (full stack)
 

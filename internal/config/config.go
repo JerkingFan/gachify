@@ -31,6 +31,8 @@ type Config struct {
 	PublicAPIBaseURL   string
 	SeedSecret         string
 	RateLimit          RateLimitConfig
+	TranscodeMaxAttempts int
+	TranscodeRetryBase   time.Duration
 }
 
 type RateLimitConfig struct {
@@ -87,6 +89,14 @@ func Load() (Config, error) {
 	cfg.PlaybackSegmentTTL, err = time.ParseDuration(getEnv("GACHIFY_PLAYBACK_SEGMENT_TTL", "2m"))
 	if err != nil {
 		return Config{}, fmt.Errorf("GACHIFY_PLAYBACK_SEGMENT_TTL: %w", err)
+	}
+	cfg.TranscodeMaxAttempts = parseIntDefault(getEnv("GACHIFY_TRANSCODE_MAX_ATTEMPTS", "3"), 3)
+	if cfg.TranscodeMaxAttempts < 1 {
+		cfg.TranscodeMaxAttempts = 1
+	}
+	cfg.TranscodeRetryBase, err = time.ParseDuration(getEnv("GACHIFY_TRANSCODE_RETRY_BASE", "30s"))
+	if err != nil {
+		return Config{}, fmt.Errorf("GACHIFY_TRANSCODE_RETRY_BASE: %w", err)
 	}
 
 	if cfg.DatabaseURL == "" {

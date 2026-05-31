@@ -142,6 +142,48 @@ func (r *Repository) MarkJobFailed(ctx context.Context, jobID uuid.UUID, errMsg 
 	return err
 }
 
+func (r *Repository) ResetJobPending(ctx context.Context, jobID uuid.UUID, errMsg string) error {
+	_, err := r.pool.Exec(ctx, `
+		UPDATE transcode_jobs SET status = 'pending', last_error = $2, completed_at = NULL WHERE id = $1
+	`, jobID, errMsg)
+	return err
+}
+
+func (r *Repository) GetTranscodeJob(ctx context.Context, jobID uuid.UUID) (domain.TranscodeJob, error) {
+	var j domain.TranscodeJob
+	var lastError *string
+	err := r.pool.QueryRow(ctx, `
+		SELECT id, track_id, status, attempts, last_error, created_at
+		FROM transcode_jobs WHERE id = $1
+	`, jobID).Scan(&j.ID, &j.TrackID, &j.Status, &j.Attempts, &lastError, &j.CreatedAt)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return domain.TranscodeJob{}, ErrNotFound
+	}
+	if err != nil {
+		return domain.TranscodeJob{}, fmt.Errorf("get transcode job: %w", err)
+	}
+	j.LastError = lastError
+	return j, nil
+}
+
+func (r *Repository) GetLatestTranscodeJob(ctx context.Context, trackID uuid.UUID) (domain.TranscodeJob, error) {
+	var j domain.TranscodeJob
+	var lastError *string
+	err := r.pool.QueryRow(ctx, `
+		SELECT id, track_id, status, attempts, last_error, created_at
+		FROM transcode_jobs WHERE track_id = $1
+		ORDER BY created_at DESC LIMIT 1
+	`, trackID).Scan(&j.ID, &j.TrackID, &j.Status, &j.Attempts, &lastError, &j.CreatedAt)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return domain.TranscodeJob{}, ErrNotFound
+	}
+	if err != nil {
+		return domain.TranscodeJob{}, fmt.Errorf("get latest transcode job: %w", err)
+	}
+	j.LastError = lastError
+	return j, nil
+}
+
 func normalizeListFilter(f *domain.ListTracksFilter) {
 	if f.Limit <= 0 || f.Limit > 100 {
 		f.Limit = 20

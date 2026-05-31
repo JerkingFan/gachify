@@ -1,4 +1,4 @@
-import { AlertCircle, CheckCircle2, Loader2, Upload } from "lucide-react";
+import { AlertCircle, CheckCircle2, Loader2, RotateCcw, Upload } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { Navigate } from "react-router-dom";
 import { api } from "@/api/client";
@@ -10,6 +10,15 @@ type Step = "form" | "uploading" | "processing" | "done" | "error";
 
 const ACCEPT = ".flac,.wav,.mp3,audio/flac,audio/wav,audio/mpeg";
 
+function isFailedTrack(t: Track): boolean {
+  return t.status === "draft" && Boolean(t.processing_error);
+}
+
+function trackStatusLabel(t: Track): string {
+  if (isFailedTrack(t)) return "failed";
+  return t.status;
+}
+
 export function UploadPage() {
   const { isAuthenticated } = useAuthStore();
   const [step, setStep] = useState<Step>("form");
@@ -20,6 +29,7 @@ export function UploadPage() {
   const [track, setTrack] = useState<Track | null>(null);
   const [message, setMessage] = useState("");
   const [myTracks, setMyTracks] = useState<Track[]>([]);
+  const [retryingId, setRetryingId] = useState<string | null>(null);
 
   const loadMyTracks = useCallback(async () => {
     try {
@@ -37,6 +47,50 @@ export function UploadPage() {
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
   }
+
+  const pollStatus = async (trackId: string) => {
+    const maxAttempts = 40;
+    for (let i = 0; i < maxAttempts; i++) {
+      await new Promise((r) => setTimeout(r, 1500));
+      try {
+        const t = await api.getUploadStatus(trackId);
+        setTrack(t);
+        if (t.status === "published") {
+          setStep("done");
+          setMessage("Your remix is live in the catalog.");
+          void loadMyTracks();
+          return;
+        }
+        if (isFailedTrack(t)) {
+          setStep("error");
+          setMessage(t.processing_error ?? "Transcode failed");
+          void loadMyTracks();
+          return;
+        }
+        setMessage(`Status: ${t.status}… (waiting for transcode worker)`);
+      } catch {
+        /* retry */
+      }
+    }
+    setStep("error");
+    setMessage("Transcode timed out — is the worker running? (go run ./cmd/worker)");
+  };
+
+  const handleRetry = async (trackId: string) => {
+    setRetryingId(trackId);
+    setMessage("Re-queuing transcode…");
+    setStep("processing");
+    try {
+      const t = await api.retryTranscode(trackId);
+      setTrack(t);
+      void pollStatus(trackId);
+    } catch (err) {
+      setStep("error");
+      setMessage(err instanceof Error ? err.message : "Retry failed");
+    } finally {
+      setRetryingId(null);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -71,39 +125,14 @@ export function UploadPage() {
       const completed = await api.completeUpload(init.track_id, { duration_ms: 0 });
       setTrack(completed);
       setStep("processing");
-      pollStatus(init.track_id);
+      void pollStatus(init.track_id);
     } catch (err) {
       setStep("error");
       setMessage(err instanceof Error ? err.message : "Upload failed");
     }
   };
 
-  const pollStatus = async (trackId: string) => {
-    const maxAttempts = 40;
-    for (let i = 0; i < maxAttempts; i++) {
-      await new Promise((r) => setTimeout(r, 1500));
-      try {
-        const t = await api.getUploadStatus(trackId);
-        setTrack(t);
-        if (t.status === "published") {
-          setStep("done");
-          setMessage("Your remix is live in the catalog.");
-          void loadMyTracks();
-          return;
-        }
-        if (t.status === "draft" && t.processing_error) {
-          setStep("error");
-          setMessage(t.processing_error);
-          return;
-        }
-        setMessage(`Status: ${t.status}… (waiting for transcode worker)`);
-      } catch {
-        /* retry */
-      }
-    }
-    setStep("error");
-    setMessage("Transcode timed out — is the worker running? (go run ./cmd/worker)");
-  };
+  const failedTrackId = track && isFailedTrack(track) ? track.id : null;
 
   return (
     <>
@@ -192,30 +221,43 @@ export function UploadPage() {
                 ) : (
                   <AlertCircle className="h-6 w-6 shrink-0 text-amber-400" />
                 )}
-                <div>
-                  <p className="font-semibold capitalize">{step}</p>
+                <div className="min-w-0 flex-1">
+                  <p className="font-semibold capitalize">{step === "error" ? "failed" : step}</p>
                   <p className="mt-1 text-sm text-spotify-muted">{message}</p>
                   {track && (
                     <p className="mt-2 text-xs text-spotify-subtle">
-                      Track ID: {track.id} · status: {track.status}
+                      Track ID: {track.id} · status: {trackStatusLabel(track)}
                     </p>
                   )}
                 </div>
               </div>
-              {(step === "done" || step === "error") && (
-                <button
-                  type="button"
-                  className="mt-4 text-sm text-spotify-green underline"
-                  onClick={() => {
-                    setStep("form");
-                    setTrack(null);
-                    setFile(null);
-                    setMessage("");
-                  }}
-                >
-                  Upload another
-                </button>
-              )}
+              <div className="mt-4 flex flex-wrap gap-3">
+                {step === "error" && failedTrackId && (
+                  <button
+                    type="button"
+                    disabled={retryingId === failedTrackId}
+                    onClick={() => void handleRetry(failedTrackId)}
+                    className="inline-flex items-center gap-2 rounded-full bg-spotify-green px-4 py-2 text-sm font-semibold text-black hover:bg-spotify-green-hover disabled:opacity-50"
+                  >
+                    <RotateCcw className="h-4 w-4" />
+                    Retry transcode
+                  </button>
+                )}
+                {(step === "done" || step === "error") && (
+                  <button
+                    type="button"
+                    className="text-sm text-spotify-green underline"
+                    onClick={() => {
+                      setStep("form");
+                      setTrack(null);
+                      setFile(null);
+                      setMessage("");
+                    }}
+                  >
+                    Upload another
+                  </button>
+                )}
+              </div>
             </div>
           )}
 
@@ -234,25 +276,43 @@ export function UploadPage() {
               <p className="text-sm text-spotify-muted">No uploads yet.</p>
             ) : (
               <ul className="space-y-2">
-                {myTracks.map((t) => (
-                  <li
-                    key={t.id}
-                    className="flex items-center justify-between rounded-md bg-spotify-highlight px-4 py-2 text-sm"
-                  >
-                    <span className="truncate font-medium">{t.title}</span>
-                    <span
-                      className={`ml-2 shrink-0 rounded-full px-2 py-0.5 text-xs ${
-                        t.status === "published"
-                          ? "bg-spotify-green/20 text-spotify-green"
-                          : t.status === "processing"
-                            ? "bg-amber-500/20 text-amber-300"
-                            : "bg-white/10 text-spotify-muted"
-                      }`}
+                {myTracks.map((t) => {
+                  const failed = isFailedTrack(t);
+                  return (
+                    <li
+                      key={t.id}
+                      className="flex items-center justify-between gap-2 rounded-md bg-spotify-highlight px-4 py-2 text-sm"
                     >
-                      {t.status}
-                    </span>
-                  </li>
-                ))}
+                      <span className="truncate font-medium">{t.title}</span>
+                      <div className="flex shrink-0 items-center gap-2">
+                        {failed && (
+                          <button
+                            type="button"
+                            disabled={retryingId === t.id}
+                            onClick={() => void handleRetry(t.id)}
+                            className="inline-flex items-center gap-1 rounded-full bg-spotify-green/20 px-2 py-0.5 text-xs font-medium text-spotify-green hover:bg-spotify-green/30 disabled:opacity-50"
+                          >
+                            <RotateCcw className="h-3 w-3" />
+                            Retry
+                          </button>
+                        )}
+                        <span
+                          className={`rounded-full px-2 py-0.5 text-xs ${
+                            t.status === "published"
+                              ? "bg-spotify-green/20 text-spotify-green"
+                              : failed
+                                ? "bg-red-500/20 text-red-300"
+                                : t.status === "processing"
+                                  ? "bg-amber-500/20 text-amber-300"
+                                  : "bg-white/10 text-spotify-muted"
+                          }`}
+                        >
+                          {trackStatusLabel(t)}
+                        </span>
+                      </div>
+                    </li>
+                  );
+                })}
               </ul>
             )}
           </section>

@@ -31,6 +31,7 @@ func (h *Handler) Routes() chi.Router {
 	r := chi.NewRouter()
 	r.With(h.rl.Middleware("creator:upload_init", h.uploadLimit, time.Hour, ratelimit.ByUser)).Post("/uploads/init", h.initUpload)
 	r.Post("/uploads/{trackID}/complete", h.completeUpload)
+	r.Post("/uploads/{trackID}/retry", h.retryUpload)
 	r.Get("/uploads/{trackID}/status", h.uploadStatus)
 	r.Get("/tracks", h.listMyTracks)
 	return r
@@ -99,6 +100,37 @@ func (h *Handler) completeUpload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	httpserver.JSON(w, http.StatusOK, track)
+}
+
+func (h *Handler) retryUpload(w http.ResponseWriter, r *http.Request) {
+	uid, ok := platformauth.UserIDFromContext(r.Context())
+	if !ok {
+		httpserver.Error(w, http.StatusUnauthorized, "unauthorized", "login required")
+		return
+	}
+	trackID, err := uuid.Parse(chi.URLParam(r, "trackID"))
+	if err != nil {
+		httpserver.Error(w, http.StatusBadRequest, "invalid_id", "invalid track id")
+		return
+	}
+	track, err := h.svc.RetryTranscode(r.Context(), uid, trackID)
+	if errors.Is(err, catalog.ErrNotFound) {
+		httpserver.Error(w, http.StatusNotFound, "not_found", "track not found")
+		return
+	}
+	if errors.Is(err, ErrNotRetryable) {
+		httpserver.Error(w, http.StatusConflict, "not_retryable", "track is not in a failed state")
+		return
+	}
+	if errors.Is(err, ErrObjectMissing) {
+		httpserver.Error(w, http.StatusBadRequest, "upload_missing", "master file not found in storage")
+		return
+	}
+	if err != nil {
+		httpserver.Error(w, http.StatusInternalServerError, "retry_failed", "failed to retry transcode")
+		return
+	}
+	httpserver.JSON(w, http.StatusAccepted, track)
 }
 
 func (h *Handler) uploadStatus(w http.ResponseWriter, r *http.Request) {

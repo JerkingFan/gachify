@@ -21,19 +21,15 @@ func RunTranscode(ctx context.Context, cat *catalog.Repository, st *storage.Clie
 
 	track, err := cat.GetByID(ctx, trackID)
 	if err != nil {
-		_ = cat.MarkJobFailed(ctx, jobID, err.Error())
 		return err
 	}
 	if track.MasterObjectKey == nil || *track.MasterObjectKey == "" {
-		errMsg := "missing master object key"
-		_ = cat.MarkJobFailed(ctx, jobID, errMsg)
-		_ = cat.UpdateStatus(ctx, trackID, domain.TrackDraft, &errMsg)
-		return fmt.Errorf(errMsg)
+		return fmt.Errorf("missing master object key")
 	}
 
 	tmp, err := os.MkdirTemp("", "gachify-transcode-*")
 	if err != nil {
-		return failJob(ctx, cat, jobID, trackID, err)
+		return err
 	}
 	defer os.RemoveAll(tmp)
 
@@ -46,18 +42,18 @@ func RunTranscode(ctx context.Context, cat *catalog.Repository, st *storage.Clie
 	}
 	inputPath := filepath.Join(tmp, "source"+ext)
 	if err := st.DownloadToFile(ctx, *track.MasterObjectKey, inputPath); err != nil {
-		return failJob(ctx, cat, jobID, trackID, err)
+		return err
 	}
 
 	hlsDir := filepath.Join(tmp, "hls")
 	result, err := transcode.TranscodeToHLS(ctx, inputPath, hlsDir)
 	if err != nil {
-		return failJob(ctx, cat, jobID, trackID, err)
+		return err
 	}
 
 	prefix := transcode.PrefixKey(trackID.String())
 	if err := st.UploadDirectory(ctx, hlsDir, prefix); err != nil {
-		return failJob(ctx, cat, jobID, trackID, err)
+		return err
 	}
 
 	manifestKey := transcode.ManifestObjectKey(trackID.String())
@@ -71,24 +67,17 @@ func RunTranscode(ctx context.Context, cat *catalog.Repository, st *storage.Clie
 	}
 	meta["transcoded"] = true
 	meta["transcode_engine"] = "ffmpeg-hls-v1"
-	delete(meta, "preview_url") // prefer HLS
+	delete(meta, "preview_url")
 	raw, _ := json.Marshal(meta)
 
 	if result.DurationMs > 0 {
 		_ = cat.UpdateDuration(ctx, trackID, result.DurationMs)
 	}
 	if err := cat.UpdateGachiMetadata(ctx, trackID, raw); err != nil {
-		return failJob(ctx, cat, jobID, trackID, err)
+		return err
 	}
 	if err := cat.UpdateStatus(ctx, trackID, domain.TrackPublished, nil); err != nil {
-		return failJob(ctx, cat, jobID, trackID, err)
+		return err
 	}
 	return cat.MarkJobCompleted(ctx, jobID)
-}
-
-func failJob(ctx context.Context, cat *catalog.Repository, jobID, trackID uuid.UUID, err error) error {
-	msg := err.Error()
-	_ = cat.MarkJobFailed(ctx, jobID, msg)
-	_ = cat.UpdateStatus(ctx, trackID, domain.TrackDraft, &msg)
-	return err
 }

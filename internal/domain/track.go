@@ -90,3 +90,12 @@ type ListTracksFilter struct {
 	Limit     int
 	Offset    int
 }
+
+type TranscodeJob struct {
+	ID        uuid.UUID `json:"id"`
+	TrackID   uuid.UUID `json:"track_id"`
+	Status    string    `json:"status"`
+	Attempts  int       `json:"attempts"`
+	LastError *string   `json:"last_error,omitempty"`
+	CreatedAt time.Time `json:"created_at"`
+}
