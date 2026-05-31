@@ -100,7 +100,7 @@ curl http://localhost:8080/api/v1/tracks
 | Method | Path | Description |
 |--------|------|-------------|
 | GET | `/health/live` | Liveness |
-| GET | `/health/ready` | Readiness (DB ping) |
+| GET | `/health/ready` | Readiness (Postgres, Redis, MinIO/S3) — returns 503 if any dependency is down |
 | GET | `/api/v1/` | API meta |
 | GET | `/api/v1/users/{id}` | Get user |
 | GET | `/api/v1/users/by-handle/{handle}` | Get by handle |

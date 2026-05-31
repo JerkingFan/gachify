@@ -220,3 +220,13 @@ func contentTypeForExt(ext string) string {
 func (c *Client) MaxUploadBytes() int64 {
 	return c.maxBytes
 }
+
+func (c *Client) Ping(ctx context.Context) error {
+	_, err := c.s3.HeadBucket(ctx, &s3.HeadBucketInput{
+		Bucket: aws.String(c.bucket),
+	})
+	if err != nil {
+		return fmt.Errorf("head bucket: %w", err)
+	}
+	return nil
+}

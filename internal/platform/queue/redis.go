@@ -34,6 +34,10 @@ func (q *RedisQueue) Ping(ctx context.Context) error {
 	return q.client.Ping(ctx).Err()
 }
 
+func (q *RedisQueue) Client() *redis.Client {
+	return q.client
+}
+
 func (q *RedisQueue) EnqueueTranscode(ctx context.Context, job TranscodeJob) error {
 	raw, err := json.Marshal(job)
 	if err != nil {

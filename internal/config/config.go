@@ -30,6 +30,15 @@ type Config struct {
 	PlaybackSegmentTTL time.Duration
 	PublicAPIBaseURL   string
 	SeedSecret         string
+	RateLimit          RateLimitConfig
+}
+
+type RateLimitConfig struct {
+	Enabled      bool
+	AuthLogin    int
+	AuthRegister int
+	UploadInit   int
+	Search       int
 }
 
 func Load() (Config, error) {
@@ -53,6 +62,13 @@ func Load() (Config, error) {
 		UploadMaxBytes:     100 * 1024 * 1024,
 		PublicAPIBaseURL:   getEnv("GACHIFY_PUBLIC_API_URL", "http://localhost:8080"),
 		SeedSecret:         os.Getenv("GACHIFY_SEED_SECRET"),
+		RateLimit: RateLimitConfig{
+			Enabled:      getEnv("GACHIFY_RATE_LIMIT_ENABLED", "true") == "true",
+			AuthLogin:    parseIntDefault(getEnv("GACHIFY_RATE_LIMIT_AUTH_LOGIN", "10"), 10),
+			AuthRegister: parseIntDefault(getEnv("GACHIFY_RATE_LIMIT_AUTH_REGISTER", "5"), 5),
+			UploadInit:   parseIntDefault(getEnv("GACHIFY_RATE_LIMIT_UPLOAD_INIT", "20"), 20),
+			Search:       parseIntDefault(getEnv("GACHIFY_RATE_LIMIT_SEARCH", "60"), 60),
+		},
 	}
 
 	var err error
@@ -87,4 +103,15 @@ func getEnv(key, fallback string) string {
 		return v
 	}
 	return fallback
+}
+
+func parseIntDefault(s string, def int) int {
+	if s == "" {
+		return def
+	}
+	var n int
+	if _, err := fmt.Sscanf(s, "%d", &n); err != nil || n < 0 {
+		return def
+	}
+	return n
 }

@@ -6,24 +6,29 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gachify/gachify/internal/domain"
 	"github.com/gachify/gachify/internal/platform/httpserver"
+	"github.com/gachify/gachify/internal/platform/ratelimit"
+	"github.com/gachify/gachify/internal/platform/validate"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 )
 
 type Handler struct {
-	repo *Repository
+	repo        *Repository
+	rl          *ratelimit.Limiter
+	searchLimit int
 }
 
-func NewHandler(repo *Repository) *Handler {
-	return &Handler{repo: repo}
+func NewHandler(repo *Repository, rl *ratelimit.Limiter, searchLimit int) *Handler {
+	return &Handler{repo: repo, rl: rl, searchLimit: searchLimit}
 }
 
 func (h *Handler) Routes() chi.Router {
 	r := chi.NewRouter()
-	r.Get("/", h.list)
+	r.With(h.rl.Middleware("tracks:search", h.searchLimit, time.Minute, ratelimit.ByIP)).Get("/", h.list)
 	r.Get("/{id}", h.getByID)
 	return r
 }
@@ -91,6 +96,10 @@ func (h *Handler) list(w http.ResponseWriter, r *http.Request) {
 		f.CreatorID = &id
 	}
 	f.Query = strings.TrimSpace(r.URL.Query().Get("q"))
+	if err := validate.SearchQuery(f.Query); err != nil {
+		httpserver.Error(w, http.StatusBadRequest, "invalid_query", err.Error())
+		return
+	}
 	// Default feed: published tracks only
 	if f.Status == nil {
 		st := domain.TrackPublished

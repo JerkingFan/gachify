@@ -22,6 +22,7 @@ import (
 	"github.com/gachify/gachify/internal/platform/database"
 	"github.com/gachify/gachify/internal/platform/httpserver"
 	"github.com/gachify/gachify/internal/platform/queue"
+	"github.com/gachify/gachify/internal/platform/ratelimit"
 	"github.com/gachify/gachify/internal/platform/storage"
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -51,19 +52,6 @@ func New(ctx context.Context) (*App, error) {
 
 	tokens := platformauth.NewTokenService(cfg.JWTSecret, cfg.JWTAccessTTL, cfg.JWTRefreshTTL)
 
-	healthH := health.NewHandler(pool)
-	userRepo := users.NewRepository(pool)
-	userH := users.NewHandler(userRepo)
-	catalogRepo := catalog.NewRepository(pool)
-	catalogH := catalog.NewHandler(catalogRepo)
-
-	authRepo := authmod.NewRepository(pool)
-	authSvc := authmod.NewService(authRepo, userRepo, tokens, cfg.JWTAccessTTL)
-	authH := authmod.NewHandler(authSvc, userRepo, cfg)
-
-	libRepo := library.NewRepository(pool)
-	libH := library.NewHandler(libRepo)
-
 	s3, err := storage.NewClient(ctx, cfg)
 	if err != nil {
 		return nil, fmt.Errorf("s3: %w", err)
@@ -72,8 +60,23 @@ func New(ctx context.Context) (*App, error) {
 	if err != nil {
 		return nil, fmt.Errorf("redis: %w", err)
 	}
+	rateLimiter := ratelimit.New(redisQ.Client(), "gachify:rl", cfg.RateLimit.Enabled, log)
+
+	healthH := health.NewHandler(pool, redisQ, s3)
+	userRepo := users.NewRepository(pool)
+	userH := users.NewHandler(userRepo)
+	catalogRepo := catalog.NewRepository(pool)
+	catalogH := catalog.NewHandler(catalogRepo, rateLimiter, cfg.RateLimit.Search)
+
+	authRepo := authmod.NewRepository(pool)
+	authSvc := authmod.NewService(authRepo, userRepo, tokens, cfg.JWTAccessTTL)
+	authH := authmod.NewHandler(authSvc, userRepo, cfg)
+
+	libRepo := library.NewRepository(pool)
+	libH := library.NewHandler(libRepo)
+
 	creatorSvc := creator.NewService(catalogRepo, s3, redisQ)
-	creatorH := creator.NewHandler(creatorSvc)
+	creatorH := creator.NewHandler(creatorSvc, rateLimiter, cfg.RateLimit.UploadInit)
 	seedH := seed.NewHandler(userH, catalogH)
 
 	playbackSigner := streamtoken.NewTokenSigner(cfg.JWTSecret, cfg.PlaybackTokenTTL)
@@ -99,7 +102,7 @@ func New(ctx context.Context) (*App, error) {
 				"tagline": "Deep Dark Fantasy, delivered at scale.",
 			})
 		})
-		api.Mount("/auth", authH.Routes(tokens))
+		api.Mount("/auth", authH.Routes(tokens, rateLimiter))
 		api.Mount("/auth/oidc", authH.OIDCRoutes())
 		api.Mount("/users", userH.Routes())
 		api.Mount("/tracks", catalogH.Routes())

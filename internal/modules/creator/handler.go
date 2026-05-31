@@ -5,26 +5,31 @@ import (
 	"errors"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/gachify/gachify/internal/domain"
 	platformauth "github.com/gachify/gachify/internal/platform/auth"
 	"github.com/gachify/gachify/internal/modules/catalog"
 	"github.com/gachify/gachify/internal/platform/httpserver"
+	"github.com/gachify/gachify/internal/platform/ratelimit"
+	"github.com/gachify/gachify/internal/platform/validate"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 )
 
 type Handler struct {
-	svc *Service
+	svc         *Service
+	rl          *ratelimit.Limiter
+	uploadLimit int
 }
 
-func NewHandler(svc *Service) *Handler {
-	return &Handler{svc: svc}
+func NewHandler(svc *Service, rl *ratelimit.Limiter, uploadLimit int) *Handler {
+	return &Handler{svc: svc, rl: rl, uploadLimit: uploadLimit}
 }
 
 func (h *Handler) Routes() chi.Router {
 	r := chi.NewRouter()
-	r.Post("/uploads/init", h.initUpload)
+	r.With(h.rl.Middleware("creator:upload_init", h.uploadLimit, time.Hour, ratelimit.ByUser)).Post("/uploads/init", h.initUpload)
 	r.Post("/uploads/{trackID}/complete", h.completeUpload)
 	r.Get("/uploads/{trackID}/status", h.uploadStatus)
 	r.Get("/tracks", h.listMyTracks)
@@ -40,6 +45,10 @@ func (h *Handler) initUpload(w http.ResponseWriter, r *http.Request) {
 	var in domain.UploadInitInput
 	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
 		httpserver.Error(w, http.StatusBadRequest, "invalid_json", "invalid body")
+		return
+	}
+	if err := validate.UploadInit(in); err != nil {
+		httpserver.Error(w, http.StatusBadRequest, "invalid_input", err.Error())
 		return
 	}
 	out, err := h.svc.InitUpload(r.Context(), uid, in)
