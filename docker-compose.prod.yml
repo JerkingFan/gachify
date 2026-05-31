@@ -12,6 +12,12 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-gachify}
       POSTGRES_DB: ${POSTGRES_DB:-gachify}
 
+  minio:
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-gachify}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-gachifysecret}
+      MINIO_API_CORS_ALLOW_ORIGIN: ${GACHIFY_CORS_ORIGINS:-http://localhost,http://127.0.0.1,http://localhost:5173}
+
   minio-init:
     volumes:
       - ./deploy/minio-init.sh:/init.sh:ro

@@ -35,6 +35,7 @@ services:
     environment:
       MINIO_ROOT_USER: gachify
       MINIO_ROOT_PASSWORD: gachifysecret
+      MINIO_API_CORS_ALLOW_ORIGIN: ${GACHIFY_CORS_ORIGINS:-http://localhost,http://127.0.0.1,http://localhost:5173}
     ports:
       - "9000:9000"
       - "9001:9001"
@@ -59,8 +60,6 @@ services:
       mc alias set local http://minio:9000 gachify gachifysecret;
       mc mb local/gachify-masters --ignore-existing;
       mc mb local/gachify-public --ignore-existing;
-      printf '%s' '[{\"AllowedOrigins\":[\"http://localhost:5173\",\"http://127.0.0.1:5173\"],\"AllowedMethods\":[\"GET\",\"PUT\",\"HEAD\"],\"AllowedHeaders\":[\"*\"],\"ExposeHeaders\":[\"ETag\"],\"MaxAgeSeconds\":3600}]' > /tmp/cors.json;
-      mc cors set local/gachify-masters /tmp/cors.json || true;
       exit 0;
       "
 
