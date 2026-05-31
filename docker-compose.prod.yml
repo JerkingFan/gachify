@@ -53,7 +53,7 @@ services:
       GACHIFY_DATABASE_URL: postgres://${POSTGRES_USER:-gachify}:${POSTGRES_PASSWORD:-gachify}@postgres:5432/${POSTGRES_DB:-gachify}?sslmode=disable
       GACHIFY_REDIS_URL: redis://redis:6379/0
       GACHIFY_S3_ENDPOINT: http://minio:9000
-      GACHIFY_S3_PUBLIC_ENDPOINT: ${GACHIFY_S3_PUBLIC_ENDPOINT:-http://localhost:9000}
+      GACHIFY_S3_PUBLIC_ENDPOINT: ${GACHIFY_S3_PUBLIC_ENDPOINT:-http://localhost}
       GACHIFY_S3_ACCESS_KEY: ${MINIO_ROOT_USER:-gachify}
       GACHIFY_S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-gachifysecret}
       GACHIFY_S3_BUCKET_MASTERS: ${GACHIFY_S3_BUCKET_MASTERS:-gachify-masters}
@@ -94,7 +94,7 @@ services:
       GACHIFY_DATABASE_URL: postgres://${POSTGRES_USER:-gachify}:${POSTGRES_PASSWORD:-gachify}@postgres:5432/${POSTGRES_DB:-gachify}?sslmode=disable
       GACHIFY_REDIS_URL: redis://redis:6379/0
       GACHIFY_S3_ENDPOINT: http://minio:9000
-      GACHIFY_S3_PUBLIC_ENDPOINT: ${GACHIFY_S3_PUBLIC_ENDPOINT:-http://localhost:9000}
+      GACHIFY_S3_PUBLIC_ENDPOINT: ${GACHIFY_S3_PUBLIC_ENDPOINT:-http://localhost}
       GACHIFY_S3_ACCESS_KEY: ${MINIO_ROOT_USER:-gachify}
       GACHIFY_S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-gachifysecret}
       GACHIFY_S3_BUCKET_MASTERS: ${GACHIFY_S3_BUCKET_MASTERS:-gachify-masters}
@@ -144,6 +144,7 @@ services:
       - gachify_caddy_config:/config
     depends_on:
       - web
+      - minio
     restart: unless-stopped
 
   seed:

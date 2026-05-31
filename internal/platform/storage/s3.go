@@ -27,16 +27,54 @@ type Client struct {
 }
 
 func NewClient(ctx context.Context, cfg appconfig.Config) (*Client, error) {
+	awsCfg, err := loadAWSConfig(ctx, cfg, cfg.S3Endpoint)
+	if err != nil {
+		return nil, err
+	}
+
+	client := s3.NewFromConfig(awsCfg, s3Options(cfg.S3UsePathStyle))
+
+	publicURL := stringsTrimRightSlash(cfg.S3PublicEndpoint)
+	if cfg.CDNBaseURL != "" {
+		publicURL = stringsTrimRightSlash(cfg.CDNBaseURL)
+	}
+
+	presignEndpoint := publicURL
+	if presignEndpoint == "" {
+		presignEndpoint = cfg.S3Endpoint
+	}
+	presignCfg, err := loadAWSConfig(ctx, cfg, presignEndpoint)
+	if err != nil {
+		return nil, fmt.Errorf("presign aws config: %w", err)
+	}
+	presignClient := s3.NewFromConfig(presignCfg, s3Options(cfg.S3UsePathStyle))
+
+	return &Client{
+		s3:            client,
+		presigner:     s3.NewPresignClient(presignClient),
+		uploader:      manager.NewUploader(client),
+		bucket:        cfg.S3BucketMasters,
+		maxBytes:      cfg.UploadMaxBytes,
+		publicBaseURL: publicURL,
+	}, nil
+}
+
+func s3Options(pathStyle bool) func(*s3.Options) {
+	return func(o *s3.Options) {
+		o.UsePathStyle = pathStyle
+	}
+}
+
+func loadAWSConfig(ctx context.Context, cfg appconfig.Config, endpointURL string) (aws.Config, error) {
 	resolver := aws.EndpointResolverWithOptionsFunc(func(service, region string, _ ...any) (aws.Endpoint, error) {
 		if service == s3.ServiceID {
 			return aws.Endpoint{
-				URL:               cfg.S3Endpoint,
+				URL:               endpointURL,
 				HostnameImmutable: cfg.S3UsePathStyle,
 			}, nil
 		}
 		return aws.Endpoint{}, fmt.Errorf("unknown service %s", service)
 	})
-
 	awsCfg, err := awsconfig.LoadDefaultConfig(ctx,
 		awsconfig.WithRegion(cfg.S3Region),
 		awsconfig.WithEndpointResolverWithOptions(resolver),
@@ -45,25 +83,9 @@ func NewClient(ctx context.Context, cfg appconfig.Config) (*Client, error) {
 		)),
 	)
 	if err != nil {
-		return nil, fmt.Errorf("aws config: %w", err)
+		return aws.Config{}, fmt.Errorf("aws config: %w", err)
 	}
-
-	client := s3.NewFromConfig(awsCfg, func(o *s3.Options) {
-		o.UsePathStyle = cfg.S3UsePathStyle
-	})
-
-	publicURL := stringsTrimRightSlash(cfg.S3PublicEndpoint)
-	if cfg.CDNBaseURL != "" {
-		publicURL = stringsTrimRightSlash(cfg.CDNBaseURL)
-	}
-	return &Client{
-		s3:            client,
-		presigner:     s3.NewPresignClient(client),
-		uploader:      manager.NewUploader(client),
-		bucket:        cfg.S3BucketMasters,
-		maxBytes:      cfg.UploadMaxBytes,
-		publicBaseURL: publicURL,
-	}, nil
+	return awsCfg, nil
 }
 
 func (c *Client) Bucket() string { return c.bucket }

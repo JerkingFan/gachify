@@ -23,4 +23,5 @@ cat > /tmp/cors.json <<EOF
 EOF
 
 mc cors set "local/${GACHIFY_S3_BUCKET_MASTERS:-gachify-masters}" /tmp/cors.json || true
+mc cors set local/gachify-public /tmp/cors.json || true
 echo "minio-init: buckets ready, CORS applied for: ${ORIGINS}"

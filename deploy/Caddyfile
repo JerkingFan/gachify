@@ -1,8 +1,19 @@
-# MinIO is on host :9000 via docker-compose — do not bind :9000 here (port conflict).
+# MinIO buckets are proxied on :80 so browsers never need host port 9000 open.
+# Set GACHIFY_S3_PUBLIC_ENDPOINT to the same origin (e.g. http://5.83.140.179).
 
 :80 {
-	encode gzip
-	reverse_proxy web:80
+	# Presigned PUT/GET (upload + HLS segments) — do not gzip binary bodies
+	handle /gachify-masters/* {
+		reverse_proxy minio:9000
+	}
+	handle /gachify-public/* {
+		reverse_proxy minio:9000
+	}
+
+	handle {
+		encode gzip
+		reverse_proxy web:80
+	}
 }
 
 # Production HTTPS template — replace :80 block when GACHIFY_DOMAIN is set:
@@ -16,7 +27,16 @@
 #         Referrer-Policy "strict-origin-when-cross-origin"
 #         -Server
 #     }
-#     reverse_proxy web:80
+#     handle /gachify-masters/* {
+#         reverse_proxy minio:9000
+#     }
+#     handle /gachify-public/* {
+#         reverse_proxy minio:9000
+#     }
+#     handle {
+#         encode gzip
+#         reverse_proxy web:80
+#     }
 # }
 #
 # Set ACME_EMAIL in .env and expose :443 on the caddy service.
