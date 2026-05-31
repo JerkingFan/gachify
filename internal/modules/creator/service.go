@@ -12,6 +12,7 @@ import (
 	"github.com/gachify/gachify/internal/modules/catalog"
 	"github.com/gachify/gachify/internal/platform/queue"
 	"github.com/gachify/gachify/internal/platform/storage"
+	"github.com/gachify/gachify/internal/platform/trace"
 	"github.com/google/uuid"
 )
 
@@ -115,6 +116,7 @@ func (s *Service) CompleteUpload(ctx context.Context, creatorID, trackID uuid.UU
 		TrackID:    trackID,
 		JobID:      jobID,
 		EnqueuedAt: time.Now().UTC(),
+		RequestID:  trace.RequestIDFromContext(ctx),
 	}); err != nil {
 		_ = s.catalog.UpdateStatus(ctx, trackID, domain.TrackDraft, strPtr("failed to enqueue transcode job"))
 		return domain.Track{}, err
@@ -154,6 +156,7 @@ func (s *Service) RetryTranscode(ctx context.Context, creatorID, trackID uuid.UU
 		TrackID:    trackID,
 		JobID:      jobID,
 		EnqueuedAt: time.Now().UTC(),
+		RequestID:  trace.RequestIDFromContext(ctx),
 	}); err != nil {
 		msg := "failed to enqueue transcode job"
 		_ = s.catalog.UpdateStatus(ctx, trackID, domain.TrackDraft, &msg)

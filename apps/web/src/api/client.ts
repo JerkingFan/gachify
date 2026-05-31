@@ -131,10 +131,14 @@ export const api = {
   },
 
   logout(refreshToken: string): Promise<void> {
-    return request<void>("/auth/logout", {
-      method: "POST",
-      body: JSON.stringify({ refresh_token: refreshToken }),
-    });
+    return request<void>(
+      "/auth/logout",
+      {
+        method: "POST",
+        body: JSON.stringify({ refresh_token: refreshToken }),
+      },
+      true,
+    );
   },
 
   me(): Promise<User> {
@@ -180,6 +184,18 @@ export const api = {
 
   getLiked(): Promise<LikedResponse> {
     return request<LikedResponse>("/me/liked", {}, true);
+  },
+
+  getRecent(): Promise<{ track_ids: string[] }> {
+    return request<{ track_ids: string[] }>("/me/recent", {}, true);
+  },
+
+  addRecent(trackId: string): Promise<void> {
+    return request<void>(
+      "/me/recent",
+      { method: "POST", body: JSON.stringify({ track_id: trackId }) },
+      true,
+    );
   },
 
   likeTrack(trackId: string): Promise<void> {

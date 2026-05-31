@@ -34,7 +34,7 @@ func TestEnqueueDequeueTranscode(t *testing.T) {
 	if err := q.EnqueueTranscode(ctx, job); err != nil {
 		t.Fatal(err)
 	}
-	got, err := q.DequeueTranscode(ctx, time.Second)
+	got, err := q.DequeueTranscode(ctx, time.Second, time.Minute)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -55,7 +55,7 @@ func TestPromoteReadyRetries(t *testing.T) {
 	if err := q.PromoteReadyRetries(ctx); err != nil {
 		t.Fatal(err)
 	}
-	got, err := q.DequeueTranscode(ctx, time.Second)
+	got, err := q.DequeueTranscode(ctx, time.Second, time.Minute)
 	if err != nil {
 		t.Fatal(err)
 	}

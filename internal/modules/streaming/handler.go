@@ -11,6 +11,7 @@ import (
 	"github.com/gachify/gachify/internal/platform/httpserver"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
+	"github.com/redis/go-redis/v9"
 )
 
 type Handler struct {
@@ -28,6 +29,7 @@ func (h *Handler) Routes() chi.Router {
 	r := chi.NewRouter()
 	r.Get("/tracks/{id}/playback", h.playback)
 	r.Get("/playlist.m3u8", h.playlist)
+	r.Get("/hls.key", h.hlsKey)
 	return r
 }
 
@@ -64,35 +66,54 @@ func (h *Handler) playback(w http.ResponseWriter, r *http.Request) {
 	httpserver.JSON(w, http.StatusOK, out)
 }
 
-func (h *Handler) playlist(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) verifyPlaybackToken(w http.ResponseWriter, r *http.Request) (streamtoken.PlaybackClaims, uuid.UUID, bool) {
 	pt := r.URL.Query().Get("pt")
 	if pt == "" {
 		httpserver.Error(w, http.StatusUnauthorized, "missing_token", "playback token required")
-		return
+		return streamtoken.PlaybackClaims{}, uuid.Nil, false
 	}
 	claims, err := h.signer.Verify(pt)
 	if err != nil {
 		httpserver.Error(w, http.StatusUnauthorized, "invalid_token", "playback token invalid or expired")
-		return
+		return streamtoken.PlaybackClaims{}, uuid.Nil, false
 	}
 	trackID, err := streamtoken.ParseTrackID(claims)
 	if err != nil {
 		httpserver.Error(w, http.StatusBadRequest, "invalid_token", "bad track id in token")
-		return
+		return streamtoken.PlaybackClaims{}, uuid.Nil, false
 	}
 	qTrack := r.URL.Query().Get("track_id")
 	if qTrack != "" && qTrack != trackID.String() {
 		httpserver.Error(w, http.StatusBadRequest, "token_mismatch", "track_id does not match token")
-		return
+		return streamtoken.PlaybackClaims{}, uuid.Nil, false
 	}
+	return claims, trackID, true
+}
 
+func (h *Handler) loadPublishedTrack(w http.ResponseWriter, r *http.Request, trackID uuid.UUID) (domain.Track, bool) {
 	track, err := h.catalog.GetByID(r.Context(), trackID)
 	if errors.Is(err, catalog.ErrNotFound) {
 		httpserver.Error(w, http.StatusNotFound, "not_found", "track not found")
-		return
+		return domain.Track{}, false
+	}
+	if err != nil {
+		httpserver.Error(w, http.StatusInternalServerError, "internal_error", "failed to load track")
+		return domain.Track{}, false
 	}
 	if track.Status != domain.TrackPublished {
 		httpserver.Error(w, http.StatusForbidden, "not_available", "track not published")
+		return domain.Track{}, false
+	}
+	return track, true
+}
+
+func (h *Handler) playlist(w http.ResponseWriter, r *http.Request) {
+	_, trackID, ok := h.verifyPlaybackToken(w, r)
+	if !ok {
+		return
+	}
+	track, ok := h.loadPublishedTrack(w, r, trackID)
+	if !ok {
 		return
 	}
 
@@ -102,7 +123,9 @@ func (h *Handler) playlist(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	body, err := h.svc.ServePlaylist(r.Context(), track, manifestKey)
+	pt := r.URL.Query().Get("pt")
+	relPath := r.URL.Query().Get("path")
+	body, err := h.svc.ServePlaylist(r.Context(), track, relPath, pt)
 	if err != nil {
 		httpserver.Error(w, http.StatusInternalServerError, "playlist_error", "failed to build playlist")
 		return
@@ -112,4 +135,29 @@ func (h *Handler) playlist(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write(body)
+}
+
+func (h *Handler) hlsKey(w http.ResponseWriter, r *http.Request) {
+	_, trackID, ok := h.verifyPlaybackToken(w, r)
+	if !ok {
+		return
+	}
+	if _, ok := h.loadPublishedTrack(w, r, trackID); !ok {
+		return
+	}
+
+	key, err := h.svc.GetHLSKey(r.Context(), trackID)
+	if errors.Is(err, redis.Nil) || len(key) == 0 {
+		httpserver.Error(w, http.StatusNotFound, "no_key", "encryption key not found")
+		return
+	}
+	if err != nil {
+		httpserver.Error(w, http.StatusInternalServerError, "key_error", "failed to load encryption key")
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/octet-stream")
+	w.Header().Set("Cache-Control", "no-store")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(key)
 }

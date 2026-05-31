@@ -33,6 +33,12 @@ type Config struct {
 	RateLimit          RateLimitConfig
 	TranscodeMaxAttempts int
 	TranscodeRetryBase   time.Duration
+	TranscodeVisibilityTimeout time.Duration
+	WorkerShutdownTimeout      time.Duration
+	SentryDSN                  string
+	CacheEnabled               bool
+	CacheTTL                   time.Duration
+	MetricsEnabled             bool
 }
 
 type RateLimitConfig struct {
@@ -98,6 +104,21 @@ func Load() (Config, error) {
 	if err != nil {
 		return Config{}, fmt.Errorf("GACHIFY_TRANSCODE_RETRY_BASE: %w", err)
 	}
+	cfg.TranscodeVisibilityTimeout, err = time.ParseDuration(getEnv("GACHIFY_TRANSCODE_VISIBILITY_TIMEOUT", "30m"))
+	if err != nil {
+		return Config{}, fmt.Errorf("GACHIFY_TRANSCODE_VISIBILITY_TIMEOUT: %w", err)
+	}
+	cfg.WorkerShutdownTimeout, err = time.ParseDuration(getEnv("GACHIFY_WORKER_SHUTDOWN_TIMEOUT", "2m"))
+	if err != nil {
+		return Config{}, fmt.Errorf("GACHIFY_WORKER_SHUTDOWN_TIMEOUT: %w", err)
+	}
+	cfg.SentryDSN = os.Getenv("GACHIFY_SENTRY_DSN")
+	cfg.CacheEnabled = getEnv("GACHIFY_CACHE_ENABLED", "true") == "true"
+	cfg.CacheTTL, err = time.ParseDuration(getEnv("GACHIFY_CACHE_TTL", "30s"))
+	if err != nil {
+		return Config{}, fmt.Errorf("GACHIFY_CACHE_TTL: %w", err)
+	}
+	cfg.MetricsEnabled = getEnv("GACHIFY_METRICS_ENABLED", "true") == "true"
 
 	if cfg.DatabaseURL == "" {
 		return Config{}, fmt.Errorf("GACHIFY_DATABASE_URL is required")

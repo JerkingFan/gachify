@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/gachify/gachify/internal/domain"
+	"github.com/gachify/gachify/internal/platform/cache"
 	"github.com/gachify/gachify/internal/platform/httpserver"
 	"github.com/gachify/gachify/internal/platform/ratelimit"
 	"github.com/gachify/gachify/internal/platform/validate"
@@ -20,10 +21,11 @@ type Handler struct {
 	repo        *Repository
 	rl          *ratelimit.Limiter
 	searchLimit int
+	cache       *cache.Store
 }
 
-func NewHandler(repo *Repository, rl *ratelimit.Limiter, searchLimit int) *Handler {
-	return &Handler{repo: repo, rl: rl, searchLimit: searchLimit}
+func NewHandler(repo *Repository, rl *ratelimit.Limiter, searchLimit int, cacheStore *cache.Store) *Handler {
+	return &Handler{repo: repo, rl: rl, searchLimit: searchLimit, cache: cacheStore}
 }
 
 func (h *Handler) Routes() chi.Router {
@@ -106,6 +108,24 @@ func (h *Handler) list(w http.ResponseWriter, r *http.Request) {
 		f.Status = &st
 	}
 
+	creatorKey := ""
+	if f.CreatorID != nil {
+		creatorKey = f.CreatorID.String()
+	}
+	statusKey := ""
+	if f.Status != nil {
+		statusKey = string(*f.Status)
+	}
+
+	var cached map[string]any
+	if h.cache != nil {
+		cacheKey := h.cache.TracksListKey(statusKey, f.Query, f.Limit, f.Offset, creatorKey)
+		if ok, _ := h.cache.GetJSON(r.Context(), cacheKey, &cached); ok {
+			httpserver.JSON(w, http.StatusOK, cached)
+			return
+		}
+	}
+
 	total, err := h.repo.Count(r.Context(), f)
 	if err != nil {
 		httpserver.Error(w, http.StatusInternalServerError, "internal_error", "failed to count tracks")
@@ -116,13 +136,18 @@ func (h *Handler) list(w http.ResponseWriter, r *http.Request) {
 		httpserver.Error(w, http.StatusInternalServerError, "internal_error", "failed to list tracks")
 		return
 	}
-	httpserver.JSON(w, http.StatusOK, map[string]any{
+	response := map[string]any{
 		"items":    tracks,
 		"total":    total,
 		"limit":    f.Limit,
 		"offset":   f.Offset,
 		"has_more": f.Offset+len(tracks) < total,
-	})
+	}
+	if h.cache != nil {
+		cacheKey := h.cache.TracksListKey(statusKey, f.Query, f.Limit, f.Offset, creatorKey)
+		_ = h.cache.SetJSON(r.Context(), cacheKey, response, 0)
+	}
+	httpserver.JSON(w, http.StatusOK, response)
 }
 
 func parseIntDefault(s string, def int) int {

@@ -48,6 +48,7 @@ func (s *TokenService) issue(userID uuid.UUID, typ TokenType, ttl time.Duration)
 	claims := Claims{
 		Type: typ,
 		RegisteredClaims: jwt.RegisteredClaims{
+			ID:        uuid.New().String(),
 			Subject:   userID.String(),
 			IssuedAt:  jwt.NewNumericDate(now),
 			ExpiresAt: jwt.NewNumericDate(exp),
@@ -63,6 +64,40 @@ func (s *TokenService) issue(userID uuid.UUID, typ TokenType, ttl time.Duration)
 }
 
 func (s *TokenService) Parse(token string, expected TokenType) (uuid.UUID, error) {
+	claims, err := s.parseClaims(token, expected)
+	if err != nil {
+		return uuid.Nil, err
+	}
+	id, err := uuid.Parse(claims.Subject)
+	if err != nil {
+		return uuid.Nil, fmt.Errorf("invalid subject")
+	}
+	return id, nil
+}
+
+type AccessMeta struct {
+	UserID uuid.UUID
+	JTI    string
+	Exp    time.Time
+}
+
+func (s *TokenService) ParseAccessMeta(token string) (AccessMeta, error) {
+	claims, err := s.parseClaims(token, TokenAccess)
+	if err != nil {
+		return AccessMeta{}, err
+	}
+	id, err := uuid.Parse(claims.Subject)
+	if err != nil {
+		return AccessMeta{}, fmt.Errorf("invalid subject")
+	}
+	exp := time.Time{}
+	if claims.ExpiresAt != nil {
+		exp = claims.ExpiresAt.Time
+	}
+	return AccessMeta{UserID: id, JTI: claims.ID, Exp: exp}, nil
+}
+
+func (s *TokenService) parseClaims(token string, expected TokenType) (*Claims, error) {
 	parsed, err := jwt.ParseWithClaims(token, &Claims{}, func(t *jwt.Token) (any, error) {
 		if t.Method != jwt.SigningMethodHS256 {
 			return nil, fmt.Errorf("unexpected signing method")
@@ -70,20 +105,16 @@ func (s *TokenService) Parse(token string, expected TokenType) (uuid.UUID, error
 		return s.secret, nil
 	})
 	if err != nil {
-		return uuid.Nil, fmt.Errorf("parse token: %w", err)
+		return nil, fmt.Errorf("parse token: %w", err)
 	}
 	claims, ok := parsed.Claims.(*Claims)
 	if !ok || !parsed.Valid {
-		return uuid.Nil, fmt.Errorf("invalid token claims")
+		return nil, fmt.Errorf("invalid token claims")
 	}
 	if claims.Type != expected {
-		return uuid.Nil, fmt.Errorf("invalid token type")
+		return nil, fmt.Errorf("invalid token type")
 	}
-	id, err := uuid.Parse(claims.Subject)
-	if err != nil {
-		return uuid.Nil, fmt.Errorf("invalid subject")
-	}
-	return id, nil
+	return claims, nil
 }
 
 func (s *TokenService) RefreshTTL() time.Duration {

@@ -13,6 +13,7 @@ import {
   hasLegacyLibraryData,
   markLibraryMigrated,
 } from "@/lib/localLibrary";
+import { syncRecentFromServer } from "@/lib/storage";
 import type { User } from "@/types";
 import { useLibraryStore } from "./libraryStore";
 
@@ -51,6 +52,7 @@ export const useAuthStore = create<AuthState>((set) => {
         const user = await api.me();
         set({ user, isAuthenticated: true, isLoading: false });
         await useLibraryStore.getState().load(true);
+        await syncRecentFromServer();
         await maybeMigrateLibrary();
       } catch {
         clearTokens();
@@ -64,6 +66,7 @@ export const useAuthStore = create<AuthState>((set) => {
       storeTokens(tokens.access_token, tokens.refresh_token);
       set({ user: tokens.user, isAuthenticated: true });
       await useLibraryStore.getState().load(true);
+      await syncRecentFromServer();
       await maybeMigrateLibrary();
     },
 
@@ -72,6 +75,7 @@ export const useAuthStore = create<AuthState>((set) => {
       storeTokens(tokens.access_token, tokens.refresh_token);
       set({ user: tokens.user, isAuthenticated: true });
       await useLibraryStore.getState().load(true);
+      await syncRecentFromServer();
       await maybeMigrateLibrary();
     },
 

@@ -20,20 +20,25 @@ import (
 	"github.com/gachify/gachify/internal/modules/users"
 	streamtoken "github.com/gachify/gachify/internal/platform/streaming"
 	platformauth "github.com/gachify/gachify/internal/platform/auth"
+	"github.com/gachify/gachify/internal/platform/cache"
 	"github.com/gachify/gachify/internal/platform/database"
 	"github.com/gachify/gachify/internal/platform/httpserver"
+	"github.com/gachify/gachify/internal/platform/metrics"
+	"github.com/gachify/gachify/internal/platform/observability"
 	"github.com/gachify/gachify/internal/platform/queue"
 	"github.com/gachify/gachify/internal/platform/ratelimit"
+	"github.com/gachify/gachify/internal/platform/recent"
 	"github.com/gachify/gachify/internal/platform/storage"
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type App struct {
-	cfg    config.Config
-	log    *slog.Logger
-	pool   *pgxpool.Pool
-	server *http.Server
+	cfg         config.Config
+	log         *slog.Logger
+	pool        *pgxpool.Pool
+	server      *http.Server
+	flushSentry func()
 }
 
 func New(ctx context.Context) (*App, error) {
@@ -45,6 +50,7 @@ func New(ctx context.Context) (*App, error) {
 	log := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
 		Level: slog.LevelInfo,
 	}))
+	flushSentry := observability.InitSentry(cfg.SentryDSN, cfg.Env, log)
 
 	pool, err := database.NewPool(ctx, cfg.DatabaseURL)
 	if err != nil {
@@ -62,12 +68,19 @@ func New(ctx context.Context) (*App, error) {
 		return nil, fmt.Errorf("redis: %w", err)
 	}
 	rateLimiter := ratelimit.New(redisQ.Client(), "gachify:rl", cfg.RateLimit.Enabled, log)
+	tokenBlacklist := platformauth.NewTokenBlacklist(redisQ.Client())
+
+	var cacheStore *cache.Store
+	if cfg.CacheEnabled {
+		cacheStore = cache.New(redisQ.Client(), "gachify:cache", cfg.CacheTTL)
+	}
+	recentStore := recent.NewStore(redisQ.Client())
 
 	healthH := health.NewHandler(pool, redisQ, s3)
 	userRepo := users.NewRepository(pool)
 	userH := users.NewHandler(userRepo)
 	catalogRepo := catalog.NewRepository(pool)
-	catalogH := catalog.NewHandler(catalogRepo, rateLimiter, cfg.RateLimit.Search)
+	catalogH := catalog.NewHandler(catalogRepo, rateLimiter, cfg.RateLimit.Search, cacheStore)
 	searchH := searchmod.NewHandler(userRepo, rateLimiter, cfg.RateLimit.Search)
 
 	authRepo := authmod.NewRepository(pool)
@@ -75,21 +88,27 @@ func New(ctx context.Context) (*App, error) {
 	authH := authmod.NewHandler(authSvc, userRepo, cfg)
 
 	libRepo := library.NewRepository(pool)
-	libH := library.NewHandler(libRepo)
+	libH := library.NewHandler(libRepo, recentStore)
 
 	creatorSvc := creator.NewService(catalogRepo, s3, redisQ)
 	creatorH := creator.NewHandler(creatorSvc, rateLimiter, cfg.RateLimit.UploadInit)
 	seedH := seed.NewHandler(userH, catalogH)
 
 	playbackSigner := streamtoken.NewTokenSigner(cfg.JWTSecret, cfg.PlaybackTokenTTL)
-	streamSvc := streaming.NewService(catalogRepo, s3, playbackSigner, cfg.PlaybackSegmentTTL)
+	streamSvc := streaming.NewService(catalogRepo, s3, playbackSigner, redisQ.Client(), cfg.PlaybackSegmentTTL)
 	streamH := streaming.NewHandler(streamSvc, catalogRepo, playbackSigner, cfg.PublicAPIBaseURL)
 
 	r := chi.NewRouter()
 	r.Use(httpserver.CORS(cfg.CORSOrigins))
 	r.Use(httpserver.CommonMiddleware(log)...)
+	if cfg.MetricsEnabled {
+		r.Use(metrics.Middleware())
+	}
 	r.Get("/health/live", healthH.Live)
 	r.Get("/health/ready", healthH.Ready)
+	if cfg.MetricsEnabled {
+		r.Handle("/metrics", metrics.Handler())
+	}
 
 	r.Route("/internal/seed", func(seedR chi.Router) {
 		seedR.Use(platformauth.SeedGuard(cfg.Env, cfg.SeedSecret))
@@ -100,18 +119,18 @@ func New(ctx context.Context) (*App, error) {
 		api.Get("/", func(w http.ResponseWriter, _ *http.Request) {
 			httpserver.JSON(w, http.StatusOK, map[string]string{
 				"name":    "Gachify API",
-				"version": "0.4.0",
+				"version": "0.5.0",
 				"tagline": "Deep Dark Fantasy, delivered at scale.",
 			})
 		})
-		api.Mount("/auth", authH.Routes(tokens, rateLimiter))
+		api.Mount("/auth", authH.Routes(tokens, rateLimiter, tokenBlacklist))
 		api.Mount("/users", userH.Routes())
 		api.Mount("/tracks", catalogH.Routes())
 		api.Mount("/search", searchH.Routes())
 		api.Mount("/stream", streamH.Routes())
 
 		api.Group(func(me chi.Router) {
-			me.Use(platformauth.Middleware(tokens))
+			me.Use(platformauth.Middleware(tokens, tokenBlacklist))
 			me.Mount("/me", libH.Routes())
 			me.Mount("/creator", creatorH.Routes())
 		})
@@ -125,7 +144,7 @@ func New(ctx context.Context) (*App, error) {
 		IdleTimeout:  60 * time.Second,
 	}
 
-	return &App{cfg: cfg, log: log, pool: pool, server: srv}, nil
+	return &App{cfg: cfg, log: log, pool: pool, server: srv, flushSentry: flushSentry}, nil
 }
 
 func (a *App) Run(ctx context.Context) error {
@@ -155,5 +174,8 @@ func (a *App) Shutdown(ctx context.Context) error {
 		return fmt.Errorf("http shutdown: %w", err)
 	}
 	a.pool.Close()
+	if a.flushSentry != nil {
+		a.flushSentry()
+	}
 	return nil
 }

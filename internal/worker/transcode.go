@@ -4,17 +4,24 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/gachify/gachify/internal/domain"
 	"github.com/gachify/gachify/internal/modules/catalog"
+	"github.com/gachify/gachify/internal/platform/metrics"
+	"github.com/gachify/gachify/internal/platform/observability"
+	"github.com/gachify/gachify/internal/platform/queue"
 	"github.com/gachify/gachify/internal/platform/storage"
+	"github.com/gachify/gachify/internal/platform/trace"
 	"github.com/gachify/gachify/internal/platform/transcode"
 	"github.com/google/uuid"
 )
 
-func RunTranscode(ctx context.Context, cat *catalog.Repository, st *storage.Client, trackID, jobID uuid.UUID) error {
+func RunTranscode(ctx context.Context, cat *catalog.Repository, st *storage.Client, q *queue.RedisQueue, trackID, jobID uuid.UUID) error {
+	start := time.Now()
 	if err := cat.MarkJobRunning(ctx, jobID); err != nil {
 		return err
 	}
@@ -48,12 +55,19 @@ func RunTranscode(ctx context.Context, cat *catalog.Repository, st *storage.Clie
 	hlsDir := filepath.Join(tmp, "hls")
 	result, err := transcode.TranscodeToHLS(ctx, inputPath, hlsDir)
 	if err != nil {
+		observability.CaptureException(err)
 		return err
 	}
 
 	prefix := transcode.PrefixKey(trackID.String())
 	if err := st.UploadDirectory(ctx, hlsDir, prefix); err != nil {
 		return err
+	}
+
+	if q != nil && len(result.AESKey) > 0 {
+		if err := q.StoreHLSKey(ctx, trackID, result.AESKey); err != nil {
+			return fmt.Errorf("store hls key: %w", err)
+		}
 	}
 
 	manifestKey := transcode.ManifestObjectKey(trackID.String())
@@ -64,9 +78,11 @@ func RunTranscode(ctx context.Context, cat *catalog.Repository, st *storage.Clie
 	meta["hls"] = map[string]any{
 		"manifest_key": manifestKey,
 		"prefix":       prefix,
+		"encrypted":    true,
+		"variants":     []string{"64k", "128k", "256k"},
 	}
 	meta["transcoded"] = true
-	meta["transcode_engine"] = "ffmpeg-hls-v1"
+	meta["transcode_engine"] = transcode.HLSEngineVersion
 	delete(meta, "preview_url")
 	raw, _ := json.Marshal(meta)
 
@@ -79,5 +95,19 @@ func RunTranscode(ctx context.Context, cat *catalog.Repository, st *storage.Clie
 	if err := cat.UpdateStatus(ctx, trackID, domain.TrackPublished, nil); err != nil {
 		return err
 	}
+	metrics.ObserveTranscode(time.Since(start))
 	return cat.MarkJobCompleted(ctx, jobID)
+}
+
+func RunTranscodeJob(ctx context.Context, log *slog.Logger, cat *catalog.Repository, st *storage.Client, q *queue.RedisQueue, job queue.TranscodeJob) error {
+	ctx = trace.WithRequestID(ctx, job.RequestID)
+	log = log.With("track_id", job.TrackID, "job_id", job.JobID, "request_id", trace.RequestIDFromContext(ctx))
+	log.Info("transcode started")
+	err := RunTranscode(ctx, cat, st, q, job.TrackID, job.JobID)
+	if err != nil {
+		log.Error("transcode failed", "error", err)
+		return err
+	}
+	log.Info("transcode completed")
+	return nil
 }

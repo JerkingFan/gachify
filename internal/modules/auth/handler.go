@@ -26,15 +26,15 @@ func NewHandler(svc *Service, users *users.Repository, cfg config.Config) *Handl
 	return &Handler{svc: svc, users: users, cfg: cfg}
 }
 
-func (h *Handler) Routes(tokens *platformauth.TokenService, rl *ratelimit.Limiter) chi.Router {
+func (h *Handler) Routes(tokens *platformauth.TokenService, rl *ratelimit.Limiter, blacklist *platformauth.TokenBlacklist) chi.Router {
 	r := chi.NewRouter()
 	r.With(rl.Middleware("auth:register", h.cfg.RateLimit.AuthRegister, time.Minute, ratelimit.ByIP)).Post("/register", h.register)
 	r.With(rl.Middleware("auth:login", h.cfg.RateLimit.AuthLogin, time.Minute, ratelimit.ByIP)).Post("/login", h.login)
 	r.Post("/refresh", h.refresh)
-	r.Post("/logout", h.logout)
+	r.Post("/logout", h.logout(blacklist, tokens))
 
 	r.Group(func(pr chi.Router) {
-		pr.Use(platformauth.Middleware(tokens))
+		pr.Use(platformauth.Middleware(tokens, blacklist))
 		pr.Get("/me", h.me)
 	})
 	return r
@@ -114,11 +114,14 @@ func (h *Handler) refresh(w http.ResponseWriter, r *http.Request) {
 	httpserver.JSON(w, http.StatusOK, out)
 }
 
-func (h *Handler) logout(w http.ResponseWriter, r *http.Request) {
-	var in domain.RefreshInput
-	_ = json.NewDecoder(r.Body).Decode(&in)
-	_ = h.svc.Logout(r.Context(), in.RefreshToken)
-	httpserver.JSON(w, http.StatusOK, map[string]string{"status": "ok"})
+func (h *Handler) logout(blacklist *platformauth.TokenBlacklist, tokens *platformauth.TokenService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var in domain.RefreshInput
+		_ = json.NewDecoder(r.Body).Decode(&in)
+		platformauth.RevokeAccessFromRequest(r.Context(), tokens, blacklist, r)
+		_ = h.svc.Logout(r.Context(), in.RefreshToken)
+		httpserver.JSON(w, http.StatusOK, map[string]string{"status": "ok"})
+	}
 }
 
 func (h *Handler) me(w http.ResponseWriter, r *http.Request) {

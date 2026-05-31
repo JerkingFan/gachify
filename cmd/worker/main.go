@@ -3,15 +3,18 @@ package main
 import (
 	"context"
 	"errors"
-	"log"
+	"log/slog"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 	"time"
 
 	"github.com/gachify/gachify/internal/config"
 	"github.com/gachify/gachify/internal/modules/catalog"
 	"github.com/gachify/gachify/internal/platform/database"
+	"github.com/gachify/gachify/internal/platform/metrics"
+	"github.com/gachify/gachify/internal/platform/observability"
 	"github.com/gachify/gachify/internal/platform/queue"
 	"github.com/gachify/gachify/internal/platform/storage"
 	"github.com/gachify/gachify/internal/worker"
@@ -24,55 +27,137 @@ func main() {
 
 	cfg, err := config.Load()
 	if err != nil {
-		log.Fatalf("config: %v", err)
+		slog.Error("config", "error", err)
+		os.Exit(1)
 	}
+
+	log := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo}))
+	flushSentry := observability.InitSentry(cfg.SentryDSN, cfg.Env, log)
+	defer flushSentry()
 
 	pool, err := database.NewPool(ctx, cfg.DatabaseURL)
 	if err != nil {
-		log.Fatalf("database: %v", err)
+		log.Error("database", "error", err)
+		os.Exit(1)
 	}
 	defer pool.Close()
 
 	q, err := queue.NewRedisQueue(cfg.RedisURL)
 	if err != nil {
-		log.Fatalf("redis: %v", err)
+		log.Error("redis", "error", err)
+		os.Exit(1)
 	}
 	defer q.Close()
 
 	cat := catalog.NewRepository(pool)
 	st, err := storage.NewClient(ctx, cfg)
 	if err != nil {
-		log.Fatalf("s3: %v", err)
+		log.Error("s3", "error", err)
+		os.Exit(1)
 	}
-	log.Printf("transcode worker started — queue=%s retry=%s dlq=%s max_attempts=%d",
-		queue.TranscodeQueueKey, queue.TranscodeRetryQueueKey, queue.TranscodeDLQKey, cfg.TranscodeMaxAttempts)
+
+	log.Info("transcode worker started",
+		"queue", queue.TranscodeQueueKey,
+		"processing", queue.TranscodeProcessingKey,
+		"visibility", cfg.TranscodeVisibilityTimeout.String(),
+		"max_attempts", cfg.TranscodeMaxAttempts,
+	)
+
+	var (
+		wg          sync.WaitGroup
+		activeJob   *queue.TranscodeJob
+		activeJobMu sync.Mutex
+	)
+
+	workerCtx, cancelWorker := context.WithCancel(ctx)
+	defer cancelWorker()
+
+	go reportQueueDepth(ctx, q, log)
 
 	for {
 		select {
 		case <-ctx.Done():
-			log.Println("shutting down worker")
+			log.Info("shutdown signal received, draining in-flight job")
+			cancelWorker()
+			done := make(chan struct{})
+			go func() {
+				wg.Wait()
+				close(done)
+			}()
+			select {
+			case <-done:
+			case <-time.After(cfg.WorkerShutdownTimeout):
+				log.Warn("shutdown timeout, re-queueing in-flight job if any")
+				activeJobMu.Lock()
+				job := activeJob
+				activeJobMu.Unlock()
+				if job != nil {
+					if err := q.RequeueTranscode(context.Background(), *job); err != nil {
+						log.Error("requeue on shutdown failed", "error", err)
+					}
+				}
+			}
+			log.Info("worker stopped")
 			return
 		default:
 		}
 
-		if err := q.PromoteReadyRetries(ctx); err != nil {
-			log.Printf("promote retries error: %v", err)
+		if err := q.PromoteReadyRetries(workerCtx); err != nil && workerCtx.Err() == nil {
+			log.Warn("promote retries error", "error", err)
+		}
+		if err := q.ReclaimStaleProcessing(workerCtx); err != nil && workerCtx.Err() == nil {
+			log.Warn("reclaim stale error", "error", err)
 		}
 
-		job, err := q.DequeueTranscode(ctx, 5*time.Second)
+		job, err := q.DequeueTranscode(workerCtx, 5*time.Second, cfg.TranscodeVisibilityTimeout)
 		if err != nil {
-			if errors.Is(err, redis.Nil) || ctx.Err() != nil {
+			if errors.Is(err, redis.Nil) || workerCtx.Err() != nil {
 				continue
 			}
-			log.Printf("dequeue error: %v", err)
+			log.Warn("dequeue error", "error", err)
 			continue
 		}
 
-		log.Printf("processing track=%s job=%s", job.TrackID, job.JobID)
-		if err := worker.RunTranscode(ctx, cat, st, job.TrackID, job.JobID); err != nil {
-			worker.HandleFailure(ctx, cat, q, cfg, job, err)
-		} else {
-			log.Printf("transcode done track=%s", job.TrackID)
+		activeJobMu.Lock()
+		activeJob = &job
+		activeJobMu.Unlock()
+
+		wg.Add(1)
+		go func(job queue.TranscodeJob) {
+			defer wg.Done()
+			defer func() {
+				activeJobMu.Lock()
+				activeJob = nil
+				activeJobMu.Unlock()
+			}()
+
+			runErr := worker.RunTranscodeJob(workerCtx, log, cat, st, q, job)
+			_ = q.AckTranscode(context.Background(), job)
+			if runErr != nil {
+				observability.CaptureException(runErr)
+				worker.HandleFailure(context.Background(), cat, q, cfg, job, runErr)
+			}
+		}(job)
+	}
+}
+
+func reportQueueDepth(ctx context.Context, q *queue.RedisQueue, log *slog.Logger) {
+	ticker := time.NewTicker(15 * time.Second)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			depths, err := q.Depths(ctx)
+			if err != nil {
+				log.Warn("queue depth error", "error", err)
+				continue
+			}
+			metrics.SetQueueDepth("pending", float64(depths.Pending))
+			metrics.SetQueueDepth("processing", float64(depths.Processing))
+			metrics.SetQueueDepth("retry", float64(depths.Retry))
+			metrics.SetQueueDepth("dlq", float64(depths.DLQ))
 		}
 	}
 }
