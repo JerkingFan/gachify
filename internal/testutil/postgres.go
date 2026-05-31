@@ -4,12 +4,11 @@ import (
 	"context"
 	"os"
 	"path/filepath"
-	"sort"
-	"strings"
 	"testing"
 	"time"
 
 	"github.com/gachify/gachify/internal/platform/database"
+	migratepkg "github.com/gachify/gachify/internal/platform/migrate"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
@@ -49,7 +48,7 @@ func StartPostgres(t *testing.T, ctx context.Context) (*pgxpool.Pool, func()) {
 	if err != nil {
 		t.Fatalf("pool: %v", err)
 	}
-	ApplyMigrations(t, ctx, pool)
+	ApplyMigrations(t, dsn)
 
 	cleanup := func() {
 		pool.Close()
@@ -58,32 +57,15 @@ func StartPostgres(t *testing.T, ctx context.Context) (*pgxpool.Pool, func()) {
 	return pool, cleanup
 }
 
-func ApplyMigrations(t *testing.T, ctx context.Context, pool *pgxpool.Pool) {
+func ApplyMigrations(t *testing.T, databaseURL string) {
 	t.Helper()
 	root, err := findRepoRoot()
 	if err != nil {
 		t.Fatalf("repo root: %v", err)
 	}
 	dir := filepath.Join(root, "migrations")
-	entries, err := os.ReadDir(dir)
-	if err != nil {
-		t.Fatalf("read migrations: %v", err)
-	}
-	var files []string
-	for _, e := range entries {
-		if !e.IsDir() && strings.HasSuffix(e.Name(), ".sql") {
-			files = append(files, e.Name())
-		}
-	}
-	sort.Strings(files)
-	for _, name := range files {
-		raw, err := os.ReadFile(filepath.Join(dir, name))
-		if err != nil {
-			t.Fatalf("read %s: %v", name, err)
-		}
-		if _, err := pool.Exec(ctx, string(raw)); err != nil {
-			t.Fatalf("apply %s: %v", name, err)
-		}
+	if err := migratepkg.Up(databaseURL, dir, 0); err != nil {
+		t.Fatalf("migrate up: %v", err)
 	}
 }
 

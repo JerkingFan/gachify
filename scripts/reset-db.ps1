@@ -25,4 +25,8 @@ Write-DevStep "Starting Postgres + Redis"
 docker compose up -d --wait
 if ($LASTEXITCODE -ne 0) { exit 1 }
 
+Write-DevStep "Applying migrations"
+& "$PSScriptRoot\apply-migrations.ps1"
+if ($LASTEXITCODE -ne 0) { exit 1 }
+
 Write-DevOk "Database reset complete. Run .\scripts\seed.ps1 after the API is up."

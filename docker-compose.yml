@@ -10,7 +10,6 @@ services:
       - "5432:5432"
     volumes:
       - gachify_pgdata:/var/lib/postgresql/data
-      - ./migrations:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U gachify -d gachify"]
       interval: 3s

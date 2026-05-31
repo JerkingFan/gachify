@@ -11,21 +11,9 @@ COMPOSE="docker compose -f docker-compose.yml"
 echo "smoke: starting infra"
 $COMPOSE up -d --wait postgres redis minio
 
-echo "smoke: waiting for postgres"
-for i in $(seq 1 60); do
-  if $COMPOSE exec -T postgres pg_isready -U gachify -d gachify >/dev/null 2>&1; then
-    break
-  fi
-  sleep 1
-done
-
-if [ -z "${SKIP_MIGRATE:-}" ]; then
-  if command -v pwsh >/dev/null 2>&1; then
-    pwsh -File "$ROOT/scripts/apply-migrations.ps1"
-  else
-    echo "smoke: apply migrations manually if needed (apply-migrations.ps1)"
-  fi
-fi
+echo "smoke: applying migrations"
+GACHIFY_DATABASE_URL=postgres://gachify:gachify@localhost:5432/gachify?sslmode=disable \
+  go run ./cmd/migrate -cmd up
 
 echo "smoke: starting API"
 GACHIFY_ENV=development \

@@ -1,0 +1,5 @@
+ALTER TABLE playlists DROP COLUMN IF EXISTS description;
+DROP TABLE IF EXISTS liked_tracks;
+DROP TABLE IF EXISTS refresh_tokens;
+ALTER TABLE users DROP COLUMN IF EXISTS password_hash;
+ALTER TABLE users DROP COLUMN IF EXISTS email;

@@ -7,7 +7,15 @@ COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
 RUN CGO_ENABLED=0 go build -ldflags="-s -w" -o /out/gachify-api ./cmd/api && \
-    CGO_ENABLED=0 go build -ldflags="-s -w" -o /out/gachify-worker ./cmd/worker
+    CGO_ENABLED=0 go build -ldflags="-s -w" -o /out/gachify-worker ./cmd/worker && \
+    CGO_ENABLED=0 go build -ldflags="-s -w" -o /out/gachify-migrate ./cmd/migrate
+
+FROM alpine:3.20 AS migrate
+RUN apk add --no-cache ca-certificates
+COPY --from=builder /out/gachify-migrate /usr/local/bin/gachify-migrate
+COPY migrations /migrations
+ENV GACHIFY_MIGRATIONS_PATH=/migrations
+ENTRYPOINT ["gachify-migrate"]
 
 FROM alpine:3.20 AS api
 RUN apk add --no-cache ca-certificates wget

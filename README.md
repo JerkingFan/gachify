@@ -25,7 +25,8 @@ internal/
     catalog/          Tracks bounded context
     health/           Liveness & readiness
   platform/           DB, HTTP helpers
-migrations/           SQL schema (applied via Docker init)
+migrations/           SQL schema (golang-migrate, *.up.sql / *.down.sql)
+cmd/migrate/          Apply migrations (`go run ./cmd/migrate`)
 ```
 
 ## Quick start (recommended)
@@ -77,6 +78,7 @@ The web app proxies `/api` to the backend (see `apps/web/vite.config.ts`).
 | `connectex ... 5432 refused` | `docker compose up -d --wait` |
 | Empty home feed | `.\scripts\seed.ps1` |
 | Schema out of date | `.\scripts\apply-migrations.ps1` or `.\scripts\reset-db.ps1` |
+| DB already has tables but migrate fails | Baseline once: `go run ./cmd/migrate -cmd force -version 4` |
 | Auth / 401 on library | Register at http://localhost:5173/login |
 | Port in use | Stop old processes: `.\scripts\dev-stop.ps1` |
 
@@ -175,8 +177,11 @@ Failed transcodes retry automatically (exponential backoff, default 3 attempts) 
 go test ./...                              # unit tests
 $env:INTEGRATION=1; go test ./internal/modules/catalog/...  # Postgres via testcontainers
 cd apps/web && npm run lint && npm run build
+go run ./cmd/migrate -cmd up               # apply pending DB migrations
 bash scripts/smoke-e2e.sh                  # docker infra + API health + seed
 ```
+
+**Migrations:** versioned SQL in `migrations/` (`000001_*.up.sql`). Tracked in `schema_migrations` by [golang-migrate](https://github.com/golang-migrate/migrate). Prod runs `migrate` container before API/worker on each deploy.
 
 GitHub Actions (`.github/workflows/ci.yml`): `go vet`, `go test`, integration tests, web lint + build.
 

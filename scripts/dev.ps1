@@ -48,6 +48,9 @@ if (-not (Wait-TcpPort "127.0.0.1" 5432 30)) {
     exit 1
 }
 
+& "$PSScriptRoot\apply-migrations.ps1"
+if ($LASTEXITCODE -ne 0) { exit 1 }
+
 if ($InfraOnly) {
     Write-DevOk "Infra only mode — start API and Web manually:"
     Write-Host "  go run ./cmd/api"

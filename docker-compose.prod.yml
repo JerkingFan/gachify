@@ -22,6 +22,22 @@ services:
       GACHIFY_CORS_ORIGINS: ${GACHIFY_CORS_ORIGINS:-http://localhost,http://127.0.0.1,http://localhost:5173}
     entrypoint: ["/bin/sh", "/init.sh"]
 
+  migrate:
+    build:
+      context: .
+      dockerfile: deploy/Dockerfile
+      target: migrate
+    container_name: gachify-migrate
+    environment:
+      GACHIFY_DATABASE_URL: postgres://${POSTGRES_USER:-gachify}:${POSTGRES_PASSWORD:-gachify}@postgres:5432/${POSTGRES_DB:-gachify}?sslmode=disable
+      GACHIFY_MIGRATIONS_PATH: /migrations
+      GACHIFY_MIGRATE_CMD: up
+      GACHIFY_JWT_SECRET: ${GACHIFY_JWT_SECRET:?Set GACHIFY_JWT_SECRET in .env (min 32 chars)}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
   api:
     build:
       context: .
@@ -47,6 +63,8 @@ services:
       GACHIFY_CORS_ORIGINS: ${GACHIFY_CORS_ORIGINS:-http://localhost}
       GACHIFY_PUBLIC_API_URL: ${GACHIFY_PUBLIC_API_URL:-http://localhost}
     depends_on:
+      migrate:
+        condition: service_completed_successfully
       postgres:
         condition: service_healthy
       redis:
@@ -81,6 +99,8 @@ services:
       GACHIFY_JWT_SECRET: ${GACHIFY_JWT_SECRET:?Set GACHIFY_JWT_SECRET in .env (min 32 chars)}
       GACHIFY_PUBLIC_API_URL: ${GACHIFY_PUBLIC_API_URL:-http://localhost}
     depends_on:
+      migrate:
+        condition: service_completed_successfully
       postgres:
         condition: service_healthy
       redis:
