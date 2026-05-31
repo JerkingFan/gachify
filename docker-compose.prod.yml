@@ -92,6 +92,7 @@ services:
       context: .
       dockerfile: deploy/Dockerfile
       target: worker
+    container_name: gachify-worker
     env_file:
       - path: .env
         required: false
@@ -108,8 +109,6 @@ services:
       GACHIFY_JWT_SECRET: ${GACHIFY_JWT_SECRET:?Set GACHIFY_JWT_SECRET in .env (min 32 chars)}
       GACHIFY_PUBLIC_API_URL: ${GACHIFY_PUBLIC_API_URL:-http://localhost}
       GACHIFY_MODERATION_ENABLED: ${GACHIFY_MODERATION_ENABLED:-true}
-    deploy:
-      replicas: ${GACHIFY_WORKER_REPLICAS:-2}
     depends_on:
       migrate:
         condition: service_completed_successfully

@@ -71,6 +71,12 @@ export function UploadPage() {
           void loadMyTracks();
           return;
         }
+        if (t.status === "pending_review") {
+          setStep("done");
+          setMessage("Transcode complete — your track is awaiting moderator approval.");
+          void loadMyTracks();
+          return;
+        }
         if (isFailedTrack(t)) {
           setStep("error");
           setMessage(t.processing_error ?? "Transcode failed");
