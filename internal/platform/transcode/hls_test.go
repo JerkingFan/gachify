@@ -21,9 +21,9 @@ func TestTruncate(t *testing.T) {
 	if truncate("short", 10) != "short" {
 		t.Fatal("short string should be unchanged")
 	}
-	long := strings.Repeat("x", 20)
-	out := truncate(long, 10)
-	if !strings.HasSuffix(out, strings.Repeat("x", 9)) {
-		t.Fatalf("unexpected truncated value: %q", out)
+	long := "banner\n" + strings.Repeat("x", 20)
+	out := truncate(long, 12)
+	if !strings.Contains(out, "xxxxxxxxxxxx") {
+		t.Fatalf("expected tail of ffmpeg output, got: %q", out)
 	}
 }
