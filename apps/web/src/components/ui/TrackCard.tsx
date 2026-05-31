@@ -20,7 +20,7 @@ export function TrackCard({ track, queue }: TrackCardProps) {
   const isActive = isCurrent && playing;
 
   return (
-    <div className="group card-hover">
+    <div className="group card-hover" data-testid="track-card">
       <Link to={`/track/${track.id}`} className="block">
         <div className="relative mb-4">
           <CoverArt track={track} size="lg" className="!h-auto !w-full aspect-square" />

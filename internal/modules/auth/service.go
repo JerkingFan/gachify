@@ -8,17 +8,22 @@ import (
 	"github.com/gachify/gachify/internal/domain"
 	platformauth "github.com/gachify/gachify/internal/platform/auth"
 	"github.com/gachify/gachify/internal/modules/users"
+	"github.com/gachify/gachify/internal/platform/email"
+	"github.com/gachify/gachify/internal/platform/validate"
+	"github.com/google/uuid"
 )
 
 type Service struct {
-	repo      *Repository
-	users     *users.Repository
-	tokens    *platformauth.TokenService
-	accessTTL time.Duration
+	repo          *Repository
+	users         *users.Repository
+	tokens        *platformauth.TokenService
+	accessTTL     time.Duration
+	mailer        email.Mailer
+	frontendURL   string
 }
 
-func NewService(repo *Repository, users *users.Repository, tokens *platformauth.TokenService, accessTTL time.Duration) *Service {
-	return &Service{repo: repo, users: users, tokens: tokens, accessTTL: accessTTL}
+func NewService(repo *Repository, users *users.Repository, tokens *platformauth.TokenService, accessTTL time.Duration, mailer email.Mailer, frontendURL string) *Service {
+	return &Service{repo: repo, users: users, tokens: tokens, accessTTL: accessTTL, mailer: mailer, frontendURL: frontendURL}
 }
 
 func (s *Service) Register(ctx context.Context, in domain.RegisterInput) (domain.TokenResponse, error) {
@@ -42,7 +47,12 @@ func (s *Service) Register(ctx context.Context, in domain.RegisterInput) (domain
 		return domain.TokenResponse{}, err
 	}
 	_ = s.repo.CreateDefaultPlaylists(ctx, u.ID)
-	return s.issueTokens(ctx, u)
+	out, err := s.issueTokens(ctx, u)
+	if err != nil {
+		return domain.TokenResponse{}, err
+	}
+	s.sendVerificationEmail(ctx, u.ID)
+	return out, nil
 }
 
 func (s *Service) Login(ctx context.Context, in domain.LoginInput) (domain.TokenResponse, error) {
@@ -78,6 +88,53 @@ func (s *Service) Logout(ctx context.Context, refreshToken string) error {
 		return nil
 	}
 	return s.repo.RevokeRefreshToken(ctx, refreshToken)
+}
+
+func (s *Service) IssueTokensForUser(ctx context.Context, u domain.User) (domain.TokenResponse, error) {
+	return s.issueTokens(ctx, u)
+}
+
+func (s *Service) ForgotPassword(ctx context.Context, emailAddr string) error {
+	raw, _, err := s.repo.CreatePasswordReset(ctx, strings.TrimSpace(strings.ToLower(emailAddr)), 24*time.Hour)
+	if err != nil || raw == "" {
+		return err
+	}
+	if s.mailer != nil {
+		body := email.PasswordResetBody(s.frontendURL, raw)
+		_ = s.mailer.Send(emailAddr, "Reset your Gachify password", body)
+	}
+	return nil
+}
+
+func (s *Service) ResetPassword(ctx context.Context, token, password string) error {
+	if err := validate.Password(password); err != nil {
+		return err
+	}
+	hash, err := platformauth.HashPassword(password)
+	if err != nil {
+		return err
+	}
+	return s.repo.ResetPassword(ctx, token, hash)
+}
+
+func (s *Service) VerifyEmail(ctx context.Context, token string) error {
+	return s.repo.VerifyEmail(ctx, token)
+}
+
+func (s *Service) sendVerificationEmail(ctx context.Context, userID uuid.UUID) {
+	if s.mailer == nil {
+		return
+	}
+	addr, err := s.repo.UserEmail(ctx, userID)
+	if err != nil || addr == "" {
+		return
+	}
+	raw, err := s.repo.CreateEmailVerification(ctx, userID, 72*time.Hour)
+	if err != nil {
+		return
+	}
+	body := email.VerificationBody(s.frontendURL, raw)
+	_ = s.mailer.Send(addr, "Verify your Gachify email", body)
 }
 
 func (s *Service) issueTokens(ctx context.Context, u domain.User) (domain.TokenResponse, error) {

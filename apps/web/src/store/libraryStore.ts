@@ -36,6 +36,8 @@ interface LibraryState {
   ) => Promise<ServerPlaylist>;
   deletePlaylist: (id: string) => Promise<void>;
   addTracksToPlaylist: (playlistId: string, trackIds: string[]) => Promise<ServerPlaylist>;
+  removeTrackFromPlaylist: (playlistId: string, trackId: string) => Promise<ServerPlaylist>;
+  setPlaylistTracks: (playlistId: string, trackIds: string[]) => Promise<ServerPlaylist>;
 }
 
 export const useLibraryStore = create<LibraryState>((set, get) => ({
@@ -131,6 +133,22 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
 
   async addTracksToPlaylist(playlistId, trackIds) {
     const p = await api.addTracksToPlaylist(playlistId, trackIds);
+    set({
+      playlists: get().playlists.map((pl) => (pl.id === playlistId ? p : pl)),
+    });
+    return p;
+  },
+
+  async removeTrackFromPlaylist(playlistId, trackId) {
+    const p = await api.removeTrackFromPlaylist(playlistId, trackId);
+    set({
+      playlists: get().playlists.map((pl) => (pl.id === playlistId ? p : pl)),
+    });
+    return p;
+  },
+
+  async setPlaylistTracks(playlistId, trackIds) {
+    const p = await api.setPlaylistTracks(playlistId, trackIds);
     set({
       playlists: get().playlists.map((pl) => (pl.id === playlistId ? p : pl)),
     });

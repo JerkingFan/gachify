@@ -52,13 +52,17 @@ func NewClient(ctx context.Context, cfg appconfig.Config) (*Client, error) {
 		o.UsePathStyle = cfg.S3UsePathStyle
 	})
 
+	publicURL := stringsTrimRightSlash(cfg.S3PublicEndpoint)
+	if cfg.CDNBaseURL != "" {
+		publicURL = stringsTrimRightSlash(cfg.CDNBaseURL)
+	}
 	return &Client{
 		s3:            client,
 		presigner:     s3.NewPresignClient(client),
 		uploader:      manager.NewUploader(client),
 		bucket:        cfg.S3BucketMasters,
 		maxBytes:      cfg.UploadMaxBytes,
-		publicBaseURL: stringsTrimRightSlash(cfg.S3PublicEndpoint),
+		publicBaseURL: publicURL,
 	}, nil
 }
 

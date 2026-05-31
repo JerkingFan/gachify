@@ -5,10 +5,12 @@ import { api } from "@/api/client";
 import { TopBar } from "@/components/layout/TopBar";
 import { CoverArt } from "@/components/ui/CoverArt";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { PageMeta } from "@/components/ui/PageMeta";
+import { ShareButton } from "@/components/ui/ShareButton";
 import { PageHeaderSkeleton } from "@/components/ui/Skeleton";
 import { TrackRow } from "@/components/ui/TrackRow";
 import { TrackRowSkeleton } from "@/components/ui/Skeleton";
-import { parseGachiMeta, formatDuration } from "@/lib/tracks";
+import { parseGachiMeta, formatDuration, getArtistName } from "@/lib/tracks";
 import { useAuthStore } from "@/store/authStore";
 import { useLibraryStore } from "@/store/libraryStore";
 import { usePlayerStore } from "@/store/playerStore";
@@ -84,9 +86,17 @@ export function TrackPage() {
 
   const meta = parseGachiMeta(track);
   const queue = [track, ...related];
+  const sharePath = `/track/${track.id}`;
+  const pageUrl =
+    typeof window !== "undefined" ? `${window.location.origin}/track/${track.id}` : sharePath;
 
   return (
     <>
+      <PageMeta
+        title={track.title}
+        description={`${getArtistName(track)} · ${formatDuration(track.duration_ms)} · Gachify remix`}
+        url={pageUrl}
+      />
       <div className="bg-gradient-gachi">
         <TopBar gradient />
         <div className="flex flex-col gap-6 px-6 pb-8 md:flex-row md:items-end">
@@ -117,12 +127,14 @@ export function TrackPage() {
               {isAuthenticated && (
                 <button
                   type="button"
+                  aria-label={liked ? "Unlike track" : "Like track"}
                   onClick={() => void toggleLiked(track.id, true).then(setLiked)}
                   className={`rounded-full border border-white/30 p-3 ${liked ? "text-spotify-green" : "text-white"}`}
                 >
                   <Heart className="h-6 w-6" fill={liked ? "currentColor" : "none"} />
                 </button>
               )}
+              <ShareButton path={sharePath} />
             </div>
           </div>
         </div>

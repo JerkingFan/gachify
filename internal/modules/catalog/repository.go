@@ -16,7 +16,7 @@ import (
 var ErrNotFound = errors.New("track not found")
 
 const trackColumns = `id, creator_id, title, duration_ms, status, gachi_metadata,
-	master_object_key, source_content_type, source_filename, processing_error, created_at, updated_at`
+	master_object_key, source_content_type, source_filename, processing_error, play_count, created_at, updated_at`
 
 type Repository struct {
 	pool *pgxpool.Pool
@@ -31,7 +31,7 @@ func scanTrack(row pgx.Row) (domain.Track, error) {
 	err := row.Scan(
 		&t.ID, &t.CreatorID, &t.Title, &t.DurationMs, &t.Status, &t.GachiMetadata,
 		&t.MasterObjectKey, &t.SourceContentType, &t.SourceFilename, &t.ProcessingError,
-		&t.CreatedAt, &t.UpdatedAt,
+		&t.PlayCount, &t.CreatedAt, &t.UpdatedAt,
 	)
 	return t, err
 }
@@ -225,7 +225,7 @@ func scanTrackWithCreator(row pgx.Row) (domain.TrackWithCreator, error) {
 	err := row.Scan(
 		&t.ID, &t.CreatorID, &t.Title, &t.DurationMs, &t.Status, &t.GachiMetadata,
 		&t.MasterObjectKey, &t.SourceContentType, &t.SourceFilename, &t.ProcessingError,
-		&t.CreatedAt, &t.UpdatedAt,
+		&t.PlayCount, &t.CreatedAt, &t.UpdatedAt,
 		&handle, &displayName,
 	)
 	if err != nil {
@@ -265,6 +265,9 @@ func (r *Repository) List(ctx context.Context, f domain.ListTracksFilter) ([]dom
 		rankIdx := len(args)
 		q += fmt.Sprintf(" ORDER BY %s DESC, t.created_at DESC LIMIT $%d OFFSET $%d",
 			searchRankSQL(rankIdx), len(args)+1, len(args)+2)
+	} else if f.Sort == "trending" {
+		n := len(args) + 1
+		q += fmt.Sprintf(" ORDER BY t.play_count DESC, t.created_at DESC LIMIT $%d OFFSET $%d", n, n+1)
 	} else {
 		n := len(args) + 1
 		q += fmt.Sprintf(" ORDER BY t.created_at DESC LIMIT $%d OFFSET $%d", n, n+1)
@@ -289,4 +292,18 @@ func (r *Repository) List(ctx context.Context, f domain.ListTracksFilter) ([]dom
 		tracks = []domain.TrackWithCreator{}
 	}
 	return tracks, rows.Err()
+}
+
+func (r *Repository) IncrementPlayCount(ctx context.Context, id uuid.UUID) error {
+	tag, err := r.pool.Exec(ctx, `
+		UPDATE tracks SET play_count = play_count + 1, updated_at = now()
+		WHERE id = $1 AND status = 'published'
+	`, id)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return nil
 }

@@ -24,6 +24,19 @@ type RefreshInput struct {
 	RefreshToken string `json:"refresh_token"`
 }
 
+type ForgotPasswordInput struct {
+	Email string `json:"email"`
+}
+
+type ResetPasswordInput struct {
+	Token    string `json:"token"`
+	Password string `json:"password"`
+}
+
+type VerifyEmailInput struct {
+	Token string `json:"token"`
+}
+
 type LibraryImportInput struct {
 	LikedTrackIDs []string              `json:"liked_track_ids"`
 	Playlists     []ImportPlaylistInput `json:"playlists"`

@@ -20,7 +20,7 @@ import (
 	"github.com/google/uuid"
 )
 
-func RunTranscode(ctx context.Context, cat *catalog.Repository, st *storage.Client, q *queue.RedisQueue, trackID, jobID uuid.UUID) error {
+func RunTranscode(ctx context.Context, cat *catalog.Repository, st *storage.Client, q *queue.RedisQueue, trackID, jobID uuid.UUID, moderationEnabled bool) error {
 	start := time.Now()
 	if err := cat.MarkJobRunning(ctx, jobID); err != nil {
 		return err
@@ -92,18 +92,22 @@ func RunTranscode(ctx context.Context, cat *catalog.Repository, st *storage.Clie
 	if err := cat.UpdateGachiMetadata(ctx, trackID, raw); err != nil {
 		return err
 	}
-	if err := cat.UpdateStatus(ctx, trackID, domain.TrackPublished, nil); err != nil {
+	publishStatus := domain.TrackPublished
+	if moderationEnabled {
+		publishStatus = domain.TrackPendingReview
+	}
+	if err := cat.UpdateStatus(ctx, trackID, publishStatus, nil); err != nil {
 		return err
 	}
 	metrics.ObserveTranscode(time.Since(start))
 	return cat.MarkJobCompleted(ctx, jobID)
 }
 
-func RunTranscodeJob(ctx context.Context, log *slog.Logger, cat *catalog.Repository, st *storage.Client, q *queue.RedisQueue, job queue.TranscodeJob) error {
+func RunTranscodeJob(ctx context.Context, log *slog.Logger, cat *catalog.Repository, st *storage.Client, q *queue.RedisQueue, job queue.TranscodeJob, moderationEnabled bool) error {
 	ctx = trace.WithRequestID(ctx, job.RequestID)
 	log = log.With("track_id", job.TrackID, "job_id", job.JobID, "request_id", trace.RequestIDFromContext(ctx))
 	log.Info("transcode started")
-	err := RunTranscode(ctx, cat, st, q, job.TrackID, job.JobID)
+	err := RunTranscode(ctx, cat, st, q, job.TrackID, job.JobID, moderationEnabled)
 	if err != nil {
 		log.Error("transcode failed", "error", err)
 		return err

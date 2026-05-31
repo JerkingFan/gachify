@@ -1,12 +1,27 @@
 # syntax=docker/dockerfile:1
 
-FROM golang:1.24-alpine AS builder
+FROM golang:1.25-alpine AS builder
 RUN apk add --no-cache git ca-certificates
 WORKDIR /src
+
+# Fallback mirrors help when storage.googleapis.com times out (common on some VPS)
+ARG GOPROXY=https://proxy.golang.org,https://goproxy.io,direct
+ENV GOPROXY=${GOPROXY}
+
 COPY go.mod go.sum ./
-RUN go mod download
+RUN --mount=type=cache,target=/go/pkg/mod \
+    set -e; \
+    for i in 1 2 3 4 5; do \
+      go mod download && exit 0; \
+      echo "go mod download attempt $i failed, retrying..."; \
+      sleep 15; \
+    done; \
+    exit 1
+
 COPY . .
-RUN CGO_ENABLED=0 go build -ldflags="-s -w" -o /out/gachify-api ./cmd/api && \
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
+    CGO_ENABLED=0 go build -ldflags="-s -w" -o /out/gachify-api ./cmd/api && \
     CGO_ENABLED=0 go build -ldflags="-s -w" -o /out/gachify-worker ./cmd/worker && \
     CGO_ENABLED=0 go build -ldflags="-s -w" -o /out/gachify-migrate ./cmd/migrate
 

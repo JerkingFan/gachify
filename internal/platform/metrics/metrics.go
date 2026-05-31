@@ -29,6 +29,16 @@ var (
 		Name: "gachify_queue_depth",
 		Help: "Transcode queue depth by queue name.",
 	}, []string{"queue"})
+
+	readyGauge = promauto.NewGauge(prometheus.GaugeOpts{
+		Name: "gachify_ready",
+		Help: "1 when all API dependencies are up, 0 when degraded.",
+	})
+
+	transcodeDLQTotal = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "gachify_transcode_dlq_total",
+		Help: "Total transcode jobs moved to the dead-letter queue.",
+	})
 )
 
 func Handler() http.Handler {
@@ -57,6 +67,18 @@ func ObserveTranscode(d time.Duration) {
 
 func SetQueueDepth(name string, depth float64) {
 	queueDepth.WithLabelValues(name).Set(depth)
+}
+
+func SetReady(up bool) {
+	if up {
+		readyGauge.Set(1)
+		return
+	}
+	readyGauge.Set(0)
+}
+
+func IncTranscodeDLQ() {
+	transcodeDLQTotal.Inc()
 }
 
 func chiRoutePattern(r *http.Request) string {

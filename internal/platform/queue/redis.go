@@ -3,12 +3,15 @@ package queue
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
 )
+
+var ErrDLQNotFound = errors.New("dlq entry not found")
 
 const (
 	TranscodeQueueKey        = "gachify:transcode:queue"
@@ -209,6 +212,51 @@ func (q *RedisQueue) StoreHLSKey(ctx context.Context, trackID uuid.UUID, key []b
 
 func (q *RedisQueue) Close() error {
 	return q.client.Close()
+}
+
+func (q *RedisQueue) ListDLQ(ctx context.Context, limit int) ([]DLQEntry, error) {
+	if limit <= 0 {
+		limit = 50
+	}
+	raw, err := q.client.LRange(ctx, TranscodeDLQKey, 0, int64(limit-1)).Result()
+	if err != nil {
+		return nil, err
+	}
+	out := make([]DLQEntry, 0, len(raw))
+	for _, item := range raw {
+		var entry DLQEntry
+		if err := json.Unmarshal([]byte(item), &entry); err != nil {
+			continue
+		}
+		out = append(out, entry)
+	}
+	return out, nil
+}
+
+// RetryDLQJob removes the newest matching DLQ entry for trackID and re-enqueues it.
+func (q *RedisQueue) RetryDLQJob(ctx context.Context, trackID uuid.UUID) (TranscodeJob, error) {
+	rawItems, err := q.client.LRange(ctx, TranscodeDLQKey, 0, -1).Result()
+	if err != nil {
+		return TranscodeJob{}, err
+	}
+	for _, item := range rawItems {
+		var entry DLQEntry
+		if err := json.Unmarshal([]byte(item), &entry); err != nil {
+			continue
+		}
+		if entry.Job.TrackID != trackID {
+			continue
+		}
+		if err := q.client.LRem(ctx, TranscodeDLQKey, 1, item).Err(); err != nil {
+			return TranscodeJob{}, err
+		}
+		if err := q.EnqueueTranscode(ctx, entry.Job); err != nil {
+			_ = q.client.LPush(ctx, TranscodeDLQKey, item).Err()
+			return TranscodeJob{}, err
+		}
+		return entry.Job, nil
+	}
+	return TranscodeJob{}, ErrDLQNotFound
 }
 
 func RetryDelay(base time.Duration, attempt int) time.Duration {

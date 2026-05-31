@@ -37,6 +37,7 @@ export interface Track {
   source_content_type?: string;
   source_filename?: string;
   processing_error?: string;
+  play_count?: number;
   created_at: string;
   updated_at: string;
 }

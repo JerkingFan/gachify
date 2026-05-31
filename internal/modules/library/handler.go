@@ -33,6 +33,8 @@ func (h *Handler) Routes() chi.Router {
 	r.Patch("/playlists/{id}", h.updatePlaylist)
 	r.Delete("/playlists/{id}", h.deletePlaylist)
 	r.Post("/playlists/{id}/tracks", h.addTracks)
+	r.Put("/playlists/{id}/tracks", h.setTracks)
+	r.Delete("/playlists/{id}/tracks/{trackID}", h.removeTrack)
 	r.Post("/library/import", h.importLibrary)
 	r.Get("/recent", h.listRecent)
 	r.Post("/recent", h.addRecent)
@@ -240,6 +242,62 @@ func (h *Handler) importLibrary(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	httpserver.JSON(w, http.StatusOK, map[string]string{"status": "imported"})
+}
+
+func (h *Handler) removeTrack(w http.ResponseWriter, r *http.Request) {
+	uid, ok := platformauth.UserIDFromContext(r.Context())
+	if !ok {
+		httpserver.Error(w, http.StatusUnauthorized, "unauthorized", "login required")
+		return
+	}
+	pid, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		httpserver.Error(w, http.StatusBadRequest, "invalid_id", "invalid playlist id")
+		return
+	}
+	tid, err := uuid.Parse(chi.URLParam(r, "trackID"))
+	if err != nil {
+		httpserver.Error(w, http.StatusBadRequest, "invalid_id", "invalid track id")
+		return
+	}
+	p, err := h.repo.RemoveTrackFromPlaylist(r.Context(), uid, pid, tid)
+	if errors.Is(err, ErrPlaylistNotFound) {
+		httpserver.Error(w, http.StatusNotFound, "not_found", "playlist not found")
+		return
+	}
+	if err != nil {
+		httpserver.Error(w, http.StatusInternalServerError, "internal_error", "failed to remove track")
+		return
+	}
+	httpserver.JSON(w, http.StatusOK, p)
+}
+
+func (h *Handler) setTracks(w http.ResponseWriter, r *http.Request) {
+	uid, ok := platformauth.UserIDFromContext(r.Context())
+	if !ok {
+		httpserver.Error(w, http.StatusUnauthorized, "unauthorized", "login required")
+		return
+	}
+	pid, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		httpserver.Error(w, http.StatusBadRequest, "invalid_id", "invalid playlist id")
+		return
+	}
+	var in domain.SetPlaylistItemsInput
+	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
+		httpserver.Error(w, http.StatusBadRequest, "invalid_json", "invalid body")
+		return
+	}
+	p, err := h.repo.SetPlaylistItems(r.Context(), uid, pid, in.TrackIDs)
+	if errors.Is(err, ErrPlaylistNotFound) {
+		httpserver.Error(w, http.StatusNotFound, "not_found", "playlist not found")
+		return
+	}
+	if err != nil {
+		httpserver.Error(w, http.StatusInternalServerError, "internal_error", "failed to update tracks")
+		return
+	}
+	httpserver.JSON(w, http.StatusOK, p)
 }
 
 func (h *Handler) listRecent(w http.ResponseWriter, r *http.Request) {

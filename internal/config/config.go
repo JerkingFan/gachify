@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"os"
 	"time"
+
+	"github.com/gachify/gachify/internal/platform/email"
 )
 
 type Config struct {
@@ -16,8 +18,12 @@ type Config struct {
 	JWTAccessTTL       time.Duration
 	JWTRefreshTTL      time.Duration
 	GoogleClientID     string
-	GoogleClientSecret string
 	GoogleRedirectURL  string
+	GoogleClientSecret string
+	FrontendURL        string
+	AdminSecret        string
+	ModerationEnabled  bool
+	CDNBaseURL         string
 	S3Endpoint         string
 	S3PublicEndpoint   string
 	S3Region           string
@@ -39,6 +45,7 @@ type Config struct {
 	CacheEnabled               bool
 	CacheTTL                   time.Duration
 	MetricsEnabled             bool
+	SMTP                       email.SMTPConfig
 }
 
 type RateLimitConfig struct {
@@ -59,7 +66,11 @@ func Load() (Config, error) {
 		JWTSecret:        getEnv("GACHIFY_JWT_SECRET", "dev-only-change-in-production-min-32-chars!!"),
 		GoogleClientID:   os.Getenv("GACHIFY_GOOGLE_CLIENT_ID"),
 		GoogleClientSecret: os.Getenv("GACHIFY_GOOGLE_CLIENT_SECRET"),
-		GoogleRedirectURL: getEnv("GACHIFY_GOOGLE_REDIRECT_URL", "http://localhost:5173/auth/callback/google"),
+		GoogleRedirectURL: getEnv("GACHIFY_GOOGLE_REDIRECT_URL", "http://localhost:8080/api/v1/auth/oidc/google/callback"),
+		FrontendURL:      getEnv("GACHIFY_FRONTEND_URL", "http://localhost:5173"),
+		AdminSecret:      os.Getenv("GACHIFY_ADMIN_SECRET"),
+		ModerationEnabled: getEnv("GACHIFY_MODERATION_ENABLED", "true") == "true",
+		CDNBaseURL:       os.Getenv("GACHIFY_CDN_BASE_URL"),
 		S3Endpoint:       getEnv("GACHIFY_S3_ENDPOINT", "http://localhost:9000"),
 		S3PublicEndpoint: getEnv("GACHIFY_S3_PUBLIC_ENDPOINT", "http://localhost:9000"),
 		S3Region:         getEnv("GACHIFY_S3_REGION", "us-east-1"),
@@ -96,6 +107,14 @@ func Load() (Config, error) {
 	if err != nil {
 		return Config{}, fmt.Errorf("GACHIFY_PLAYBACK_SEGMENT_TTL: %w", err)
 	}
+	if cdnTTL := os.Getenv("GACHIFY_HLS_SEGMENT_PRESIGN_TTL"); cdnTTL != "" {
+		cfg.PlaybackSegmentTTL, err = time.ParseDuration(cdnTTL)
+		if err != nil {
+			return Config{}, fmt.Errorf("GACHIFY_HLS_SEGMENT_PRESIGN_TTL: %w", err)
+		}
+	} else if cfg.CDNBaseURL != "" {
+		cfg.PlaybackSegmentTTL = 24 * time.Hour
+	}
 	cfg.TranscodeMaxAttempts = parseIntDefault(getEnv("GACHIFY_TRANSCODE_MAX_ATTEMPTS", "3"), 3)
 	if cfg.TranscodeMaxAttempts < 1 {
 		cfg.TranscodeMaxAttempts = 1
@@ -119,6 +138,13 @@ func Load() (Config, error) {
 		return Config{}, fmt.Errorf("GACHIFY_CACHE_TTL: %w", err)
 	}
 	cfg.MetricsEnabled = getEnv("GACHIFY_METRICS_ENABLED", "true") == "true"
+	cfg.SMTP = email.SMTPConfig{
+		Host:     os.Getenv("GACHIFY_SMTP_HOST"),
+		Port:     parseIntDefault(getEnv("GACHIFY_SMTP_PORT", "587"), 587),
+		User:     os.Getenv("GACHIFY_SMTP_USER"),
+		Password: os.Getenv("GACHIFY_SMTP_PASSWORD"),
+		From:     os.Getenv("GACHIFY_SMTP_FROM"),
+	}
 
 	if cfg.DatabaseURL == "" {
 		return Config{}, fmt.Errorf("GACHIFY_DATABASE_URL is required")

@@ -7,6 +7,7 @@ import (
 	"github.com/gachify/gachify/internal/config"
 	"github.com/gachify/gachify/internal/domain"
 	"github.com/gachify/gachify/internal/modules/catalog"
+	"github.com/gachify/gachify/internal/platform/metrics"
 	"github.com/gachify/gachify/internal/platform/queue"
 )
 
@@ -19,6 +20,7 @@ func HandleFailure(ctx context.Context, cat *catalog.Repository, q *queue.RedisQ
 		_ = cat.MarkJobFailed(ctx, job.JobID, errMsg)
 		_ = cat.UpdateStatus(ctx, job.TrackID, domain.TrackDraft, &errMsg)
 		_ = q.EnqueueDLQ(ctx, job, errMsg)
+		metrics.IncTranscodeDLQ()
 		return
 	}
 
@@ -42,6 +44,7 @@ func HandleFailure(ctx context.Context, cat *catalog.Repository, q *queue.RedisQ
 	if err := q.EnqueueDLQ(ctx, job, errMsg); err != nil {
 		log.Printf("transcode dlq enqueue failed job=%s: %v", job.JobID, err)
 	} else {
+		metrics.IncTranscodeDLQ()
 		log.Printf("transcode dead-lettered track=%s job=%s after %d attempts: %v",
 			job.TrackID, job.JobID, jobRow.Attempts, runErr)
 	}

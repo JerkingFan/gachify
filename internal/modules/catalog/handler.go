@@ -32,6 +32,7 @@ func (h *Handler) Routes() chi.Router {
 	r := chi.NewRouter()
 	r.With(h.rl.Middleware("tracks:search", h.searchLimit, time.Minute, ratelimit.ByIP)).Get("/", h.list)
 	r.Get("/{id}", h.getByID)
+	r.Post("/{id}/play", h.recordPlay)
 	return r
 }
 
@@ -98,6 +99,7 @@ func (h *Handler) list(w http.ResponseWriter, r *http.Request) {
 		f.CreatorID = &id
 	}
 	f.Query = strings.TrimSpace(r.URL.Query().Get("q"))
+	f.Sort = strings.TrimSpace(r.URL.Query().Get("sort"))
 	if err := validate.SearchQuery(f.Query); err != nil {
 		httpserver.Error(w, http.StatusBadRequest, "invalid_query", err.Error())
 		return
@@ -119,7 +121,7 @@ func (h *Handler) list(w http.ResponseWriter, r *http.Request) {
 
 	var cached map[string]any
 	if h.cache != nil {
-		cacheKey := h.cache.TracksListKey(statusKey, f.Query, f.Limit, f.Offset, creatorKey)
+		cacheKey := h.cache.TracksListKey(statusKey, f.Query, f.Sort, f.Limit, f.Offset, creatorKey)
 		if ok, _ := h.cache.GetJSON(r.Context(), cacheKey, &cached); ok {
 			httpserver.JSON(w, http.StatusOK, cached)
 			return
@@ -144,10 +146,26 @@ func (h *Handler) list(w http.ResponseWriter, r *http.Request) {
 		"has_more": f.Offset+len(tracks) < total,
 	}
 	if h.cache != nil {
-		cacheKey := h.cache.TracksListKey(statusKey, f.Query, f.Limit, f.Offset, creatorKey)
+		cacheKey := h.cache.TracksListKey(statusKey, f.Query, f.Sort, f.Limit, f.Offset, creatorKey)
 		_ = h.cache.SetJSON(r.Context(), cacheKey, response, 0)
 	}
 	httpserver.JSON(w, http.StatusOK, response)
+}
+
+func (h *Handler) recordPlay(w http.ResponseWriter, r *http.Request) {
+	id, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		httpserver.Error(w, http.StatusBadRequest, "invalid_id", "invalid track id")
+		return
+	}
+	if err := h.repo.IncrementPlayCount(r.Context(), id); errors.Is(err, ErrNotFound) {
+		httpserver.Error(w, http.StatusNotFound, "not_found", "track not found")
+		return
+	} else if err != nil {
+		httpserver.Error(w, http.StatusInternalServerError, "internal_error", "failed to record play")
+		return
+	}
+	httpserver.JSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
 func parseIntDefault(s string, def int) int {

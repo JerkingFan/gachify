@@ -12,6 +12,7 @@ type TrackStatus string
 const (
 	TrackDraft         TrackStatus = "draft"
 	TrackProcessing    TrackStatus = "processing"
+	TrackPendingReview TrackStatus = "pending_review"
 	TrackPublished     TrackStatus = "published"
 	TrackShadowBanned  TrackStatus = "shadow_banned"
 	TrackRemoved       TrackStatus = "removed"
@@ -41,6 +42,7 @@ type Track struct {
 	SourceContentType *string         `json:"source_content_type,omitempty"`
 	SourceFilename    *string         `json:"source_filename,omitempty"`
 	ProcessingError   *string         `json:"processing_error,omitempty"`
+	PlayCount         int64           `json:"play_count"`
 	CreatedAt         time.Time       `json:"created_at"`
 	UpdatedAt         time.Time       `json:"updated_at"`
 }
@@ -87,6 +89,7 @@ type ListTracksFilter struct {
 	Status    *TrackStatus
 	CreatorID *uuid.UUID
 	Query     string
+	Sort      string // "recent" (default) or "trending"
 	Limit     int
 	Offset    int
 }

@@ -10,18 +10,21 @@ import (
 
 	"github.com/gachify/gachify/internal/config"
 	authmod "github.com/gachify/gachify/internal/modules/auth"
+	"github.com/gachify/gachify/internal/modules/admin"
 	"github.com/gachify/gachify/internal/modules/catalog"
 	"github.com/gachify/gachify/internal/modules/creator"
 	"github.com/gachify/gachify/internal/modules/health"
 	"github.com/gachify/gachify/internal/modules/library"
 	"github.com/gachify/gachify/internal/modules/seed"
 	searchmod "github.com/gachify/gachify/internal/modules/search"
+	"github.com/gachify/gachify/internal/modules/share"
 	"github.com/gachify/gachify/internal/modules/streaming"
 	"github.com/gachify/gachify/internal/modules/users"
 	streamtoken "github.com/gachify/gachify/internal/platform/streaming"
 	platformauth "github.com/gachify/gachify/internal/platform/auth"
 	"github.com/gachify/gachify/internal/platform/cache"
 	"github.com/gachify/gachify/internal/platform/database"
+	"github.com/gachify/gachify/internal/platform/email"
 	"github.com/gachify/gachify/internal/platform/httpserver"
 	"github.com/gachify/gachify/internal/platform/metrics"
 	"github.com/gachify/gachify/internal/platform/observability"
@@ -83,12 +86,21 @@ func New(ctx context.Context) (*App, error) {
 	catalogH := catalog.NewHandler(catalogRepo, rateLimiter, cfg.RateLimit.Search, cacheStore)
 	searchH := searchmod.NewHandler(userRepo, rateLimiter, cfg.RateLimit.Search)
 
+	mailer, err := email.NewMailer(cfg.Env, cfg.SMTP, log)
+	if err != nil {
+		return nil, fmt.Errorf("mailer: %w", err)
+	}
+
 	authRepo := authmod.NewRepository(pool)
-	authSvc := authmod.NewService(authRepo, userRepo, tokens, cfg.JWTAccessTTL)
-	authH := authmod.NewHandler(authSvc, userRepo, cfg)
+	authSvc := authmod.NewService(authRepo, userRepo, tokens, cfg.JWTAccessTTL, mailer, cfg.FrontendURL)
+	oidcSvc := authmod.NewOIDCService(authRepo, userRepo, authSvc, tokens, redisQ.Client(), cfg)
+	authH := authmod.NewHandler(authSvc, oidcSvc, userRepo, cfg)
+
+	adminH := admin.NewHandler(catalogRepo, redisQ)
 
 	libRepo := library.NewRepository(pool)
 	libH := library.NewHandler(libRepo, recentStore)
+	shareH := share.NewHandler(catalogRepo, libRepo, cfg.PublicAPIBaseURL, cfg.FrontendURL)
 
 	creatorSvc := creator.NewService(catalogRepo, s3, redisQ)
 	creatorH := creator.NewHandler(creatorSvc, rateLimiter, cfg.RateLimit.UploadInit)
@@ -106,13 +118,21 @@ func New(ctx context.Context) (*App, error) {
 	}
 	r.Get("/health/live", healthH.Live)
 	r.Get("/health/ready", healthH.Ready)
+	r.Mount("/share", shareH.Routes())
 	if cfg.MetricsEnabled {
 		r.Handle("/metrics", metrics.Handler())
+		go reportQueueDepth(ctx, redisQ, log)
+		go reportReadiness(ctx, pool, redisQ, s3, log)
 	}
 
 	r.Route("/internal/seed", func(seedR chi.Router) {
 		seedR.Use(platformauth.SeedGuard(cfg.Env, cfg.SeedSecret))
 		seedR.Mount("/", seedH.Routes())
+	})
+
+	r.Route("/internal/admin", func(adminR chi.Router) {
+		adminR.Use(admin.Guard(cfg.AdminSecret))
+		adminR.Mount("/", adminH.Routes())
 	})
 
 	r.Route("/api/v1", func(api chi.Router) {

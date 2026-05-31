@@ -97,3 +97,34 @@ func TestRetryDelay(t *testing.T) {
 		t.Fatal("attempt 3 delay")
 	}
 }
+
+func TestRetryDLQJob(t *testing.T) {
+	q, mr := newTestQueue(t)
+	defer mr.Close()
+	ctx := context.Background()
+	job := TranscodeJob{TrackID: uuid.New(), JobID: uuid.New()}
+	if err := q.EnqueueDLQ(ctx, job, "boom"); err != nil {
+		t.Fatal(err)
+	}
+	got, err := q.RetryDLQJob(ctx, job.TrackID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.TrackID != job.TrackID {
+		t.Fatalf("track id mismatch")
+	}
+	depths, err := q.Depths(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if depths.DLQ != 0 {
+		t.Fatal("dlq should be empty")
+	}
+	if depths.Pending != 1 {
+		t.Fatalf("job should be requeued, pending=%d", depths.Pending)
+	}
+	_, err = q.RetryDLQJob(ctx, uuid.New())
+	if err != ErrDLQNotFound {
+		t.Fatalf("expected ErrDLQNotFound, got %v", err)
+	}
+}

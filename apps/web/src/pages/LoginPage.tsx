@@ -122,6 +122,14 @@ export function LoginPage() {
             />
           </label>
 
+          {mode === "login" && (
+            <p className="text-right text-xs">
+              <Link to="/forgot-password" className="text-spotify-muted underline hover:text-white">
+                Forgot password?
+              </Link>
+            </p>
+          )}
+
           {error && (
             <p className="rounded-md bg-red-900/50 px-3 py-2 text-sm text-red-200">
               {error}
@@ -135,6 +143,13 @@ export function LoginPage() {
           >
             {loading ? "…" : mode === "login" ? "Log in" : "Sign up"}
           </button>
+
+          <a
+            href="/api/v1/auth/oidc/google/start"
+            className="mt-2 flex items-center justify-center gap-2 rounded-full border border-spotify-highlight py-3 text-sm font-semibold hover:bg-spotify-highlight"
+          >
+            Continue with Google
+          </a>
         </form>
 
         <p className="mt-6 text-center text-sm text-spotify-muted">

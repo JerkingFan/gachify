@@ -170,7 +170,59 @@ Flow: `draft` → `processing` → `published` (worker runs **ffmpeg** → HLS i
 
 Re-upload or re-run worker on old seed tracks to generate HLS packages.
 
-Failed transcodes retry automatically (exponential backoff, default 3 attempts) then land in Redis DLQ (`gachify:transcode:dlq`). Use **Retry transcode** in Creator Hub or `POST /api/v1/creator/uploads/{id}/retry`.
+Failed transcodes retry automatically (exponential backoff, default 3 attempts) then land in Redis DLQ (`gachify:transcode:dlq`). Use **Retry transcode** in Creator Hub, **`/admin`** DLQ panel, or `POST /internal/admin/queue/dlq/retry`.
+
+## Moderation & admin
+
+When `GACHIFY_MODERATION_ENABLED=true`, finished transcodes enter `pending_review` until approved.
+
+| Surface | Description |
+|---------|-------------|
+| Web UI | http://localhost:5173/admin — enter `GACHIFY_ADMIN_SECRET` |
+| API | `GET /internal/admin/tracks?status=pending_review` (header `X-Gachify-Admin-Key`) |
+| Approve / reject | `POST /internal/admin/tracks/{id}/approve` · `POST .../reject` |
+| DLQ | `GET /internal/admin/queue/dlq` · `POST /internal/admin/queue/dlq/retry` |
+
+## Observability & runbook
+
+Start the optional monitoring stack:
+
+```powershell
+docker compose -f docker-compose.yml -f docker-compose.prod.yml -f deploy/docker-compose.monitoring.yml up -d
+```
+
+| URL | Purpose |
+|-----|---------|
+| http://localhost:9090 | Prometheus (scrapes API `/metrics`) |
+| http://localhost:3000 | Grafana — dashboard **Gachify Overview** (auto-provisioned) |
+
+### Metrics (Prometheus)
+
+| Metric | Meaning |
+|--------|---------|
+| `gachify_ready` | `1` when Postgres, Redis, and MinIO are up |
+| `gachify_queue_depth{queue=...}` | Transcode pending / processing / retry / dlq |
+| `gachify_http_request_duration_seconds` | API latency histogram |
+| `gachify_transcode_duration_seconds` | Worker transcode job duration |
+| `gachify_transcode_dlq_total` | Cumulative jobs dead-lettered |
+
+### Alerts (`deploy/prometheus/alerts.yml`)
+
+| Alert | Condition | Action |
+|-------|-----------|--------|
+| **GachifyNotReady** | `gachify_ready == 0` for 2m | Check `GET /health/ready`, restart failed dependency containers |
+| **GachifyDLQNotEmpty** | DLQ depth > 0 for 5m | Open `/admin` → DLQ → Retry; inspect worker logs & ffmpeg |
+| **GachifyQueueBacklog** | pending > 10 for 10m | Scale workers (`GACHIFY_WORKER_REPLICAS`) |
+| **GachifyHighTranscodeDLQRate** | DLQ counter increased in 15m | Same as DLQ — fix storage/ffmpeg, retry jobs |
+
+### Production email
+
+| Env | Behavior |
+|-----|----------|
+| `GACHIFY_ENV=development` | Emails logged to API stdout (`LogMailer`) |
+| `GACHIFY_ENV=production` | Sent via SMTP (`GACHIFY_SMTP_*`) |
+
+Verify / reset links use `GACHIFY_FRONTEND_URL` (e.g. `/verify-email?token=…`).
 
 ## Tests & CI
 

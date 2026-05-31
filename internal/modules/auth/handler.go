@@ -18,12 +18,13 @@ import (
 
 type Handler struct {
 	svc    *Service
+	oidc   *OIDCService
 	users  *users.Repository
 	cfg    config.Config
 }
 
-func NewHandler(svc *Service, users *users.Repository, cfg config.Config) *Handler {
-	return &Handler{svc: svc, users: users, cfg: cfg}
+func NewHandler(svc *Service, oidc *OIDCService, users *users.Repository, cfg config.Config) *Handler {
+	return &Handler{svc: svc, oidc: oidc, users: users, cfg: cfg}
 }
 
 func (h *Handler) Routes(tokens *platformauth.TokenService, rl *ratelimit.Limiter, blacklist *platformauth.TokenBlacklist) chi.Router {
@@ -32,6 +33,11 @@ func (h *Handler) Routes(tokens *platformauth.TokenService, rl *ratelimit.Limite
 	r.With(rl.Middleware("auth:login", h.cfg.RateLimit.AuthLogin, time.Minute, ratelimit.ByIP)).Post("/login", h.login)
 	r.Post("/refresh", h.refresh)
 	r.Post("/logout", h.logout(blacklist, tokens))
+	r.Post("/forgot-password", h.forgotPassword)
+	r.Post("/reset-password", h.resetPassword)
+	r.Post("/verify-email", h.verifyEmail)
+	r.Get("/oidc/providers", h.oidcProviders)
+	r.Mount("/oidc", h.OIDCRoutes())
 
 	r.Group(func(pr chi.Router) {
 		pr.Use(platformauth.Middleware(tokens, blacklist))
@@ -140,4 +146,66 @@ func (h *Handler) me(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	httpserver.JSON(w, http.StatusOK, u)
+}
+
+func (h *Handler) oidcProviders(w http.ResponseWriter, _ *http.Request) {
+	providers := []map[string]any{}
+	if h.oidc != nil {
+		providers = h.oidc.Providers()
+	}
+	httpserver.JSON(w, http.StatusOK, map[string]any{"providers": providers})
+}
+
+func (h *Handler) OIDCRoutes() chi.Router {
+	r := chi.NewRouter()
+	if h.oidc == nil {
+		return r
+	}
+	r.Get("/google/start", h.oidc.StartGoogle)
+	r.Get("/google/callback", h.oidc.CallbackGoogle)
+	return r
+}
+
+func (h *Handler) forgotPassword(w http.ResponseWriter, r *http.Request) {
+	var in domain.ForgotPasswordInput
+	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
+		httpserver.Error(w, http.StatusBadRequest, "invalid_json", "invalid body")
+		return
+	}
+	if err := validate.Email(in.Email); err != nil {
+		httpserver.Error(w, http.StatusBadRequest, "invalid_email", err.Error())
+		return
+	}
+	_ = h.svc.ForgotPassword(r.Context(), in.Email)
+	httpserver.JSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
+func (h *Handler) resetPassword(w http.ResponseWriter, r *http.Request) {
+	var in domain.ResetPasswordInput
+	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
+		httpserver.Error(w, http.StatusBadRequest, "invalid_json", "invalid body")
+		return
+	}
+	if err := h.svc.ResetPassword(r.Context(), in.Token, in.Password); err != nil {
+		if errors.Is(err, ErrInvalidLogin) {
+			httpserver.Error(w, http.StatusBadRequest, "invalid_token", "reset link invalid or expired")
+			return
+		}
+		httpserver.Error(w, http.StatusBadRequest, "invalid_password", err.Error())
+		return
+	}
+	httpserver.JSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
+func (h *Handler) verifyEmail(w http.ResponseWriter, r *http.Request) {
+	var in domain.VerifyEmailInput
+	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
+		httpserver.Error(w, http.StatusBadRequest, "invalid_json", "invalid body")
+		return
+	}
+	if err := h.svc.VerifyEmail(r.Context(), in.Token); err != nil {
+		httpserver.Error(w, http.StatusBadRequest, "invalid_token", "verification link invalid or expired")
+		return
+	}
+	httpserver.JSON(w, http.StatusOK, map[string]string{"status": "verified"})
 }

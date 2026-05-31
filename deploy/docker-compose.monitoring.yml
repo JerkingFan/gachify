@@ -1,0 +1,37 @@
+# Optional monitoring stack (Prometheus + Grafana).
+# Usage:
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml -f deploy/docker-compose.monitoring.yml up -d
+#
+# Grafana: http://localhost:3000 (admin / $GRAFANA_ADMIN_PASSWORD)
+# Prometheus: http://localhost:9090
+# Pre-provisioned dashboard: Gachify Overview
+
+services:
+  prometheus:
+    image: prom/prometheus:v3.2.1
+    container_name: gachify-prometheus
+    volumes:
+      - ./deploy/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./deploy/prometheus/alerts.yml:/etc/prometheus/alerts.yml:ro
+    ports:
+      - "9090:9090"
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:11.5.2
+    container_name: gachify-grafana
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+    ports:
+      - "3000:3000"
+    volumes:
+      - gachify_grafana_data:/var/lib/grafana
+      - ./deploy/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./deploy/grafana/dashboards:/etc/grafana/dashboards:ro
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+
+volumes:
+  gachify_grafana_data:

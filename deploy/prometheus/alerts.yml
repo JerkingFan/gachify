@@ -1,0 +1,46 @@
+groups:
+  - name: gachify
+    rules:
+      - alert: GachifyNotReady
+        expr: gachify_ready == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: Gachify API readiness degraded
+          description: >-
+            gachify_ready is 0 for more than 2 minutes. Check GET /health/ready
+            (database, redis, storage) and dependency containers.
+
+      - alert: GachifyDLQNotEmpty
+        expr: gachify_queue_depth{queue="dlq"} > 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: Transcode dead-letter queue has entries
+          description: >-
+            DLQ depth is {{ $value }}. Inspect /admin DLQ panel or
+            GET /internal/admin/queue/dlq and retry or fix upstream ffmpeg/storage.
+
+      - alert: GachifyQueueBacklog
+        expr: gachify_queue_depth{queue="pending"} > 10
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: Transcode queue backlog
+          description: >-
+            Pending queue depth is {{ $value }} for 10+ minutes. Scale workers
+            (GACHIFY_WORKER_REPLICAS) or investigate stuck processing jobs.
+
+      - alert: GachifyHighTranscodeDLQRate
+        expr: increase(gachify_transcode_dlq_total[15m]) > 0
+        for: 0m
+        labels:
+          severity: warning
+        annotations:
+          summary: Transcode jobs moved to DLQ
+          description: >-
+            At least one transcode job dead-lettered in the last 15 minutes.
+            Check worker logs and MinIO/ffmpeg availability.

@@ -1,11 +1,12 @@
 import { Heart, MoreHorizontal } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { formatDuration, getArtistName } from "@/lib/tracks";
 import { useAuthStore } from "@/store/authStore";
 import { useLibraryStore } from "@/store/libraryStore";
 import { usePlayerStore } from "@/store/playerStore";
 import type { Track } from "@/types";
+import { AddToPlaylistMenu } from "./AddToPlaylistMenu";
 import { CoverArt } from "./CoverArt";
 import { PlayButton } from "./PlayButton";
 
@@ -25,6 +26,19 @@ export function TrackRow({ track, index, queue, showIndex = true }: TrackRowProp
   const playTrack = usePlayerStore((s) => s.playTrack);
   const togglePlay = usePlayerStore((s) => s.togglePlay);
   const [liked, setLiked] = useState(() => isLikedFn(track.id));
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    const close = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setMenuOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", close);
+    return () => document.removeEventListener("mousedown", close);
+  }, [menuOpen]);
 
   const isCurrent = current?.id === track.id;
   const isActive = isCurrent && playing;
@@ -83,7 +97,7 @@ export function TrackRow({ track, index, queue, showIndex = true }: TrackRowProp
       <div className="hidden truncate md:block">{getArtistName(track)}</div>
       <div className="text-right tabular-nums">{formatDuration(track.duration_ms)}</div>
 
-      <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100">
+      <div className="relative flex justify-end gap-1 opacity-0 group-hover:opacity-100">
         <button
           type="button"
           className={`btn-icon ${liked ? "text-spotify-green" : ""}`}
@@ -93,9 +107,26 @@ export function TrackRow({ track, index, queue, showIndex = true }: TrackRowProp
         >
           <Heart className="h-4 w-4" fill={liked ? "currentColor" : "none"} />
         </button>
-        <button type="button" className="btn-icon" aria-label="More">
+        <button
+          type="button"
+          className="btn-icon"
+          aria-label="More"
+          onClick={(e) => {
+            e.stopPropagation();
+            setMenuOpen((v) => !v);
+          }}
+        >
           <MoreHorizontal className="h-4 w-4" />
         </button>
+        {menuOpen && (
+          <div
+            ref={menuRef}
+            className="absolute right-0 top-full z-50 mt-1"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <AddToPlaylistMenu track={track} onClose={() => setMenuOpen(false)} />
+          </div>
+        )}
       </div>
     </div>
   );

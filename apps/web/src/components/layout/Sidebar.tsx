@@ -93,6 +93,7 @@ export function Sidebar({ mobile }: SidebarProps) {
               type="button"
               className="btn-icon touch-target"
               aria-label="Create playlist"
+              data-testid="sidebar-create-playlist"
               onClick={handleCreatePlaylist}
             >
               <Plus className="h-5 w-5" />

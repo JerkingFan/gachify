@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { addRecent } from "@/lib/storage";
+import { recordPlayOnce } from "@/lib/plays";
 import type { Track } from "@/types";
 
 type RepeatMode = "off" | "all" | "one";
@@ -66,6 +67,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
     const q = queue ?? (state.queue.length ? state.queue : [track]);
     const idx = q.findIndex((t) => t.id === track.id);
     addRecent(track.id);
+    recordPlayOnce(track.id);
     set({
       currentTrack: track,
       queue: q,

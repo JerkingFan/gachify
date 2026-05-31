@@ -7,6 +7,7 @@ import { HeroSkeleton, TrackGridSkeleton } from "@/components/ui/Skeleton";
 import { parseGachiMeta } from "@/lib/tracks";
 import { getRecentIds } from "@/lib/storage";
 import { useTracks } from "@/hooks/useTracks";
+import { useTrendingTracks } from "@/hooks/useTrendingTracks";
 import { usePlayerStore } from "@/store/playerStore";
 
 function greeting(): string {
@@ -18,6 +19,7 @@ function greeting(): string {
 
 export function HomePage() {
   const { tracks, loading, error, hasMore, loadMore, loadingMore, refresh } = useTracks();
+  const { tracks: trending, loading: trendingLoading } = useTrendingTracks(10);
   const playTrack = usePlayerStore((s) => s.playTrack);
   const setQueue = usePlayerStore((s) => s.setQueue);
 
@@ -105,10 +107,10 @@ export function HomePage() {
                     </Section>
                   )}
 
-                  <Section title="Trending gachi remixes" subtitle="Global — updated live">
+                  <Section title="Trending gachi remixes" subtitle="By play count — updated live">
                     <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
-                      {tracks.slice(0, 10).map((t) => (
-                        <TrackCard key={t.id} track={t} queue={tracks} />
+                      {(trendingLoading ? tracks : trending).slice(0, 10).map((t) => (
+                        <TrackCard key={t.id} track={t} queue={trending.length ? trending : tracks} />
                       ))}
                     </div>
                   </Section>

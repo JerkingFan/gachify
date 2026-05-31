@@ -39,3 +39,7 @@ type UpdatePlaylistInput struct {
 type AddPlaylistTracksInput struct {
 	TrackIDs []uuid.UUID `json:"track_ids"`
 }
+
+type SetPlaylistItemsInput struct {
+	TrackIDs []uuid.UUID `json:"track_ids"`
+}

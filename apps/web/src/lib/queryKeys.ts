@@ -1,7 +1,7 @@
 export const trackKeys = {
   all: ["tracks"] as const,
   lists: () => [...trackKeys.all, "list"] as const,
-  list: (params: { status?: string; q?: string }) =>
+  list: (params: { status?: string; q?: string; sort?: string }) =>
     [...trackKeys.lists(), params] as const,
 };
 

@@ -131,7 +131,7 @@ func main() {
 				activeJobMu.Unlock()
 			}()
 
-			runErr := worker.RunTranscodeJob(workerCtx, log, cat, st, q, job)
+			runErr := worker.RunTranscodeJob(workerCtx, log, cat, st, q, job, cfg.ModerationEnabled)
 			_ = q.AckTranscode(context.Background(), job)
 			if runErr != nil {
 				observability.CaptureException(runErr)

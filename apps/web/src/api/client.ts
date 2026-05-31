@@ -151,6 +151,7 @@ export const api = {
     status?: string;
     creator_id?: string;
     q?: string;
+    sort?: string;
   }): Promise<TracksResponse> {
     const q = new URLSearchParams();
     if (params?.limit != null) q.set("limit", String(params.limit));
@@ -158,8 +159,34 @@ export const api = {
     if (params?.status) q.set("status", params.status);
     if (params?.creator_id) q.set("creator_id", params.creator_id);
     if (params?.q?.trim()) q.set("q", params.q.trim());
+    if (params?.sort) q.set("sort", params.sort);
     const qs = q.toString();
     return request<TracksResponse>(`/tracks${qs ? `?${qs}` : ""}`);
+  },
+
+  recordPlay(trackId: string): Promise<void> {
+    return request<void>(`/tracks/${trackId}/play`, { method: "POST" });
+  },
+
+  forgotPassword(email: string): Promise<void> {
+    return request<void>("/auth/forgot-password", {
+      method: "POST",
+      body: JSON.stringify({ email }),
+    });
+  },
+
+  resetPassword(token: string, password: string): Promise<void> {
+    return request<void>("/auth/reset-password", {
+      method: "POST",
+      body: JSON.stringify({ token, password }),
+    });
+  },
+
+  verifyEmail(token: string): Promise<void> {
+    return request<void>("/auth/verify-email", {
+      method: "POST",
+      body: JSON.stringify({ token }),
+    });
   },
 
   searchArtists(params: {
@@ -240,6 +267,21 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ track_ids: trackIds }),
     }, true);
+  },
+
+  setPlaylistTracks(id: string, trackIds: string[]): Promise<ServerPlaylist> {
+    return request<ServerPlaylist>(`/me/playlists/${id}/tracks`, {
+      method: "PUT",
+      body: JSON.stringify({ track_ids: trackIds }),
+    }, true);
+  },
+
+  removeTrackFromPlaylist(playlistId: string, trackId: string): Promise<ServerPlaylist> {
+    return request<ServerPlaylist>(
+      `/me/playlists/${playlistId}/tracks/${trackId}`,
+      { method: "DELETE" },
+      true,
+    );
   },
 
   getPlaylist(id: string): Promise<ServerPlaylist> {
