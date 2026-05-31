@@ -18,6 +18,10 @@ var ErrNotFound = errors.New("track not found")
 const trackColumns = `id, creator_id, title, duration_ms, status, gachi_metadata,
 	master_object_key, source_content_type, source_filename, processing_error, play_count, created_at, updated_at`
 
+// trackColumnsAliased is for SELECTs that JOIN users (both tables have id).
+const trackColumnsAliased = `t.id, t.creator_id, t.title, t.duration_ms, t.status, t.gachi_metadata,
+	t.master_object_key, t.source_content_type, t.source_filename, t.processing_error, t.play_count, t.created_at, t.updated_at`
+
 type Repository struct {
 	pool *pgxpool.Pool
 }
@@ -243,20 +247,23 @@ func scanTrackWithCreator(row pgx.Row) (domain.TrackWithCreator, error) {
 
 func (r *Repository) Count(ctx context.Context, f domain.ListTracksFilter) (int, error) {
 	normalizeListFilter(&f)
-	q := `SELECT COUNT(*) FROM tracks t JOIN users u ON u.id = t.creator_id`
 	where, args := buildListWhere(f, "t.")
+	q := `SELECT COUNT(*) FROM tracks t`
+	if f.Query != "" {
+		q += ` JOIN users u ON u.id = t.creator_id`
+	}
 	q += where
-	var total int
+	var total int64
 	if err := r.pool.QueryRow(ctx, q, args...).Scan(&total); err != nil {
 		return 0, fmt.Errorf("count tracks: %w", err)
 	}
-	return total, nil
+	return int(total), nil
 }
 
 func (r *Repository) List(ctx context.Context, f domain.ListTracksFilter) ([]domain.TrackWithCreator, error) {
 	normalizeListFilter(&f)
 
-	q := `SELECT ` + trackColumns + `, u.handle, u.display_name
+	q := `SELECT ` + trackColumnsAliased + `, u.handle, u.display_name
 		FROM tracks t
 		JOIN users u ON u.id = t.creator_id`
 	where, args := buildListWhere(f, "t.")
@@ -315,7 +322,7 @@ func (r *Repository) ListSimilar(ctx context.Context, trackID uuid.UUID, limit i
 	if limit > 50 {
 		limit = 50
 	}
-	q := `SELECT ` + trackColumns + `, u.handle, u.display_name
+	q := `SELECT ` + trackColumnsAliased + `, u.handle, u.display_name
 		FROM tracks t
 		JOIN users u ON u.id = t.creator_id
 		WHERE t.status = 'published' AND t.id != $1
@@ -361,7 +368,7 @@ func (r *Repository) ListPublishedByCreators(ctx context.Context, creatorIDs []u
 	if limit <= 0 {
 		limit = 20
 	}
-	q := `SELECT ` + trackColumns + `, u.handle, u.display_name
+	q := `SELECT ` + trackColumnsAliased + `, u.handle, u.display_name
 		FROM tracks t
 		JOIN users u ON u.id = t.creator_id
 		WHERE t.status = 'published' AND t.creator_id = ANY($1)

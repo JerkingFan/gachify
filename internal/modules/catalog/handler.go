@@ -3,6 +3,7 @@ package catalog
 import (
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"strings"
@@ -131,11 +132,13 @@ func (h *Handler) list(w http.ResponseWriter, r *http.Request) {
 
 	total, err := h.repo.Count(r.Context(), f)
 	if err != nil {
+		slog.Error("count tracks", "error", err)
 		httpserver.Error(w, http.StatusInternalServerError, "internal_error", "failed to count tracks")
 		return
 	}
 	tracks, err := h.repo.List(r.Context(), f)
 	if err != nil {
+		slog.Error("list tracks", "error", err)
 		httpserver.Error(w, http.StatusInternalServerError, "internal_error", "failed to list tracks")
 		return
 	}
