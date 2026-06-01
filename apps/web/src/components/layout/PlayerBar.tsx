@@ -5,6 +5,7 @@ import {
   Mic2,
   Pause,
   Play,
+  Radio,
   Repeat,
   Shuffle,
   SkipBack,
@@ -38,6 +39,8 @@ export function PlayerBar() {
   const setVolume = usePlayerStore((s) => s.setVolume);
   const toggleShuffle = usePlayerStore((s) => s.toggleShuffle);
   const cycleRepeat = usePlayerStore((s) => s.cycleRepeat);
+  const radioMode = usePlayerStore((s) => s.radioMode);
+  const toggleRadioMode = usePlayerStore((s) => s.toggleRadioMode);
   const toggleQueuePanel = useUIStore((s) => s.toggleQueuePanel);
   const queuePanelOpen = useUIStore((s) => s.queuePanelOpen);
   const queueLen = usePlayerStore((s) => s.queue.length);
@@ -85,6 +88,14 @@ export function PlayerBar() {
         {repeat === "one" && (
           <span className="absolute -right-0.5 -top-0.5 text-[8px] font-bold">1</span>
         )}
+      </button>
+      <button
+        type="button"
+        onClick={toggleRadioMode}
+        title="Gachi radio — auto-pick similar next track"
+        className={`btn-icon touch-target hidden sm:flex ${radioMode ? "btn-icon-active text-spotify-green" : ""}`}
+      >
+        <Radio className="h-4 w-4" />
       </button>
     </div>
   );

@@ -247,9 +247,13 @@ export function AdminPage() {
       {selectedId && (
         <AdminPendingTrackPanel
           trackId={selectedId}
+          initialArtistName={
+            tracks.find((t) => t.id === selectedId)?.creator?.display_name ??
+            tracks.find((t) => t.id === selectedId)?.creator?.handle ??
+            ""
+          }
           onClose={() => setSelectedId(null)}
           onSaved={() => void load()}
-          onApprove={approve}
           onReject={reject}
         />
       )}

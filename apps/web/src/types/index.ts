@@ -15,9 +15,14 @@ export interface GachiMetadata {
   mood_tags?: string[];
   wessratost_level?: number;
   is_continuous_mix?: boolean;
+  energy?: number;
+  valence?: number;
+  danceability?: number;
+  wackiness_score?: number;
   gapless_group_id?: string;
   preview_url?: string;
   cover_gradient?: string;
+  hls?: { manifest_key?: string };
 }
 
 export interface CreatorSummary {

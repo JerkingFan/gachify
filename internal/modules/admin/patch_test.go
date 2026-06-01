@@ -11,6 +11,8 @@ func TestMergeGachiMetadataPreservesHLS(t *testing.T) {
 		Title:           "New Title",
 		GachiPowerLevel: intPtr(90),
 		MoodTags:        []string{"dungeon"},
+		Energy:          float32Ptr(0.8),
+		Valence:         float32Ptr(0.3),
 	}
 	out, err := mergeGachiMetadata(existing, patch)
 	if err != nil {
@@ -34,3 +36,5 @@ func TestMergeGachiMetadataPreservesHLS(t *testing.T) {
 }
 
 func intPtr(n int) *int { return &n }
+
+func float32Ptr(f float32) *float32 { return &f }

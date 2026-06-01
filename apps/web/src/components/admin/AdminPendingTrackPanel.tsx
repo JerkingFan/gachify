@@ -3,24 +3,26 @@ import { Loader2, Pause, Play, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   adminApi,
+  type AdminPublishInput,
   type AdminTrackUpdate,
 } from "@/lib/adminApi";
+import { recommendationMatchScore } from "@/lib/recommendation";
 import { formatDuration, parseGachiMeta } from "@/lib/tracks";
-import type { Track } from "@/types";
+import type { GachiMetadata, Track } from "@/types";
 
 type Props = {
   trackId: string;
+  initialArtistName?: string;
   onClose: () => void;
   onSaved: () => void;
-  onApprove: (id: string) => Promise<void>;
   onReject: (id: string) => Promise<void>;
 };
 
 export function AdminPendingTrackPanel({
   trackId,
+  initialArtistName = "",
   onClose,
   onSaved,
-  onApprove,
   onReject,
 }: Props) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -34,20 +36,30 @@ export function AdminPendingTrackPanel({
   const [error, setError] = useState<string | null>(null);
 
   const [title, setTitle] = useState("");
+  const [artistName, setArtistName] = useState(initialArtistName);
+  const [artistHandle, setArtistHandle] = useState("");
   const [gachiPower, setGachiPower] = useState(50);
-  const [deepness, setDeepness] = useState(0.5);
+  const [deepness, setDeepness] = useState(5);
   const [dominantSample, setDominantSample] = useState("");
   const [gruntCount, setGruntCount] = useState(0);
   const [bpm, setBpm] = useState(120);
   const [moodTags, setMoodTags] = useState("");
   const [wessratost, setWessratost] = useState(5);
   const [continuousMix, setContinuousMix] = useState(false);
+  const [energy, setEnergy] = useState(0.5);
+  const [valence, setValence] = useState(0.5);
+  const [danceability, setDanceability] = useState(0.5);
+  const [wackiness, setWackiness] = useState(0.5);
 
   const fillForm = useCallback((t: Track) => {
     const meta = parseGachiMeta(t);
     setTitle(t.title);
     setGachiPower(meta.gachi_power_level ?? 50);
-    setDeepness(meta.deepness_score ?? 0.5);
+    setDeepness(meta.deepness_score ?? 5);
+    setEnergy(meta.energy ?? 0.5);
+    setValence(meta.valence ?? 0.5);
+    setDanceability(meta.danceability ?? 0.5);
+    setWackiness(meta.wackiness_score ?? 0.5);
     setDominantSample(meta.dominant_male_sample ?? "");
     setGruntCount(meta.grunt_count ?? 0);
     setBpm(meta.bpm ?? 120);
@@ -55,6 +67,10 @@ export function AdminPendingTrackPanel({
     setWessratost(meta.wessratost_level ?? 5);
     setContinuousMix(Boolean(meta.is_continuous_mix));
   }, []);
+
+  useEffect(() => {
+    setArtistName(initialArtistName);
+  }, [initialArtistName, trackId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -166,8 +182,7 @@ export function AdminPendingTrackPanel({
     }
   };
 
-  const buildUpdate = (): AdminTrackUpdate => ({
-    title: title.trim(),
+  const buildMeta = (): GachiMetadata => ({
     gachi_power_level: gachiPower,
     deepness_score: deepness,
     dominant_male_sample: dominantSample.trim() || undefined,
@@ -179,7 +194,51 @@ export function AdminPendingTrackPanel({
       .filter(Boolean),
     wessratost_level: wessratost,
     is_continuous_mix: continuousMix,
+    energy,
+    valence,
+    danceability,
+    wackiness_score: wackiness,
   });
+
+  const buildUpdate = (): AdminTrackUpdate => ({
+    title: title.trim(),
+    ...buildMeta(),
+  });
+
+  const buildPublish = (): AdminPublishInput => ({
+    ...buildUpdate(),
+    artist_display_name: artistName.trim(),
+    artist_handle: artistHandle.trim() || undefined,
+  });
+
+  const previewVector = buildMeta();
+  const exampleMatch = recommendationMatchScore(previewVector, {
+    ...previewVector,
+    bpm: (bpm + 8) % 200,
+    mood_tags: [...(previewVector.mood_tags ?? []), "radio_fill"],
+  });
+
+  const publish = async () => {
+    if (!title.trim()) {
+      setError("Title is required");
+      return;
+    }
+    if (!artistName.trim()) {
+      setError("Artist name is required to publish");
+      return;
+    }
+    setSaving(true);
+    setError(null);
+    try {
+      await adminApi.publishTrack(trackId, buildPublish());
+      onSaved();
+      onClose();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Publish failed");
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const save = async () => {
     if (!title.trim()) {
@@ -208,8 +267,10 @@ export function AdminPendingTrackPanel({
       <div className="flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-xl bg-spotify-elevated shadow-2xl">
         <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
           <div>
-            <h3 className="text-lg font-bold">Review track</h3>
-            <p className="text-xs text-spotify-muted">{trackId.slice(0, 8)}…</p>
+            <h3 className="text-lg font-bold">Publish &amp; tune stats</h3>
+            <p className="text-xs text-spotify-muted">
+              {trackId.slice(0, 8)}… · stats drive autoplay recommendations
+            </p>
           </div>
           <button
             type="button"
@@ -263,6 +324,12 @@ export function AdminPendingTrackPanel({
                 </div>
               </div>
 
+              <p className="mb-4 rounded-lg border border-spotify-green/30 bg-spotify-green/10 px-3 py-2 text-xs text-spotify-muted">
+                Recommendation score preview (similar track):{" "}
+                <span className="font-semibold text-spotify-green">{exampleMatch}</span>
+                — higher overlap on mood tags, BPM, power, deepness, energy keeps the radio going.
+              </p>
+
               <div className="grid gap-4 sm:grid-cols-2">
                 <label className="block sm:col-span-2">
                   <span className="mb-1 block text-xs text-spotify-muted">Title</span>
@@ -270,6 +337,28 @@ export function AdminPendingTrackPanel({
                     className={inputClass}
                     value={title}
                     onChange={(e) => setTitle(e.target.value)}
+                  />
+                </label>
+                <label className="block">
+                  <span className="mb-1 block text-xs text-spotify-muted">
+                    Artist name (shown in player)
+                  </span>
+                  <input
+                    className={inputClass}
+                    value={artistName}
+                    onChange={(e) => setArtistName(e.target.value)}
+                    placeholder="Van Darkholme"
+                  />
+                </label>
+                <label className="block">
+                  <span className="mb-1 block text-xs text-spotify-muted">
+                    Artist handle (optional)
+                  </span>
+                  <input
+                    className={inputClass}
+                    value={artistHandle}
+                    onChange={(e) => setArtistHandle(e.target.value)}
+                    placeholder="van_darkholme"
                   />
                 </label>
                 <label className="block">
@@ -287,15 +376,71 @@ export function AdminPendingTrackPanel({
                 </label>
                 <label className="block">
                   <span className="mb-1 block text-xs text-spotify-muted">
-                    Deepness ({deepness.toFixed(2)})
+                    Deepness ({deepness.toFixed(1)})
+                  </span>
+                  <input
+                    type="range"
+                    min={1}
+                    max={10}
+                    step={0.1}
+                    value={deepness}
+                    onChange={(e) => setDeepness(Number(e.target.value))}
+                    className="w-full"
+                  />
+                </label>
+                <label className="block">
+                  <span className="mb-1 block text-xs text-spotify-muted">
+                    Energy ({energy.toFixed(2)})
                   </span>
                   <input
                     type="range"
                     min={0}
                     max={1}
                     step={0.01}
-                    value={deepness}
-                    onChange={(e) => setDeepness(Number(e.target.value))}
+                    value={energy}
+                    onChange={(e) => setEnergy(Number(e.target.value))}
+                    className="w-full"
+                  />
+                </label>
+                <label className="block">
+                  <span className="mb-1 block text-xs text-spotify-muted">
+                    Valence ({valence.toFixed(2)})
+                  </span>
+                  <input
+                    type="range"
+                    min={0}
+                    max={1}
+                    step={0.01}
+                    value={valence}
+                    onChange={(e) => setValence(Number(e.target.value))}
+                    className="w-full"
+                  />
+                </label>
+                <label className="block">
+                  <span className="mb-1 block text-xs text-spotify-muted">
+                    Danceability ({danceability.toFixed(2)})
+                  </span>
+                  <input
+                    type="range"
+                    min={0}
+                    max={1}
+                    step={0.01}
+                    value={danceability}
+                    onChange={(e) => setDanceability(Number(e.target.value))}
+                    className="w-full"
+                  />
+                </label>
+                <label className="block">
+                  <span className="mb-1 block text-xs text-spotify-muted">
+                    Wackiness ({wackiness.toFixed(2)})
+                  </span>
+                  <input
+                    type="range"
+                    min={0}
+                    max={1}
+                    step={0.01}
+                    value={wackiness}
+                    onChange={(e) => setWackiness(Number(e.target.value))}
                     className="w-full"
                   />
                 </label>
@@ -378,17 +523,11 @@ export function AdminPendingTrackPanel({
             </button>
             <button
               type="button"
-              onClick={() =>
-                void save()
-                  .then(() => onApprove(trackId))
-                  .then(onClose)
-                  .catch((err) =>
-                    setError(err instanceof Error ? err.message : "Approve failed"),
-                  )
-              }
-              className="rounded-full bg-spotify-green px-5 py-2 text-sm font-bold text-black"
+              disabled={saving}
+              onClick={() => void publish()}
+              className="rounded-full bg-spotify-green px-5 py-2 text-sm font-bold text-black disabled:opacity-50"
             >
-              Save & approve
+              {saving ? "Publishing…" : "Publish"}
             </button>
             <button
               type="button"

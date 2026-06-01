@@ -67,6 +67,21 @@ export type AdminTrackUpdate = {
   mood_tags?: string[];
   wessratost_level?: number;
   is_continuous_mix?: boolean;
+  energy?: number;
+  valence?: number;
+  danceability?: number;
+  wackiness_score?: number;
+};
+
+export type AdminPublishInput = AdminTrackUpdate & {
+  artist_display_name: string;
+  artist_handle?: string;
+};
+
+export type AdminPublishResult = {
+  status: string;
+  track: Track;
+  creator: { id: string; handle: string; display_name: string };
 };
 
 export type DLQEntry = {
@@ -107,6 +122,13 @@ export const adminApi = {
 
   getPlayback(id: string): Promise<AdminPlayback> {
     return adminRequest(`/tracks/${id}/playback`);
+  },
+
+  publishTrack(id: string, body: AdminPublishInput): Promise<AdminPublishResult> {
+    return adminRequest(`/tracks/${id}/publish`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
   },
 
   approveTrack(id: string): Promise<void> {

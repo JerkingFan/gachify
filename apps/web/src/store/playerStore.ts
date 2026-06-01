@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { api } from "@/api/client";
 import { addRecent } from "@/lib/storage";
 import { recordPlayOnce } from "@/lib/plays";
 import type { Track } from "@/types";
@@ -14,6 +15,8 @@ interface PlayerState {
   volume: number;
   shuffle: boolean;
   repeat: RepeatMode;
+  /** When true, fetches the next similar track when the queue ends (infinite radio). */
+  radioMode: boolean;
   audio: HTMLAudioElement | null;
 
   setQueue: (tracks: Track[], startIndex?: number) => void;
@@ -26,6 +29,7 @@ interface PlayerState {
   setVolume: (v: number) => void;
   toggleShuffle: () => void;
   cycleRepeat: () => void;
+  toggleRadioMode: () => void;
   tick: (ms: number) => void;
   bindAudio: (el: HTMLAudioElement) => void;
   removeFromQueue: (index: number) => void;
@@ -51,6 +55,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   volume: 0.8,
   shuffle: false,
   repeat: "off",
+  radioMode: true,
   audio: null,
 
   bindAudio(el) {
@@ -94,7 +99,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   },
 
   next() {
-    const { queue, queueIndex, repeat, currentTrack, shuffle: shuf } = get();
+    const { queue, queueIndex, repeat, currentTrack, shuffle: shuf, radioMode } = get();
     if (!queue.length || !currentTrack) return;
 
     if (repeat === "one") {
@@ -105,7 +110,10 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
     let nextIdx = queueIndex + 1;
     if (nextIdx >= queue.length) {
       if (repeat === "all") nextIdx = 0;
-      else {
+      else if (radioMode) {
+        void appendRecommendedNext();
+        return;
+      } else {
         set({ isPlaying: false });
         return;
       }
@@ -156,6 +164,10 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
     }));
   },
 
+  toggleRadioMode() {
+    set((s) => ({ radioMode: !s.radioMode }));
+  },
+
   tick(ms) {
     set({ progressMs: ms });
   },
@@ -192,3 +204,25 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
     set({ queue: next });
   },
 }));
+
+async function appendRecommendedNext() {
+  const { currentTrack, queue } = usePlayerStore.getState();
+  if (!currentTrack) {
+    usePlayerStore.setState({ isPlaying: false });
+    return;
+  }
+  const exclude = queue.slice(-20).map((t) => t.id);
+  try {
+    const res = await api.getRecommendNext(currentTrack.id, exclude, 5);
+    const seen = new Set(queue.map((t) => t.id));
+    const fresh = res.items.filter((t) => !seen.has(t.id));
+    if (!fresh.length) {
+      usePlayerStore.setState({ isPlaying: false });
+      return;
+    }
+    const nextQueue = [...queue, ...fresh];
+    usePlayerStore.getState().playTrack(fresh[0], nextQueue);
+  } catch {
+    usePlayerStore.setState({ isPlaying: false });
+  }
+}

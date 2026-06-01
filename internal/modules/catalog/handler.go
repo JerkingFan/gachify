@@ -33,6 +33,7 @@ func (h *Handler) Routes() chi.Router {
 	r := chi.NewRouter()
 	r.With(h.rl.Middleware("tracks:search", h.searchLimit, time.Minute, ratelimit.ByIP)).Get("/", h.list)
 	r.Get("/{id}/similar", h.similar)
+	r.Get("/{id}/next", h.recommendNext)
 	r.Get("/{id}", h.getByID)
 	r.Post("/{id}/play", h.recordPlay)
 	return r
@@ -185,6 +186,43 @@ func (h *Handler) similar(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	httpserver.JSON(w, http.StatusOK, map[string]any{"items": tracks})
+}
+
+func (h *Handler) recommendNext(w http.ResponseWriter, r *http.Request) {
+	id, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		httpserver.Error(w, http.StatusBadRequest, "invalid_id", "track id must be a UUID")
+		return
+	}
+	limit := parseIntDefault(r.URL.Query().Get("limit"), 1)
+	exclude := parseUUIDList(r.URL.Query().Get("exclude"))
+	exclude = append(exclude, id)
+	tracks, err := h.repo.ListRecommendNext(r.Context(), id, exclude, limit)
+	if err != nil {
+		httpserver.Error(w, http.StatusInternalServerError, "internal_error", "failed to recommend next tracks")
+		return
+	}
+	httpserver.JSON(w, http.StatusOK, map[string]any{"items": tracks})
+}
+
+func parseUUIDList(raw string) []uuid.UUID {
+	if raw == "" {
+		return nil
+	}
+	parts := strings.Split(raw, ",")
+	out := make([]uuid.UUID, 0, len(parts))
+	for _, p := range parts {
+		p = strings.TrimSpace(p)
+		if p == "" {
+			continue
+		}
+		id, err := uuid.Parse(p)
+		if err != nil {
+			continue
+		}
+		out = append(out, id)
+	}
+	return out
 }
 
 func parseIntDefault(s string, def int) int {

@@ -8,6 +8,7 @@ import (
 	"github.com/gachify/gachify/internal/domain"
 	"github.com/gachify/gachify/internal/modules/catalog"
 	"github.com/gachify/gachify/internal/modules/streaming"
+	"github.com/gachify/gachify/internal/modules/users"
 	"github.com/gachify/gachify/internal/platform/httpserver"
 	"github.com/gachify/gachify/internal/platform/queue"
 	streamtoken "github.com/gachify/gachify/internal/platform/streaming"
@@ -17,13 +18,14 @@ import (
 
 type Handler struct {
 	catalog *catalog.Repository
+	users   *users.Repository
 	queue   *queue.RedisQueue
 	stream  *streaming.Service
 	signer  *streamtoken.TokenSigner
 }
 
-func NewHandler(cat *catalog.Repository, q *queue.RedisQueue, stream *streaming.Service, signer *streamtoken.TokenSigner) *Handler {
-	return &Handler{catalog: cat, queue: q, stream: stream, signer: signer}
+func NewHandler(cat *catalog.Repository, userRepo *users.Repository, q *queue.RedisQueue, stream *streaming.Service, signer *streamtoken.TokenSigner) *Handler {
+	return &Handler{catalog: cat, users: userRepo, queue: q, stream: stream, signer: signer}
 }
 
 func (h *Handler) Routes() chi.Router {
@@ -34,6 +36,7 @@ func (h *Handler) Routes() chi.Router {
 	r.Get("/tracks/{id}/playback", h.previewPlayback)
 	r.Get("/stream/playlist.m3u8", h.adminPlaylist)
 	r.Get("/stream/hls.key", h.adminHLSKey)
+	r.Post("/tracks/{id}/publish", h.publishTrack)
 	r.Post("/tracks/{id}/approve", h.approveTrack)
 	r.Post("/tracks/{id}/reject", h.rejectTrack)
 	r.Get("/queue/dlq", h.listDLQ)

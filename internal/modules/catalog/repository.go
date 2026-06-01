@@ -130,6 +130,21 @@ func (r *Repository) UpdateModeration(ctx context.Context, id uuid.UUID, title s
 	return nil
 }
 
+func (r *Repository) AdminPublish(ctx context.Context, id, creatorID uuid.UUID, title string, meta json.RawMessage) error {
+	tag, err := r.pool.Exec(ctx, `
+		UPDATE tracks
+		SET creator_id = $2, title = $3, gachi_metadata = $4, status = 'published', processing_error = NULL, updated_at = now()
+		WHERE id = $1 AND status IN ('pending_review', 'draft')
+	`, id, creatorID, title, meta)
+	if err != nil {
+		return fmt.Errorf("admin publish: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
 func (r *Repository) CreateTranscodeJob(ctx context.Context, trackID uuid.UUID) (uuid.UUID, error) {
 	var jobID uuid.UUID
 	err := r.pool.QueryRow(ctx, `
@@ -330,49 +345,7 @@ func (r *Repository) IncrementPlayCount(ctx context.Context, id uuid.UUID) error
 }
 
 func (r *Repository) ListSimilar(ctx context.Context, trackID uuid.UUID, limit int) ([]domain.TrackWithCreator, error) {
-	if limit <= 0 {
-		limit = 10
-	}
-	if limit > 50 {
-		limit = 50
-	}
-	q := `SELECT ` + trackColumnsAliased + `, u.handle, u.display_name
-		FROM tracks t
-		JOIN users u ON u.id = t.creator_id
-		WHERE t.status = 'published' AND t.id != $1
-		AND (
-			t.creator_id = (SELECT creator_id FROM tracks WHERE id = $1)
-			OR EXISTS (
-				SELECT 1
-				FROM jsonb_array_elements_text(COALESCE(t.gachi_metadata->'mood_tags', '[]'::jsonb)) tag
-				WHERE tag IN (
-					SELECT jsonb_array_elements_text(COALESCE(ref.gachi_metadata->'mood_tags', '[]'::jsonb))
-					FROM tracks ref WHERE ref.id = $1
-				)
-			)
-		)
-		ORDER BY
-			CASE WHEN t.creator_id = (SELECT creator_id FROM tracks WHERE id = $1) THEN 0 ELSE 1 END,
-			t.play_count DESC,
-			t.created_at DESC
-		LIMIT $2`
-	rows, err := r.pool.Query(ctx, q, trackID, limit)
-	if err != nil {
-		return nil, fmt.Errorf("list similar: %w", err)
-	}
-	defer rows.Close()
-	var tracks []domain.TrackWithCreator
-	for rows.Next() {
-		item, err := scanTrackWithCreator(rows)
-		if err != nil {
-			return nil, err
-		}
-		tracks = append(tracks, item)
-	}
-	if tracks == nil {
-		tracks = []domain.TrackWithCreator{}
-	}
-	return tracks, rows.Err()
+	return r.ListRecommendNext(ctx, trackID, []uuid.UUID{trackID}, limit)
 }
 
 func (r *Repository) ListPublishedByCreators(ctx context.Context, creatorIDs []uuid.UUID, limit, offset int) ([]domain.TrackWithCreator, error) {

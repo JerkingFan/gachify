@@ -209,6 +209,16 @@ export const api = {
     return request<TracksResponse>(`/tracks/${id}/similar?limit=${limit}`);
   },
 
+  getRecommendNext(
+    id: string,
+    exclude: string[] = [],
+    limit = 1,
+  ): Promise<TracksResponse> {
+    const params = new URLSearchParams({ limit: String(limit) });
+    if (exclude.length) params.set("exclude", exclude.join(","));
+    return request<TracksResponse>(`/tracks/${id}/next?${params}`);
+  },
+
   getFeed(limit = 20, offset = 0): Promise<TracksResponse> {
     return request<TracksResponse>(`/me/feed?limit=${limit}&offset=${offset}`, {}, true);
   },

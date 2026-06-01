@@ -100,7 +100,7 @@ func New(ctx context.Context) (*App, error) {
 	playbackSigner := streamtoken.NewTokenSigner(cfg.JWTSecret, cfg.PlaybackTokenTTL)
 	streamSvc := streaming.NewService(catalogRepo, s3, playbackSigner, redisQ.Client(), cfg.PlaybackSegmentTTL)
 	streamH := streaming.NewHandler(streamSvc, catalogRepo, playbackSigner, cfg.PublicAPIBaseURL)
-	adminH := admin.NewHandler(catalogRepo, redisQ, streamSvc, playbackSigner)
+	adminH := admin.NewHandler(catalogRepo, userRepo, redisQ, streamSvc, playbackSigner)
 
 	libRepo := library.NewRepository(pool)
 	libH := library.NewHandler(libRepo, catalogRepo, recentStore)

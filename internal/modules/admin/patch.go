@@ -14,6 +14,10 @@ type updateTrackBody struct {
 	MoodTags          []string `json:"mood_tags"`
 	WessratostLevel   *int     `json:"wessratost_level"`
 	IsContinuousMix   *bool    `json:"is_continuous_mix"`
+	Energy            *float32 `json:"energy"`
+	Valence           *float32 `json:"valence"`
+	Danceability      *float32 `json:"danceability"`
+	WackinessScore    *float32 `json:"wackiness_score"`
 }
 
 func mergeGachiMetadata(existing json.RawMessage, patch updateTrackBody) (json.RawMessage, error) {
@@ -49,6 +53,18 @@ func mergeGachiMetadata(existing json.RawMessage, patch updateTrackBody) (json.R
 	}
 	if patch.IsContinuousMix != nil {
 		m["is_continuous_mix"] = *patch.IsContinuousMix
+	}
+	if patch.Energy != nil {
+		m["energy"] = *patch.Energy
+	}
+	if patch.Valence != nil {
+		m["valence"] = *patch.Valence
+	}
+	if patch.Danceability != nil {
+		m["danceability"] = *patch.Danceability
+	}
+	if patch.WackinessScore != nil {
+		m["wackiness_score"] = *patch.WackinessScore
 	}
 	return json.Marshal(m)
 }
