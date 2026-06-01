@@ -65,15 +65,13 @@ export function UploadPage() {
       try {
         const t = await api.getUploadStatus(trackId);
         setTrack(t);
-        if (t.status === "published") {
+        if (t.status === "published" || t.status === "pending_review") {
           setStep("done");
-          setMessage("Your remix is live in the catalog.");
-          void loadMyTracks();
-          return;
-        }
-        if (t.status === "pending_review") {
-          setStep("done");
-          setMessage("Transcode complete — your track is awaiting moderator approval.");
+          setMessage(
+            t.status === "published"
+              ? "Your remix is live in the catalog."
+              : "Transcode complete — your track is awaiting moderator approval.",
+          );
           void loadMyTracks();
           return;
         }
