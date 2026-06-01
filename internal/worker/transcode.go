@@ -58,8 +58,12 @@ func RunTranscode(ctx context.Context, cat *catalog.Repository, st *storage.Clie
 	}
 	if analyzed, err := runGachiAnalyzer(ctx, slog.Default(), inputPath); err != nil {
 		slog.Warn("gachi analyzer skipped", "track_id", trackID, "error", err)
+		meta["analyzer_skipped"] = true
+		meta["analyzer_error"] = err.Error()
 	} else if len(analyzed) > 0 {
 		meta = mergeMetadata(meta, analyzed)
+		delete(meta, "analyzer_skipped")
+		delete(meta, "analyzer_error")
 	}
 
 	hlsDir := filepath.Join(tmp, "hls")

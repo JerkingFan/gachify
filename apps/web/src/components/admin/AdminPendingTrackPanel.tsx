@@ -7,7 +7,11 @@ import {
   type AdminTrackUpdate,
 } from "@/lib/adminApi";
 import { recommendationMatchScore } from "@/lib/recommendation";
-import { formatDuration, parseGachiMeta } from "@/lib/tracks";
+import {
+  formatDuration,
+  getTrackAnalysisStatus,
+  parseGachiMeta,
+} from "@/lib/tracks";
 import type { GachiMetadata, Track } from "@/types";
 
 type Props = {
@@ -51,27 +55,38 @@ export function AdminPendingTrackPanel({
   const [danceability, setDanceability] = useState(0.5);
   const [wackiness, setWackiness] = useState(0.5);
 
-  const hasAutoAnalysis = Boolean(
-    track &&
-      typeof track.gachi_metadata === "object" &&
-      track.gachi_metadata !== null &&
-      "analyzer" in (track.gachi_metadata as Record<string, unknown>),
-  );
+  const analysisStatus = getTrackAnalysisStatus(track);
+  const analyzerError =
+    track?.gachi_metadata &&
+    typeof track.gachi_metadata === "object" &&
+    typeof (track.gachi_metadata as Record<string, unknown>).analyzer_error ===
+      "string"
+      ? String((track.gachi_metadata as Record<string, unknown>).analyzer_error)
+      : null;
 
   const fillForm = useCallback((t: Track) => {
     const meta = parseGachiMeta(t);
     setTitle(t.title);
-    setGachiPower(meta.gachi_power_level ?? 50);
-    setDeepness(meta.deepness_score ?? 5);
-    setEnergy(meta.energy ?? 0.5);
-    setValence(meta.valence ?? 0.5);
-    setDanceability(meta.danceability ?? 0.5);
-    setWackiness(meta.wackiness_score ?? 0.5);
+    // Only pre-fill fields that exist in DB — avoid fake "50 / 120 / 0.5" defaults.
+    setGachiPower(
+      typeof meta.gachi_power_level === "number" ? meta.gachi_power_level : 50,
+    );
+    setDeepness(typeof meta.deepness_score === "number" ? meta.deepness_score : 5);
+    setEnergy(typeof meta.energy === "number" ? meta.energy : 0.5);
+    setValence(typeof meta.valence === "number" ? meta.valence : 0.5);
+    setDanceability(
+      typeof meta.danceability === "number" ? meta.danceability : 0.5,
+    );
+    setWackiness(
+      typeof meta.wackiness_score === "number" ? meta.wackiness_score : 0.5,
+    );
     setDominantSample(meta.dominant_male_sample ?? "");
-    setGruntCount(meta.grunt_count ?? 0);
-    setBpm(meta.bpm ?? 120);
+    setGruntCount(typeof meta.grunt_count === "number" ? meta.grunt_count : 0);
+    setBpm(typeof meta.bpm === "number" ? meta.bpm : 120);
     setMoodTags((meta.mood_tags ?? []).join(", "));
-    setWessratost(meta.wessratost_level ?? 5);
+    setWessratost(
+      typeof meta.wessratost_level === "number" ? meta.wessratost_level : 5,
+    );
     setContinuousMix(Boolean(meta.is_continuous_mix));
   }, []);
 
@@ -331,17 +346,44 @@ export function AdminPendingTrackPanel({
                 </div>
               </div>
 
-              {hasAutoAnalysis ? (
+              {analysisStatus === "analyzed" ? (
                 <p className="mb-4 rounded-lg border border-spotify-green/40 bg-spotify-green/15 px-3 py-2 text-xs text-emerald-100">
-                  Stats were filled automatically by <strong>gachi_analyzer</strong> during
-                  transcode. Adjust if needed, then publish — radio uses these fields.
+                  <strong>gachi_analyzer</strong> уже посчитал статы по аудиофайлу. Проверьте
+                  значения и нажмите Publish.
+                </p>
+              ) : analysisStatus === "skipped" ? (
+                <p className="mb-4 rounded-lg border border-red-500/40 bg-red-900/30 px-3 py-2 text-xs text-red-100">
+                  Анализатор <strong>не запустился</strong> на воркере.
+                  {analyzerError ? (
+                    <>
+                      {" "}
+                      Причина: <code className="text-red-50">{analyzerError}</code>
+                    </>
+                  ) : null}{" "}
+                  Пересоберите образ worker с Python (
+                  <code className="text-red-50">build --no-cache worker</code>) и проверьте логи:{" "}
+                  <code className="text-red-50">docker compose logs worker --tail 50</code>.
+                  Сейчас в форме — только то, что было при загрузке (обычно Power 50 и Deepness
+                  5), остальное — заглушки интерфейса.
                 </p>
               ) : (
                 <p className="mb-4 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-100">
-                  Analyzer did not run (worker without Python or{" "}
-                  <code className="text-amber-50">GACHIFY_ANALYZER_ENABLED=false</code>). Fill
-                  stats manually or re-run transcode on a worker image with gachi_analyzer.
+                  Анализ ещё <strong>не выполнен</strong> (старый worker без gachi_analyzer или
+                  трек обработан до обновления). Power/Deepness 50 и 5 — с формы загрузки; Energy,
+                  Valence, BPM 120 и т.д. — <strong>не из анализа</strong>, а значения по умолчанию
+                  в админке. Заполните вручную или перезапустите transcode на новом worker.
                 </p>
+              )}
+
+              {track?.gachi_metadata && (
+                <details className="mb-4 text-xs text-spotify-muted">
+                  <summary className="cursor-pointer hover:text-white">
+                    Сырые метаданные в базе
+                  </summary>
+                  <pre className="mt-2 max-h-40 overflow-auto rounded bg-black/40 p-2 text-[10px]">
+                    {JSON.stringify(track.gachi_metadata, null, 2)}
+                  </pre>
+                </details>
               )}
 
               <p className="mb-4 rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-xs text-spotify-muted">
@@ -472,7 +514,7 @@ export function AdminPendingTrackPanel({
                     className={inputClass}
                     value={dominantSample}
                     onChange={(e) => setDominantSample(e.target.value)}
-                    placeholder="billy_herrington"
+                    placeholder="например van_darkholme (если пусто — не задано)"
                   />
                 </label>
                 <label className="block">

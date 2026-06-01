@@ -6,6 +6,23 @@ export function parseGachiMeta(track: Track): GachiMetadata {
   return raw as GachiMetadata;
 }
 
+export type TrackAnalysisStatus = "analyzed" | "skipped" | "pending";
+
+/** Whether gachi_analyzer ran successfully on the transcode worker. */
+export function getTrackAnalysisStatus(track: Track | null): TrackAnalysisStatus {
+  if (!track?.gachi_metadata || typeof track.gachi_metadata !== "object") {
+    return "pending";
+  }
+  const meta = track.gachi_metadata as Record<string, unknown>;
+  if (meta.analyzer && typeof meta.analyzer === "object") {
+    return "analyzed";
+  }
+  if (meta.analyzer_skipped === true) {
+    return "skipped";
+  }
+  return "pending";
+}
+
 export function formatDuration(ms: number): string {
   if (!ms || ms < 0) return "0:00";
   const total = Math.floor(ms / 1000);
