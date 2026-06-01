@@ -1,6 +1,7 @@
 export type TrackStatus =
   | "draft"
   | "processing"
+  | "pending_review"
   | "published"
   | "shadow_banned"
   | "removed";
