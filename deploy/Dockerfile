@@ -30,12 +30,11 @@ HEALTHCHECK --interval=10s --timeout=5s --retries=5 --start-period=20s \
   CMD wget -q -O - http://127.0.0.1:8080/health/ready >/dev/null || exit 1
 ENTRYPOINT ["gachify-api"]
 
-FROM alpine:3.20 AS worker
-# ffmpeg + Python MIR analyzer (venv — Alpine blocks system-wide pip per PEP 668)
-RUN apk add --no-cache \
-    ca-certificates ffmpeg \
-    python3 python3-dev py3-pip \
-    gcc g++ musl-dev gfortran openblas-dev libsndfile-dev
+# Debian slim: prebuilt wheels for librosa/numba/llvmlite (Alpine musl often fails to build llvmlite)
+FROM python:3.12-slim-bookworm AS worker
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ca-certificates ffmpeg libsndfile1 \
+    && rm -rf /var/lib/apt/lists/*
 COPY gachi_analyzer /opt/gachify-analyzer/gachi_analyzer
 COPY gachi_analyzer/run_analyze.py /opt/gachify-analyzer/run_analyze.py
 COPY gachi_analyzer/requirements-worker.txt /opt/gachify-analyzer/requirements-worker.txt

@@ -1,7 +1,11 @@
-# Slim worker image: MIR without torch/transformers (stone classifier falls back to heuristics)
+# Worker image (Debian bookworm): MIR without torch — use manylinux wheels, avoid source builds
+numpy==1.26.4
+scipy==1.13.1
+llvmlite==0.43.0
+numba==0.60.0
 librosa==0.10.2.post1
 soundfile==0.12.1
 audioread==3.0.1
-numpy==1.26.4
-scipy==1.13.1
 tqdm==4.66.5
+joblib>=1.2.0
+scikit-learn>=1.3.0
