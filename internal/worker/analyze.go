@@ -44,8 +44,12 @@ func analyzerRoot() string {
 // runGachiAnalyzer executes gachi_analyzer on the local master file and returns gachi_metadata fields.
 func runGachiAnalyzer(ctx context.Context, log *slog.Logger, inputPath string) (map[string]any, error) {
 	if !analyzerEnabled() {
+		log.Info("gachi analyzer disabled",
+			"hint", "set GACHIFY_ANALYZER_ENABLED=true and rebuild worker image with Python venv")
 		return nil, nil
 	}
+
+	log.Info("gachi analyzer starting", "input", filepath.Base(inputPath))
 
 	outPath := filepath.Join(filepath.Dir(inputPath), "gachi_analysis.json")
 	mapPath := filepath.Join(filepath.Dir(inputPath), "gachi_metadata.json")
