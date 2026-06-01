@@ -1,4 +1,9 @@
 import { Music2, Play, ServerCrash } from "lucide-react";
+import { useEffect, useState } from "react";
+import { api } from "@/api/client";
+import { PlaylistCard } from "@/components/ui/PlaylistCard";
+import { coverSeedFromPlaylist } from "@/lib/playlists";
+import type { ServerPlaylist } from "@/types";
 import { Section } from "@/components/ui/Section";
 import { TrackCard } from "@/components/ui/TrackCard";
 import { TopBar } from "@/components/layout/TopBar";
@@ -26,6 +31,11 @@ export function HomePage() {
   const { tracks: feedTracks, loading: feedLoading } = useFeed(10);
   const playTrack = usePlayerStore((s) => s.playTrack);
   const setQueue = usePlayerStore((s) => s.setQueue);
+  const [publicPlaylists, setPublicPlaylists] = useState<ServerPlaylist[]>([]);
+
+  useEffect(() => {
+    void api.getPublicPlaylists(12).then((r) => setPublicPlaylists(r.items));
+  }, []);
 
   const recentIds = getRecentIds();
   const recent = recentIds
@@ -128,6 +138,26 @@ export function HomePage() {
                       ))}
                     </div>
                   </Section>
+
+                  {publicPlaylists.length > 0 && (
+                    <Section title="Public playlists" subtitle="Community mixes">
+                      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+                        {publicPlaylists.map((pl) => (
+                          <PlaylistCard
+                            key={pl.id}
+                            id={pl.id}
+                            title={pl.title}
+                            description={
+                              pl.owner_display_name
+                                ? `by ${pl.owner_display_name}`
+                                : pl.description
+                            }
+                            coverSeed={coverSeedFromPlaylist(pl)}
+                          />
+                        ))}
+                      </div>
+                    </Section>
+                  )}
 
                   {byPower.length > 0 && (
                     <Section title="Maximum ♂️ power level">

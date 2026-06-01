@@ -66,6 +66,12 @@ func RunTranscode(ctx context.Context, cat *catalog.Repository, st *storage.Clie
 		delete(meta, "analyzer_error")
 	}
 
+	if merged, err := runLyricsExtract(ctx, slog.Default(), inputPath, meta); err != nil {
+		slog.Warn("lyrics extract skipped", "track_id", trackID, "error", err)
+	} else if merged != nil {
+		meta = merged
+	}
+
 	hlsDir := filepath.Join(tmp, "hls")
 	result, err := transcode.TranscodeToHLS(ctx, inputPath, hlsDir)
 	if err != nil {

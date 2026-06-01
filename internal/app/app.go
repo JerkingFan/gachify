@@ -150,6 +150,7 @@ func New(ctx context.Context) (*App, error) {
 		api.Mount("/auth", authH.Routes(tokens, rateLimiter, tokenBlacklist))
 		api.Mount("/users", userH.Routes())
 		api.Mount("/tracks", catalogH.Routes())
+		api.Mount("/playlists", libH.PublicRoutes())
 		api.Mount("/search", searchH.Routes())
 		api.Mount("/stream", streamH.Routes())
 

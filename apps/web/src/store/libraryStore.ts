@@ -29,10 +29,14 @@ interface LibraryState {
   reset: () => void;
   isLiked: (trackId: string) => boolean;
   toggleLiked: (trackId: string, authenticated: boolean) => Promise<boolean>;
-  createPlaylist: (title: string, description?: string) => Promise<ServerPlaylist>;
+  createPlaylist: (
+    title: string,
+    description?: string,
+    isPublic?: boolean,
+  ) => Promise<ServerPlaylist>;
   updatePlaylist: (
     id: string,
-    patch: { title?: string; description?: string },
+    patch: { title?: string; description?: string; is_public?: boolean },
   ) => Promise<ServerPlaylist>;
   deletePlaylist: (id: string) => Promise<void>;
   addTracksToPlaylist: (playlistId: string, trackIds: string[]) => Promise<ServerPlaylist>;
@@ -112,8 +116,12 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
     return !liked;
   },
 
-  async createPlaylist(title, description = "") {
-    const p = await api.createPlaylist({ title, description });
+  async createPlaylist(title, description = "", isPublic = false) {
+    const p = await api.createPlaylist({
+      title,
+      description,
+      is_public: isPublic,
+    });
     set({ playlists: [...get().playlists, p] });
     return p;
   },

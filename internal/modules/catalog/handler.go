@@ -34,6 +34,7 @@ func (h *Handler) Routes() chi.Router {
 	r.With(h.rl.Middleware("tracks:search", h.searchLimit, time.Minute, ratelimit.ByIP)).Get("/", h.list)
 	r.Get("/{id}/similar", h.similar)
 	r.Get("/{id}/next", h.recommendNext)
+	r.Get("/{id}/lyrics", h.lyrics)
 	r.Get("/{id}", h.getByID)
 	r.Post("/{id}/play", h.recordPlay)
 	return r

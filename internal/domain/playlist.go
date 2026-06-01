@@ -43,3 +43,10 @@ type AddPlaylistTracksInput struct {
 type SetPlaylistItemsInput struct {
 	TrackIDs []uuid.UUID `json:"track_ids"`
 }
+
+// PublicPlaylist is a playlist visible without authentication.
+type PublicPlaylist struct {
+	Playlist
+	OwnerHandle      string `json:"owner_handle"`
+	OwnerDisplayName string `json:"owner_display_name"`
+}

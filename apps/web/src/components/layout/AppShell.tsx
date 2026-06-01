@@ -1,15 +1,21 @@
 import { Outlet } from "react-router-dom";
+import { KaraokePanel } from "@/components/karaoke/KaraokePanel";
 import { useAudioEngine } from "@/hooks/useAudioEngine";
+import { useTrackLyrics } from "@/hooks/useTrackLyrics";
 import { MobileBottomNav } from "./MobileBottomNav";
 import { PlayerBar } from "./PlayerBar";
 import { QueuePanel } from "./QueuePanel";
 import { Sidebar } from "./Sidebar";
+import { usePlayerStore } from "@/store/playerStore";
 import { useUIStore } from "@/store/uiStore";
 
 export function AppShell() {
   useAudioEngine();
   const sidebarOpen = useUIStore((s) => s.sidebarOpen);
   const setSidebarOpen = useUIStore((s) => s.setSidebarOpen);
+  const karaokeOpen = useUIStore((s) => s.karaokeOpen);
+  const currentTrack = usePlayerStore((s) => s.currentTrack);
+  const lyricsDoc = useTrackLyrics(currentTrack);
 
   return (
     <div className="flex h-[100dvh] flex-col bg-spotify-black">
@@ -34,7 +40,8 @@ export function AppShell() {
       </div>
       <MobileBottomNav />
       <QueuePanel />
-      <PlayerBar />
+      {karaokeOpen && lyricsDoc && <KaraokePanel doc={lyricsDoc} />}
+      <PlayerBar hasLyrics={Boolean(lyricsDoc)} />
     </div>
   );
 }

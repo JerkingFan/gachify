@@ -22,7 +22,11 @@ import { usePlayerStore } from "@/store/playerStore";
 import { useUIStore } from "@/store/uiStore";
 import { CoverArt } from "@/components/ui/CoverArt";
 
-export function PlayerBar() {
+type PlayerBarProps = {
+  hasLyrics?: boolean;
+};
+
+export function PlayerBar({ hasLyrics = false }: PlayerBarProps) {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const isLikedFn = useLibraryStore((s) => s.isLiked);
   const toggleLiked = useLibraryStore((s) => s.toggleLiked);
@@ -42,6 +46,8 @@ export function PlayerBar() {
   const radioMode = usePlayerStore((s) => s.radioMode);
   const toggleRadioMode = usePlayerStore((s) => s.toggleRadioMode);
   const toggleQueuePanel = useUIStore((s) => s.toggleQueuePanel);
+  const toggleKaraoke = useUIStore((s) => s.toggleKaraoke);
+  const karaokeOpen = useUIStore((s) => s.karaokeOpen);
   const queuePanelOpen = useUIStore((s) => s.queuePanelOpen);
   const queueLen = usePlayerStore((s) => s.queue.length);
 
@@ -193,9 +199,16 @@ export function PlayerBar() {
                 <Heart className="h-4 w-4" />
               </Link>
             )}
-            <button type="button" className="btn-icon hidden lg:flex">
-              <Mic2 className="h-4 w-4" />
-            </button>
+            {hasLyrics && (
+              <button
+                type="button"
+                className={`btn-icon flex ${karaokeOpen ? "text-spotify-green" : ""}`}
+                title="Karaoke lyrics"
+                onClick={toggleKaraoke}
+              >
+                <Mic2 className="h-4 w-4" />
+              </button>
+            )}
           </>
         ) : (
           <p className="text-sm text-spotify-muted">Select a track to play</p>

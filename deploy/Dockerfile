@@ -37,12 +37,14 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 COPY gachi_analyzer /opt/gachify-analyzer/gachi_analyzer
 COPY gachi_analyzer/run_analyze.py /opt/gachify-analyzer/run_analyze.py
+COPY gachi_analyzer/extract_lyrics.py /opt/gachify-analyzer/extract_lyrics.py
 COPY gachi_analyzer/requirements-worker.txt /opt/gachify-analyzer/requirements-worker.txt
 RUN python3 -m venv /opt/gachify-analyzer/venv \
     && /opt/gachify-analyzer/venv/bin/pip install --upgrade pip \
     && /opt/gachify-analyzer/venv/bin/pip install --no-cache-dir \
       -r /opt/gachify-analyzer/requirements-worker.txt \
-    && chmod +x /opt/gachify-analyzer/run_analyze.py
+    && chmod +x /opt/gachify-analyzer/run_analyze.py \
+    && chmod +x /opt/gachify-analyzer/extract_lyrics.py
 ENV PYTHONPATH=/opt/gachify-analyzer \
     GACHIFY_ANALYZER_ROOT=/opt/gachify-analyzer \
     GACHIFY_ANALYZER_PYTHON=/opt/gachify-analyzer/venv/bin/python3 \

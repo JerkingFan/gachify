@@ -327,6 +327,20 @@ export const api = {
     return request<ServerPlaylist>(`/me/playlists/${id}`, {}, true);
   },
 
+  getPublicPlaylists(limit = 20, offset = 0): Promise<PlaylistsResponse> {
+    return request<PlaylistsResponse>(
+      `/playlists?limit=${limit}&offset=${offset}`,
+    );
+  },
+
+  getPublicPlaylist(id: string): Promise<ServerPlaylist> {
+    return request<ServerPlaylist>(`/playlists/${id}`);
+  },
+
+  getTrackLyrics(id: string): Promise<import("@/types").LyricsDocument> {
+    return request<import("@/types").LyricsDocument>(`/tracks/${id}/lyrics`);
+  },
+
   importLibrary(body: {
     liked_track_ids: string[];
     playlists: { name: string; description: string; track_ids: string[] }[];

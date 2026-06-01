@@ -4,6 +4,7 @@ import { Navigate } from "react-router-dom";
 import { api } from "@/api/client";
 import { TopBar } from "@/components/layout/TopBar";
 import { useAuthStore } from "@/store/authStore";
+import { readLrcFile } from "@/lib/lyrics";
 import type { Track } from "@/types";
 
 type Step = "form" | "uploading" | "processing" | "done" | "error";
@@ -26,6 +27,8 @@ export function UploadPage() {
   const [file, setFile] = useState<File | null>(null);
   const [gachiPower, setGachiPower] = useState(50);
   const [deepness, setDeepness] = useState(5);
+  const [lrcText, setLrcText] = useState("");
+  const [lrcFile, setLrcFile] = useState<File | null>(null);
   const [track, setTrack] = useState<Track | null>(null);
   const [message, setMessage] = useState("");
   const [myTracks, setMyTracks] = useState<Track[]>([]);
@@ -114,6 +117,11 @@ export function UploadPage() {
     setMessage("Creating upload session…");
 
     try {
+      let lyricsLrc = lrcText.trim();
+      if (!lyricsLrc && lrcFile) {
+        lyricsLrc = await readLrcFile(lrcFile);
+      }
+
       const init = await api.initUpload({
         title: title.trim(),
         filename: file.name,
@@ -122,6 +130,7 @@ export function UploadPage() {
         gachi_metadata: {
           gachi_power_level: gachiPower,
           deepness_score: deepness,
+          ...(lyricsLrc ? { lyrics_lrc: lyricsLrc } : {}),
         },
       });
 
@@ -226,6 +235,26 @@ export function UploadPage() {
                     className="mt-2 w-full accent-spotify-green"
                   />
                 </label>
+              </div>
+
+              <div className="space-y-3 rounded-lg border border-white/10 p-4">
+                <p className="text-sm font-semibold">Karaoke lyrics (optional)</p>
+                <p className="text-xs text-spotify-muted">
+                  Paste LRC or upload .lrc — worker also reads embedded ID3 lyrics from MP3.
+                </p>
+                <textarea
+                  value={lrcText}
+                  onChange={(e) => setLrcText(e.target.value)}
+                  rows={4}
+                  placeholder="[00:12.50]Hello ♂️ world"
+                  className="w-full rounded-md bg-spotify-highlight px-3 py-2 font-mono text-xs"
+                />
+                <input
+                  type="file"
+                  accept=".lrc,text/plain"
+                  onChange={(e) => setLrcFile(e.target.files?.[0] ?? null)}
+                  className="w-full text-sm text-spotify-muted"
+                />
               </div>
 
               <button

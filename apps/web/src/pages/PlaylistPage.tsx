@@ -31,6 +31,7 @@ export function PlaylistPage() {
   const [editing, setEditing] = useState(false);
   const [editTitle, setEditTitle] = useState("");
   const [editDesc, setEditDesc] = useState("");
+  const [editPublic, setEditPublic] = useState(false);
   const [busy, setBusy] = useState(false);
   const [dragIndex, setDragIndex] = useState<number | null>(null);
 
@@ -41,11 +42,22 @@ export function PlaylistPage() {
       setPlaylist(fromCache);
       return;
     }
-    if (isAuthenticated) {
-      void api.getPlaylist(id).then(setPlaylist).catch(() => setPlaylist(null));
-    } else {
-      setPlaylist(null);
-    }
+    void (async () => {
+      try {
+        const pub = await api.getPublicPlaylist(id);
+        setPlaylist(pub);
+      } catch {
+        if (isAuthenticated) {
+          try {
+            setPlaylist(await api.getPlaylist(id));
+          } catch {
+            setPlaylist(null);
+          }
+        } else {
+          setPlaylist(null);
+        }
+      }
+    })();
   }, [id, cached, isAuthenticated]);
 
   const trackIds = playlist ? playlistTrackIds(playlist) : [];
@@ -64,6 +76,7 @@ export function PlaylistPage() {
     if (!playlist) return;
     setEditTitle(playlist.title);
     setEditDesc(playlist.description);
+    setEditPublic(playlist.is_public);
     setEditing(true);
   };
 
@@ -74,6 +87,7 @@ export function PlaylistPage() {
       const updated = await updatePlaylist(playlist.id, {
         title: editTitle.trim(),
         description: editDesc.trim(),
+        is_public: editPublic,
       });
       setPlaylist(updated);
       setEditing(false);
@@ -151,7 +165,9 @@ export function PlaylistPage() {
         <div className="flex flex-col gap-6 px-6 pb-6 md:flex-row md:items-end">
           <CoverArt seed={coverSeedFromPlaylist(playlist)} size="xl" />
           <div className="min-w-0 flex-1">
-            <p className="text-xs font-semibold uppercase">Playlist</p>
+            <p className="text-xs font-semibold uppercase">
+              {playlist.is_public ? "Public playlist" : "Playlist"}
+            </p>
             {editing ? (
               <div className="mt-2 space-y-3">
                 <input
@@ -166,6 +182,15 @@ export function PlaylistPage() {
                   placeholder="Description"
                   className="w-full rounded-md bg-spotify-highlight px-3 py-2 text-sm"
                 />
+                <label className="flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={editPublic}
+                    onChange={(e) => setEditPublic(e.target.checked)}
+                    className="accent-spotify-green"
+                  />
+                  Public playlist (anyone with link can listen)
+                </label>
                 <div className="flex gap-2">
                   <button
                     type="button"

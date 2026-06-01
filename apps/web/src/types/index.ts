@@ -6,6 +6,17 @@ export type TrackStatus =
   | "shadow_banned"
   | "removed";
 
+export interface LyricsLine {
+  start_ms: number;
+  text: string;
+}
+
+export interface LyricsDocument {
+  lines: LyricsLine[];
+  format?: string;
+  source?: string;
+}
+
 export interface GachiMetadata {
   gachi_power_level?: number;
   deepness_score?: number;
@@ -23,6 +34,8 @@ export interface GachiMetadata {
   preview_url?: string;
   cover_gradient?: string;
   hls?: { manifest_key?: string };
+  lyrics?: LyricsDocument;
+  lyrics_lrc?: string;
 }
 
 export interface CreatorSummary {
@@ -91,6 +104,8 @@ export interface ServerPlaylist {
   items: PlaylistItem[] | string;
   created_at: string;
   updated_at: string;
+  owner_handle?: string;
+  owner_display_name?: string;
 }
 
 export interface PlaylistsResponse {

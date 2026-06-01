@@ -11,19 +11,36 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-func (r *Repository) GetPublicPlaylist(ctx context.Context, playlistID uuid.UUID) (domain.Playlist, error) {
-	var p domain.Playlist
-	err := r.pool.QueryRow(ctx, `
-		SELECT id, owner_id, title, description, is_public, items, created_at, updated_at
-		FROM playlists WHERE id = $1 AND is_public = true
-	`, playlistID).Scan(
-		&p.ID, &p.OwnerID, &p.Title, &p.Description, &p.IsPublic, &p.Items,
-		&p.CreatedAt, &p.UpdatedAt,
-	)
+func (r *Repository) GetPublicPlaylist(ctx context.Context, playlistID uuid.UUID) (domain.PublicPlaylist, error) {
+	row := r.pool.QueryRow(ctx, `
+		SELECT p.id, p.owner_id, p.title, p.description, p.is_public, p.items, p.created_at, p.updated_at,
+			u.handle, u.display_name
+		FROM playlists p
+		JOIN users u ON u.id = p.owner_id
+		WHERE p.id = $1 AND p.is_public = true
+	`, playlistID)
+	p, err := scanPublicPlaylistRow(row)
 	if err == pgx.ErrNoRows {
-		return domain.Playlist{}, ErrPlaylistNotFound
+		return domain.PublicPlaylist{}, ErrPlaylistNotFound
 	}
 	return p, err
+}
+
+func scanPublicPlaylist(rows interface {
+	Scan(dest ...any) error
+}) (domain.PublicPlaylist, error) {
+	var p domain.PublicPlaylist
+	err := rows.Scan(
+		&p.ID, &p.OwnerID, &p.Title, &p.Description, &p.IsPublic, &p.Items,
+		&p.CreatedAt, &p.UpdatedAt, &p.OwnerHandle, &p.OwnerDisplayName,
+	)
+	return p, err
+}
+
+func scanPublicPlaylistRow(row interface {
+	Scan(dest ...any) error
+}) (domain.PublicPlaylist, error) {
+	return scanPublicPlaylist(row)
 }
 
 func (r *Repository) RemoveTrackFromPlaylist(ctx context.Context, userID, playlistID, trackID uuid.UUID) (domain.Playlist, error) {
