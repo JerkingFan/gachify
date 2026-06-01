@@ -1,3 +1,5 @@
+import type { GachiMetadata, Track } from "@/types";
+
 const STORAGE_KEY = "gachify:admin-key";
 
 export function getAdminKey(): string | null {
@@ -41,8 +43,30 @@ export type AdminTrack = {
   id: string;
   title: string;
   status: string;
+  duration_ms?: number;
+  gachi_metadata?: GachiMetadata | Record<string, unknown>;
   creator?: { handle: string; display_name: string };
   created_at: string;
+};
+
+export type AdminPlayback = {
+  format: "hls" | "mp3";
+  playlist_url?: string;
+  fallback_url?: string;
+  expires_in?: number;
+  duration_ms?: number;
+};
+
+export type AdminTrackUpdate = {
+  title: string;
+  gachi_power_level?: number;
+  deepness_score?: number;
+  dominant_male_sample?: string;
+  grunt_count?: number;
+  bpm?: number;
+  mood_tags?: string[];
+  wessratost_level?: number;
+  is_continuous_mix?: boolean;
 };
 
 export type DLQEntry = {
@@ -68,6 +92,21 @@ export const adminApi = {
 
   listPending(): Promise<{ items: AdminTrack[]; total: number }> {
     return adminRequest("/tracks?status=pending_review");
+  },
+
+  getTrack(id: string): Promise<Track> {
+    return adminRequest(`/tracks/${id}`);
+  },
+
+  updateTrack(id: string, body: AdminTrackUpdate): Promise<Track> {
+    return adminRequest(`/tracks/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    });
+  },
+
+  getPlayback(id: string): Promise<AdminPlayback> {
+    return adminRequest(`/tracks/${id}/playback`);
   },
 
   approveTrack(id: string): Promise<void> {

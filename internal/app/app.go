@@ -97,7 +97,10 @@ func New(ctx context.Context) (*App, error) {
 	oidcSvc := authmod.NewOIDCService(authRepo, userRepo, authSvc, tokens, redisQ.Client(), cfg)
 	authH := authmod.NewHandler(authSvc, oidcSvc, userRepo, cfg)
 
-	adminH := admin.NewHandler(catalogRepo, redisQ)
+	playbackSigner := streamtoken.NewTokenSigner(cfg.JWTSecret, cfg.PlaybackTokenTTL)
+	streamSvc := streaming.NewService(catalogRepo, s3, playbackSigner, redisQ.Client(), cfg.PlaybackSegmentTTL)
+	streamH := streaming.NewHandler(streamSvc, catalogRepo, playbackSigner, cfg.PublicAPIBaseURL)
+	adminH := admin.NewHandler(catalogRepo, redisQ, streamSvc, playbackSigner)
 
 	libRepo := library.NewRepository(pool)
 	libH := library.NewHandler(libRepo, catalogRepo, recentStore)
@@ -106,10 +109,6 @@ func New(ctx context.Context) (*App, error) {
 	creatorSvc := creator.NewService(catalogRepo, s3, redisQ)
 	creatorH := creator.NewHandler(creatorSvc, rateLimiter, cfg.RateLimit.UploadInit)
 	seedH := seed.NewHandler(userH, catalogH)
-
-	playbackSigner := streamtoken.NewTokenSigner(cfg.JWTSecret, cfg.PlaybackTokenTTL)
-	streamSvc := streaming.NewService(catalogRepo, s3, playbackSigner, redisQ.Client(), cfg.PlaybackSegmentTTL)
-	streamH := streaming.NewHandler(streamSvc, catalogRepo, playbackSigner, cfg.PublicAPIBaseURL)
 
 	r := chi.NewRouter()
 	r.Use(httpserver.CORS(cfg.CORSOrigins))

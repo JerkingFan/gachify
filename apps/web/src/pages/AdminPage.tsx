@@ -1,6 +1,7 @@
 import { RefreshCw, Shield } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import { AdminPendingTrackPanel } from "@/components/admin/AdminPendingTrackPanel";
 import {
   adminApi,
   clearAdminKey,
@@ -19,6 +20,7 @@ export function AdminPage() {
   const [tracks, setTracks] = useState<AdminTrack[]>([]);
   const [dlq, setDlq] = useState<DLQEntry[]>([]);
   const [depths, setDepths] = useState<QueueDepths | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -185,6 +187,13 @@ export function AdminPage() {
                 <div className="flex gap-2">
                   <button
                     type="button"
+                    onClick={() => setSelectedId(t.id)}
+                    className="rounded-full border border-white/30 px-4 py-1 text-sm hover:bg-white/10"
+                  >
+                    Review
+                  </button>
+                  <button
+                    type="button"
                     onClick={() => void approve(t.id).catch(setErrorMsg(setError))}
                     className="rounded-full bg-spotify-green px-4 py-1 text-sm font-bold text-black"
                   >
@@ -234,6 +243,16 @@ export function AdminPage() {
           </ul>
         )}
       </section>
+
+      {selectedId && (
+        <AdminPendingTrackPanel
+          trackId={selectedId}
+          onClose={() => setSelectedId(null)}
+          onSaved={() => void load()}
+          onApprove={approve}
+          onReject={reject}
+        />
+      )}
     </div>
   );
 }

@@ -112,8 +112,22 @@ func (r *Repository) UpdateDuration(ctx context.Context, id uuid.UUID, durationM
 }
 
 func (r *Repository) UpdateGachiMetadata(ctx context.Context, id uuid.UUID, meta json.RawMessage) error {
-	_, err := r.pool.Exec(ctx, `UPDATE tracks SET gachi_metadata = $2 WHERE id = $1`, id, meta)
+	_, err := r.pool.Exec(ctx, `UPDATE tracks SET gachi_metadata = $2, updated_at = now() WHERE id = $1`, id, meta)
 	return err
+}
+
+func (r *Repository) UpdateModeration(ctx context.Context, id uuid.UUID, title string, meta json.RawMessage) error {
+	tag, err := r.pool.Exec(ctx, `
+		UPDATE tracks SET title = $2, gachi_metadata = $3, updated_at = now()
+		WHERE id = $1 AND status = 'pending_review'
+	`, id, title, meta)
+	if err != nil {
+		return fmt.Errorf("update moderation: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return nil
 }
 
 func (r *Repository) CreateTranscodeJob(ctx context.Context, trackID uuid.UUID) (uuid.UUID, error) {

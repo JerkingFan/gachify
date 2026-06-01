@@ -41,15 +41,33 @@ type PlaybackResponse struct {
 }
 
 func (s *Service) PlaylistURL(trackID, token, relPath string) string {
-	u := fmt.Sprintf("/api/v1/stream/playlist.m3u8?track_id=%s&pt=%s", trackID, url.QueryEscape(token))
+	return playlistURL("/api/v1/stream", trackID, token, relPath)
+}
+
+func (s *Service) KeyURL(trackID, token string) string {
+	return KeyURL("/api/v1/stream", trackID, token)
+}
+
+// AdminPlaylistURL is the moderation preview entry playlist (pending_review only).
+func AdminPlaylistURL(trackID, token, relPath string) string {
+	return playlistURL("/internal/admin/stream", trackID, token, relPath)
+}
+
+// AdminKeyURL is the moderation preview AES-128 key endpoint.
+func AdminKeyURL(trackID, token string) string {
+	return KeyURL("/internal/admin/stream", trackID, token)
+}
+
+func playlistURL(basePath, trackID, token, relPath string) string {
+	u := fmt.Sprintf("%s/playlist.m3u8?track_id=%s&pt=%s", basePath, trackID, url.QueryEscape(token))
 	if relPath != "" {
 		u += "&path=" + url.QueryEscape(relPath)
 	}
 	return u
 }
 
-func (s *Service) KeyURL(trackID, token string) string {
-	return fmt.Sprintf("/api/v1/stream/hls.key?track_id=%s&pt=%s", trackID, url.QueryEscape(token))
+func KeyURL(basePath, trackID, token string) string {
+	return fmt.Sprintf("%s/hls.key?track_id=%s&pt=%s", basePath, trackID, url.QueryEscape(token))
 }
 
 func (s *Service) GetPlayback(_ context.Context, _ string, track domain.Track, userID *uuid.UUID) (PlaybackResponse, error) {
@@ -77,6 +95,11 @@ func (s *Service) GetPlayback(_ context.Context, _ string, track domain.Track, u
 		DurationMs:  track.DurationMs,
 		FallbackURL: fallback,
 	}, nil
+}
+
+// HLSManifestKey returns the object-store manifest key and optional preview URL from track metadata.
+func HLSManifestKey(meta json.RawMessage) (manifestKey, previewURL string) {
+	return hlsManifestKey(meta)
 }
 
 func hlsManifestKey(meta json.RawMessage) (manifestKey, previewURL string) {
@@ -116,6 +139,14 @@ type rewriteOpts struct {
 }
 
 func (s *Service) ServePlaylist(ctx context.Context, track domain.Track, relPath, playbackToken string) ([]byte, error) {
+	return s.servePlaylistRewritten(ctx, track, relPath, playbackToken, s.PlaylistURL, s.KeyURL)
+}
+
+func (s *Service) ServeAdminPlaylist(ctx context.Context, track domain.Track, relPath, playbackToken string) ([]byte, error) {
+	return s.servePlaylistRewritten(ctx, track, relPath, playbackToken, AdminPlaylistURL, AdminKeyURL)
+}
+
+func (s *Service) servePlaylistRewritten(ctx context.Context, track domain.Track, relPath, playbackToken string, playlistURL playlistURLFn, keyURL keyURLFn) ([]byte, error) {
 	basePrefix := hlsPrefix(track.GachiMetadata)
 	if basePrefix == "" {
 		return nil, fmt.Errorf("missing hls prefix")
@@ -142,7 +173,7 @@ func (s *Service) ServePlaylist(ctx context.Context, track domain.Track, relPath
 	}
 	return rewritePlaylist(ctx, raw, opts, func(ctx context.Context, key string) (string, error) {
 		return s.storage.PresignGet(ctx, key, s.segTTL)
-	}, s.PlaylistURL, s.KeyURL)
+	}, playlistURL, keyURL)
 }
 
 func (s *Service) GetHLSKey(ctx context.Context, trackID uuid.UUID) ([]byte, error) {

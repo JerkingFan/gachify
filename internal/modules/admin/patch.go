@@ -1,0 +1,54 @@
+package admin
+
+import (
+	"encoding/json"
+)
+
+type updateTrackBody struct {
+	Title             string   `json:"title"`
+	GachiPowerLevel   *int     `json:"gachi_power_level"`
+	DeepnessScore     *float32 `json:"deepness_score"`
+	DominantSample    *string  `json:"dominant_male_sample"`
+	GruntCount        *int     `json:"grunt_count"`
+	BPM               *float32 `json:"bpm"`
+	MoodTags          []string `json:"mood_tags"`
+	WessratostLevel   *int     `json:"wessratost_level"`
+	IsContinuousMix   *bool    `json:"is_continuous_mix"`
+}
+
+func mergeGachiMetadata(existing json.RawMessage, patch updateTrackBody) (json.RawMessage, error) {
+	var m map[string]any
+	if len(existing) > 0 {
+		if err := json.Unmarshal(existing, &m); err != nil {
+			return nil, err
+		}
+	}
+	if m == nil {
+		m = map[string]any{}
+	}
+	if patch.GachiPowerLevel != nil {
+		m["gachi_power_level"] = *patch.GachiPowerLevel
+	}
+	if patch.DeepnessScore != nil {
+		m["deepness_score"] = *patch.DeepnessScore
+	}
+	if patch.DominantSample != nil {
+		m["dominant_male_sample"] = *patch.DominantSample
+	}
+	if patch.GruntCount != nil {
+		m["grunt_count"] = *patch.GruntCount
+	}
+	if patch.BPM != nil {
+		m["bpm"] = *patch.BPM
+	}
+	if patch.MoodTags != nil {
+		m["mood_tags"] = patch.MoodTags
+	}
+	if patch.WessratostLevel != nil {
+		m["wessratost_level"] = *patch.WessratostLevel
+	}
+	if patch.IsContinuousMix != nil {
+		m["is_continuous_mix"] = *patch.IsContinuousMix
+	}
+	return json.Marshal(m)
+}

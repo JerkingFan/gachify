@@ -53,7 +53,7 @@ func TestHandler_ApproveRejectPendingTrack(t *testing.T) {
 	}
 
 	q := queue.NewRedisQueueFromClient(redisClient)
-	h := admin.NewHandler(cat, q)
+	h := admin.NewHandler(cat, q, nil, nil)
 
 	const secret = "integration-admin-secret"
 	router := chi.NewRouter()
