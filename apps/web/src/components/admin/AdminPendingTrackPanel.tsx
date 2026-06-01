@@ -51,6 +51,13 @@ export function AdminPendingTrackPanel({
   const [danceability, setDanceability] = useState(0.5);
   const [wackiness, setWackiness] = useState(0.5);
 
+  const hasAutoAnalysis = Boolean(
+    track &&
+      typeof track.gachi_metadata === "object" &&
+      track.gachi_metadata !== null &&
+      "analyzer" in (track.gachi_metadata as Record<string, unknown>),
+  );
+
   const fillForm = useCallback((t: Track) => {
     const meta = parseGachiMeta(t);
     setTitle(t.title);
@@ -324,10 +331,23 @@ export function AdminPendingTrackPanel({
                 </div>
               </div>
 
-              <p className="mb-4 rounded-lg border border-spotify-green/30 bg-spotify-green/10 px-3 py-2 text-xs text-spotify-muted">
+              {hasAutoAnalysis ? (
+                <p className="mb-4 rounded-lg border border-spotify-green/40 bg-spotify-green/15 px-3 py-2 text-xs text-emerald-100">
+                  Stats were filled automatically by <strong>gachi_analyzer</strong> during
+                  transcode. Adjust if needed, then publish — radio uses these fields.
+                </p>
+              ) : (
+                <p className="mb-4 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-100">
+                  Analyzer did not run (worker without Python or{" "}
+                  <code className="text-amber-50">GACHIFY_ANALYZER_ENABLED=false</code>). Fill
+                  stats manually or re-run transcode on a worker image with gachi_analyzer.
+                </p>
+              )}
+
+              <p className="mb-4 rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-xs text-spotify-muted">
                 Recommendation score preview (similar track):{" "}
                 <span className="font-semibold text-spotify-green">{exampleMatch}</span>
-                — higher overlap on mood tags, BPM, power, deepness, energy keeps the radio going.
+                — overlap on mood tags, BPM, power, deepness, energy drives Gachi radio.
               </p>
 
               <div className="grid gap-4 sm:grid-cols-2">

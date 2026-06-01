@@ -31,7 +31,15 @@ HEALTHCHECK --interval=10s --timeout=5s --retries=5 --start-period=20s \
 ENTRYPOINT ["gachify-api"]
 
 FROM alpine:3.20 AS worker
-# ffprobe ships inside the ffmpeg package on Alpine
-RUN apk add --no-cache ca-certificates ffmpeg
+# ffmpeg + Python MIR analyzer (gachi_analyzer) for auto metadata
+RUN apk add --no-cache ca-certificates ffmpeg python3 py3-pip
+COPY gachi_analyzer /opt/gachify-analyzer/gachi_analyzer
+COPY gachi_analyzer/run_analyze.py /opt/gachify-analyzer/run_analyze.py
+COPY gachi_analyzer/requirements-worker.txt /opt/gachify-analyzer/requirements-worker.txt
+RUN pip3 install --no-cache-dir -r /opt/gachify-analyzer/requirements-worker.txt \
+    && chmod +x /opt/gachify-analyzer/run_analyze.py
+ENV PYTHONPATH=/opt/gachify-analyzer \
+    GACHIFY_ANALYZER_ROOT=/opt/gachify-analyzer \
+    GACHIFY_ANALYZER_ENABLED=true
 COPY --from=builder /out/gachify-worker /usr/local/bin/gachify-worker
 ENTRYPOINT ["gachify-worker"]

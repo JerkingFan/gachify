@@ -52,6 +52,16 @@ func RunTranscode(ctx context.Context, cat *catalog.Repository, st *storage.Clie
 		return err
 	}
 
+	meta := map[string]any{}
+	if len(track.GachiMetadata) > 0 {
+		_ = json.Unmarshal(track.GachiMetadata, &meta)
+	}
+	if analyzed, err := runGachiAnalyzer(ctx, slog.Default(), inputPath); err != nil {
+		slog.Warn("gachi analyzer skipped", "track_id", trackID, "error", err)
+	} else if len(analyzed) > 0 {
+		meta = mergeMetadata(meta, analyzed)
+	}
+
 	hlsDir := filepath.Join(tmp, "hls")
 	result, err := transcode.TranscodeToHLS(ctx, inputPath, hlsDir)
 	if err != nil {
@@ -71,10 +81,6 @@ func RunTranscode(ctx context.Context, cat *catalog.Repository, st *storage.Clie
 	}
 
 	manifestKey := transcode.ManifestObjectKey(trackID.String())
-	meta := map[string]any{}
-	if len(track.GachiMetadata) > 0 {
-		_ = json.Unmarshal(track.GachiMetadata, &meta)
-	}
 	meta["hls"] = map[string]any{
 		"manifest_key": manifestKey,
 		"prefix":       prefix,

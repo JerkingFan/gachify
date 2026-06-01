@@ -1,0 +1,7 @@
+# Slim worker image: MIR without torch/transformers (stone classifier falls back to heuristics)
+librosa==0.10.2.post1
+soundfile==0.12.1
+audioread==3.0.1
+numpy==1.26.4
+scipy==1.13.1
+tqdm==4.66.5

@@ -84,7 +84,19 @@ Core path uses **librosa** only (no GPU required).
 
 ## Docker / worker integration
 
-Mount `gachi_analyzer/` into the worker image alongside `ffmpeg`. Example:
+## Gachify worker (automatic metadata)
+
+The transcode worker (`deploy/Dockerfile` `worker` target) runs analysis **before ffmpeg** and merges results into `tracks.gachi_metadata` (BPM, mood tags, power, deepness, energy, valence, etc.). Admin moderation then shows pre-filled stats.
+
+| Env | Default in Docker worker | Meaning |
+|-----|--------------------------|---------|
+| `GACHIFY_ANALYZER_ENABLED` | `true` | Set `false` to skip analysis |
+| `GACHIFY_ANALYZER_ROOT` | `/opt/gachify-analyzer` | Path with `run_analyze.py` |
+| `GACHIFY_ANALYZER_PYTHON` | `python3` | Python binary |
+
+Local `go run ./cmd/worker` without Python: leave `GACHIFY_ANALYZER_ENABLED` unset (off) or install deps from `requirements-worker.txt`.
+
+Mount `gachi_analyzer/` into the worker image alongside `ffmpeg`. Example (legacy manual mount):
 
 ```dockerfile
 RUN apk add --no-cache python3 py3-pip ffmpeg libsndfile

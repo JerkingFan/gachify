@@ -255,6 +255,11 @@ def main() -> int:
     parser.add_argument("--workers", type=int, default=4, help="Parallel workers for batch")
     parser.add_argument("--postgres-url", type=str, default=None, help="Save to Postgres JSONB")
     parser.add_argument("--track-id", type=str, default=None, help="UUID for DB upsert")
+    parser.add_argument(
+        "--quiet",
+        action="store_true",
+        help="No progress bar (for CI/worker logs)",
+    )
     args = parser.parse_args()
 
     if args.batch:
@@ -273,13 +278,15 @@ def main() -> int:
         parser.error("--input or --batch is required")
 
     try:
-        with tqdm(total=6, desc="Analyzing", unit="step") as pbar:
-            result = analyze_track(
-                args.input,
-                visualize=args.visualize,
-                viz_dir=args.viz_dir,
-                progress=pbar,
-            )
+        progress = None if args.quiet else tqdm(total=6, desc="Analyzing", unit="step")
+        result = analyze_track(
+            args.input,
+            visualize=args.visualize,
+            viz_dir=args.viz_dir,
+            progress=progress,
+        )
+        if progress is not None:
+            progress.close()
     except AudioLoadError as e:
         print(f"Load error: {e}", file=sys.stderr)
         return 2
