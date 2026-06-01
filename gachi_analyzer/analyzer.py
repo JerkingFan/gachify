@@ -34,7 +34,6 @@ if __package__ in (None, ""):
     from gachi_analyzer.gachi_features import analyze_gachi, gachi_to_dict
     from gachi_analyzer.musical import analyze_musical, musical_to_dict
     from gachi_analyzer.originality import analyze_originality, originality_to_dict
-    from gachi_analyzer.visualize import render_analysis_plots
 else:
     from gachi_analyzer.audio_io import AudioLoadError, load_audio
     from gachi_analyzer.config import AnalyzerConfig, get_config
@@ -44,7 +43,6 @@ else:
     from gachi_analyzer.gachi_features import analyze_gachi, gachi_to_dict
     from gachi_analyzer.musical import analyze_musical, musical_to_dict
     from gachi_analyzer.originality import analyze_originality, originality_to_dict
-    from gachi_analyzer.visualize import render_analysis_plots
 
 
 def _json_sanitize(obj: Any) -> Any:
@@ -146,6 +144,8 @@ def analyze_track(
     }
 
     if visualize:
+        from gachi_analyzer.visualize import render_analysis_plots
+
         step("viz", 1)
         out = viz_dir or input_path.parent / "analysis_viz"
         paths = render_analysis_plots(
