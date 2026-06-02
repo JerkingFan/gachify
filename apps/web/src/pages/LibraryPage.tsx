@@ -1,6 +1,6 @@
 import { Globe, Heart, Library, ListMusic, Plus, Users } from "lucide-react";
-import { useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { useEffect, useMemo, useState } from "react";
+import { Link, useSearchParams } from "react-router-dom";
 import { PlaylistImportPanel } from "@/components/playlist/PlaylistImportPanel";
 import { TopBar } from "@/components/layout/TopBar";
 import { PlaylistCard } from "@/components/ui/PlaylistCard";
@@ -14,6 +14,7 @@ import { useLibraryStore } from "@/store/libraryStore";
 import type { LikedSortKey, PlaylistSortKey } from "@/types";
 
 export function LibraryPage() {
+  const [searchParams, setSearchParams] = useSearchParams();
   const { tracks, loading } = useTracks();
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const playlists = useLibraryStore((s) => s.playlists);
@@ -29,6 +30,14 @@ export function LibraryPage() {
   const [likedSort, setLikedSort] = useState<LikedSortKey>("recent");
   const [creating, setCreating] = useState(false);
   const locale = getLocale();
+
+  useEffect(() => {
+    if (searchParams.get("create") === "1" && isAuthenticated) {
+      setShowCreate(true);
+      searchParams.delete("create");
+      setSearchParams(searchParams, { replace: true });
+    }
+  }, [searchParams, setSearchParams, isAuthenticated]);
 
   const sortedPlaylists = useMemo(
     () => sortPlaylists(playlists, sortKey),

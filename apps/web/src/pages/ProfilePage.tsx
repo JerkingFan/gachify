@@ -86,7 +86,7 @@ export function ProfilePage() {
   return (
     <>
       <div className="bg-gradient-gachi">
-        <TopBar gradient />
+        <TopBar gradient title={isOwn ? "My profile" : undefined} />
         <div className="flex flex-col gap-6 px-6 pb-8 md:flex-row md:items-end">
           <UserAvatar
             user={{ display_name: profile.display_name, avatar_url: profile.avatar_url }}
@@ -95,7 +95,11 @@ export function ProfilePage() {
           />
           <div className="min-w-0 flex-1">
             <p className="text-xs font-semibold uppercase">
-              {profile.published_tracks > 0 ? "Creator & listener" : "Listener"}
+              {isOwn
+                ? "Your profile"
+                : profile.published_tracks > 0
+                  ? "Creator & listener"
+                  : "Listener"}
             </p>
             <h1 className="mt-2 text-4xl font-black md:text-6xl">{profile.display_name}</h1>
             <p className="mt-2 text-spotify-muted">@{profile.handle}</p>

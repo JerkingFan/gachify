@@ -336,6 +336,15 @@ docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
 
 ### Production on a VPS
 
+**One-command deploy** (pull, migrate, restart — run on the server after `git push`):
+
+```bash
+chmod +x deploy/up-prod.sh
+./deploy/up-prod.sh
+```
+
+Confirm DB schema: `SELECT version FROM schema_migrations;` must be **16**. If stuck at **7**, comments/profile/social APIs will not work.
+
 1. Point DNS to the server.
 2. In `.env` set, for example:
    - `GACHIFY_PUBLIC_API_URL=https://your-domain.com`

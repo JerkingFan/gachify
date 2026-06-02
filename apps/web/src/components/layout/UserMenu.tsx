@@ -55,7 +55,7 @@ export function UserMenu() {
             <p className="truncate text-xs text-spotify-muted">@{user.handle}</p>
           </div>
           <Link
-            to={`/profile/${user.id}`}
+            to="/me"
             role="menuitem"
             className="flex items-center gap-3 px-4 py-2.5 text-sm hover:bg-white/10"
             onClick={() => setOpen(false)}

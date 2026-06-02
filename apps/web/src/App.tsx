@@ -25,6 +25,7 @@ import { ChartsPage } from "@/pages/ChartsPage";
 import { TagDiscoverPage } from "@/pages/TagDiscoverPage";
 import { PartyPage } from "@/pages/PartyPage";
 import { UserHandleRedirectPage } from "@/pages/UserHandleRedirectPage";
+import { MyProfileRedirectPage } from "@/pages/MyProfileRedirectPage";
 
 export default function App() {
   return (
@@ -48,6 +49,7 @@ export default function App() {
             <Route path="mood/:slug" element={<TagDiscoverPage variant="mood" />} />
             <Route path="party/:code?" element={<PartyPage />} />
             <Route path="following" element={<FollowingFeedPage />} />
+            <Route path="me" element={<MyProfileRedirectPage />} />
             <Route path="profile/:id" element={<ProfilePage />} />
             <Route path="settings" element={<SettingsPage />} />
             <Route path="creator" element={<CreatorHubPage />} />

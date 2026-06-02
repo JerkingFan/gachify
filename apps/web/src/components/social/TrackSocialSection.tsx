@@ -27,10 +27,21 @@ export function TrackSocialSection({ trackId, isOwner }: TrackSocialProps) {
   const [replyTo, setReplyTo] = useState<TrackComment | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
-    void api.getTrackReactions(trackId).then(setReactions);
-    void api.getTrackComments(trackId).then((r) => setComments(r.items));
+    setLoadError(null);
+    void api.getTrackReactions(trackId).then(setReactions).catch(() => {
+      setLoadError("Reactions unavailable — server may need a database update.");
+    });
+    void api
+      .getTrackComments(trackId)
+      .then((r) => setComments(r.items))
+      .catch(() => {
+        setLoadError(
+          "Comments unavailable — run migrations on the server (schema version should be 16).",
+        );
+      });
   }, [trackId]);
 
   const { roots, replies } = useMemo(() => {
@@ -151,6 +162,12 @@ export function TrackSocialSection({ trackId, isOwner }: TrackSocialProps) {
           </p>
         )}
       </div>
+
+      {loadError && (
+        <div className="mb-4 rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
+          {loadError}
+        </div>
+      )}
 
       <div className="rounded-lg bg-spotify-highlight p-4">
         <h3 className="mb-3 text-sm font-semibold uppercase text-spotify-muted">Discussion</h3>

@@ -1,5 +1,21 @@
-import { Compass, Home, Library, LogIn, Plus, Rss, Search, Sparkles, TrendingUp, Upload, Users, X } from "lucide-react";
+import {
+  Compass,
+  Home,
+  Library,
+  LogIn,
+  Plus,
+  Rss,
+  Search,
+  Sparkles,
+  TrendingUp,
+  Upload,
+  UserCircle,
+  Users,
+  X,
+} from "lucide-react";
+import { useState } from "react";
 import { Link, NavLink } from "react-router-dom";
+import { CreatePlaylistModal } from "@/components/playlist/CreatePlaylistModal";
 import { UserAvatar } from "@/components/ui/UserAvatar";
 import { getLocale, t } from "@/lib/i18n";
 import { useAuthStore } from "@/store/authStore";
@@ -25,18 +41,9 @@ export function Sidebar({ mobile }: SidebarProps) {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const user = useAuthStore((s) => s.user);
   const playlists = useLibraryStore((s) => s.playlists);
-  const createPlaylist = useLibraryStore((s) => s.createPlaylist);
   const setSidebarOpen = useUIStore((s) => s.setSidebarOpen);
   const locale = getLocale();
-
-  const handleCreatePlaylist = () => {
-    if (!isAuthenticated) return;
-    const title = window.prompt("Playlist name");
-    if (!title?.trim()) return;
-    void createPlaylist(title.trim()).catch((e) => {
-      window.alert(e instanceof Error ? e.message : "Could not create playlist");
-    });
-  };
+  const [playlistModalOpen, setPlaylistModalOpen] = useState(false);
 
   const asideClass = mobile
     ? "flex h-full w-[min(280px,85vw)] shrink-0 flex-col gap-2 bg-black p-2"
@@ -81,6 +88,18 @@ export function Sidebar({ mobile }: SidebarProps) {
               </NavLink>
             );
           })}
+          {isAuthenticated && user && (
+            <NavLink
+              to="/me"
+              onClick={() => mobile && setSidebarOpen(false)}
+              className={({ isActive }) =>
+                `nav-link touch-target ${isActive ? "nav-link-active" : ""}`
+              }
+            >
+              <UserCircle className="h-6 w-6" strokeWidth={2} />
+              {t("nav.profile", locale)}
+            </NavLink>
+          )}
         </nav>
       </div>
 
@@ -102,7 +121,7 @@ export function Sidebar({ mobile }: SidebarProps) {
               className="btn-icon touch-target"
               aria-label="Create playlist"
               data-testid="sidebar-create-playlist"
-              onClick={handleCreatePlaylist}
+              onClick={() => setPlaylistModalOpen(true)}
             >
               <Plus className="h-5 w-5" />
             </button>
@@ -146,7 +165,7 @@ export function Sidebar({ mobile }: SidebarProps) {
       {isAuthenticated && user && (
         <div className="rounded-lg bg-spotify-highlight p-3">
           <Link
-            to={`/profile/${user.id}`}
+            to="/me"
             className="flex items-center gap-2 hover:opacity-90"
           >
             <UserAvatar user={user} size="sm" />
@@ -168,6 +187,8 @@ export function Sidebar({ mobile }: SidebarProps) {
           </div>
         </div>
       )}
+
+      <CreatePlaylistModal open={playlistModalOpen} onClose={() => setPlaylistModalOpen(false)} />
 
       {!isAuthenticated && (
         <div className="rounded-lg bg-gradient-to-br from-spotify-highlight to-spotify-base p-4">
