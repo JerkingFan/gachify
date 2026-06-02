@@ -1,7 +1,9 @@
 import {
+  Gauge,
   Heart,
   Laptop2,
   ListMusic,
+  Maximize2,
   Pause,
   Play,
   Radio,
@@ -15,6 +17,7 @@ import {
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { KaraokeButton } from "@/components/karaoke/KaraokeButton";
+import { getLocale, t } from "@/lib/i18n";
 import { formatDuration, getSubtitle } from "@/lib/tracks";
 import { useAuthStore } from "@/store/authStore";
 import { useLibraryStore } from "@/store/libraryStore";
@@ -49,8 +52,13 @@ export function PlayerBar({ hasLyrics = false }: PlayerBarProps) {
   const openNowPlaying = useUIStore((s) => s.openNowPlaying);
   const queuePanelOpen = useUIStore((s) => s.queuePanelOpen);
   const queueLen = usePlayerStore((s) => s.queue.length);
+  const incognito = usePlayerStore((s) => s.incognito);
+  const playbackRate = usePlayerStore((s) => s.playbackRate);
+  const locale = getLocale();
 
   const [liked, setLiked] = useState(false);
+  const expandedPlayerTitle = t("player.openExpanded", locale);
+  const rateLabel = playbackRate !== 1 ? `${playbackRate}×` : null;
   const duration = track?.duration_ms ?? 0;
   useEffect(() => {
     if (track) setLiked(isLikedFn(track.id));
@@ -140,6 +148,20 @@ export function PlayerBar({ hasLyrics = false }: PlayerBarProps) {
                 </button>
               ) : null}
               <KaraokeButton hasLyrics={hasLyrics} size="lg" />
+              {track && (
+                <button
+                  type="button"
+                  onClick={openNowPlaying}
+                  className="btn-icon touch-target shrink-0 relative"
+                  title={`${expandedPlayerTitle} — EQ, timer, speed`}
+                  aria-label={expandedPlayerTitle}
+                >
+                  <Gauge className="h-5 w-5" />
+                  {(incognito || rateLabel) && (
+                    <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-spotify-green" />
+                  )}
+                </button>
+              )}
               <button
                 type="button"
                 onClick={togglePlay}
@@ -208,6 +230,22 @@ export function PlayerBar({ hasLyrics = false }: PlayerBarProps) {
               </Link>
             )}
             <KaraokeButton hasLyrics={hasLyrics} />
+            {track && (
+              <button
+                type="button"
+                onClick={openNowPlaying}
+                className="btn-icon relative"
+                title={`${expandedPlayerTitle} — waveform, EQ, Cast`}
+                aria-label={expandedPlayerTitle}
+              >
+                <Maximize2 className="h-4 w-4" />
+                {(incognito || rateLabel) && (
+                  <span className="absolute -right-0.5 -top-0.5 rounded bg-spotify-green px-1 text-[8px] font-bold text-black">
+                    {rateLabel ?? "·"}
+                  </span>
+                )}
+              </button>
+            )}
           </>
         ) : (
           <p className="text-sm text-spotify-muted">Select a track to play</p>
@@ -232,6 +270,16 @@ export function PlayerBar({ hasLyrics = false }: PlayerBarProps) {
       </div>
 
       <div className="hidden items-center justify-end gap-2 md:flex">
+        {track && (
+          <button
+            type="button"
+            onClick={openNowPlaying}
+            className="btn-icon text-spotify-green"
+            title={`${expandedPlayerTitle} — EQ, sleep timer, ${playbackRate}×`}
+          >
+            <Gauge className="h-4 w-4" />
+          </button>
+        )}
         <button
           type="button"
           onClick={toggleQueuePanel}

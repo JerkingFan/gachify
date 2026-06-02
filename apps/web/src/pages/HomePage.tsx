@@ -5,6 +5,7 @@ import { api } from "@/api/client";
 import { PlaylistCard } from "@/components/ui/PlaylistCard";
 import { coverSeedFromPlaylist } from "@/lib/playlists";
 import type { ServerPlaylist } from "@/types";
+import { HomeQuickLinks } from "@/components/home/HomeQuickLinks";
 import { Section } from "@/components/ui/Section";
 import { TrackCard } from "@/components/ui/TrackCard";
 import { TopBar } from "@/components/layout/TopBar";
@@ -114,6 +115,8 @@ export function HomePage() {
 
               {!error && tracks.length > 0 && (
                 <>
+                  <HomeQuickLinks />
+
                   {(recent.length > 0 || recentLoading) && (
                     <Section title="Recently played">
                       {recentLoading && recent.length === 0 ? (
