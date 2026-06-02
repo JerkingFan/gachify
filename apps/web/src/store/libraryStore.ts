@@ -23,6 +23,7 @@ function writeGuestLiked(ids: Set<string>) {
 
 interface LibraryState {
   likedIds: Set<string>;
+  likedOrder: string[];
   playlists: ServerPlaylist[];
   loaded: boolean;
   load: (authenticated: boolean) => Promise<void>;
@@ -33,10 +34,24 @@ interface LibraryState {
     title: string,
     description?: string,
     isPublic?: boolean,
+    isCollaborative?: boolean,
   ) => Promise<ServerPlaylist>;
   updatePlaylist: (
     id: string,
-    patch: { title?: string; description?: string; is_public?: boolean },
+    patch: {
+      title?: string;
+      description?: string;
+      is_public?: boolean;
+      is_collaborative?: boolean;
+    },
+  ) => Promise<ServerPlaylist>;
+  joinPlaylistByInvite: (inviteToken: string) => Promise<ServerPlaylist>;
+  enablePlaylistCollaboration: (id: string) => Promise<ServerPlaylist>;
+  leavePlaylistCollaboration: (id: string) => Promise<void>;
+  saveQueueToPlaylist: (
+    playlistId: string,
+    trackIds: string[],
+    mode: "append" | "replace",
   ) => Promise<ServerPlaylist>;
   deletePlaylist: (id: string) => Promise<void>;
   addTracksToPlaylist: (playlistId: string, trackIds: string[]) => Promise<ServerPlaylist>;
@@ -46,11 +61,12 @@ interface LibraryState {
 
 export const useLibraryStore = create<LibraryState>((set, get) => ({
   likedIds: new Set(),
+  likedOrder: [],
   playlists: [],
   loaded: false,
 
   reset() {
-    set({ likedIds: new Set(), playlists: [], loaded: false });
+    set({ likedIds: new Set(), likedOrder: [], playlists: [], loaded: false });
   },
 
   async load(authenticated) {
@@ -70,8 +86,10 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
         created_at: "",
         updated_at: "",
       }));
+      const guestLiked = [...readGuestLiked()];
       set({
-        likedIds: readGuestLiked(),
+        likedIds: new Set(guestLiked),
+        likedOrder: guestLiked,
         playlists: guestPlaylists,
         loaded: true,
       });
@@ -84,6 +102,7 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
     ]);
     set({
       likedIds: new Set(liked.track_ids),
+      likedOrder: [...liked.track_ids],
       playlists: pl.items,
       loaded: true,
     });
@@ -96,31 +115,40 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
   async toggleLiked(trackId, authenticated) {
     const liked = get().likedIds.has(trackId);
     const next = new Set(get().likedIds);
+    let order = [...get().likedOrder];
 
     if (!authenticated) {
-      if (liked) next.delete(trackId);
-      else next.add(trackId);
+      if (liked) {
+        next.delete(trackId);
+        order = order.filter((id) => id !== trackId);
+      } else {
+        next.add(trackId);
+        order = [trackId, ...order.filter((id) => id !== trackId)];
+      }
       writeGuestLiked(next);
-      set({ likedIds: next });
+      set({ likedIds: next, likedOrder: order });
       return !liked;
     }
 
     if (liked) {
       await api.unlikeTrack(trackId);
       next.delete(trackId);
+      order = order.filter((id) => id !== trackId);
     } else {
       await api.likeTrack(trackId);
       next.add(trackId);
+      order = [trackId, ...order.filter((id) => id !== trackId)];
     }
-    set({ likedIds: next });
+    set({ likedIds: next, likedOrder: order });
     return !liked;
   },
 
-  async createPlaylist(title, description = "", isPublic = false) {
+  async createPlaylist(title, description = "", isPublic = false, isCollaborative = false) {
     const p = await api.createPlaylist({
       title,
       description,
       is_public: isPublic,
+      is_collaborative: isCollaborative,
     });
     set({ playlists: [...get().playlists, p] });
     return p;
@@ -132,6 +160,39 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
       playlists: get().playlists.map((pl) => (pl.id === id ? p : pl)),
     });
     return p;
+  },
+
+  async joinPlaylistByInvite(inviteToken) {
+    const p = await api.joinPlaylistByInvite(inviteToken);
+    const exists = get().playlists.some((pl) => pl.id === p.id);
+    if (!exists) {
+      set({ playlists: [...get().playlists, p] });
+    } else {
+      set({
+        playlists: get().playlists.map((pl) => (pl.id === p.id ? p : pl)),
+      });
+    }
+    return p;
+  },
+
+  async enablePlaylistCollaboration(id) {
+    const p = await api.enablePlaylistCollaboration(id);
+    set({
+      playlists: get().playlists.map((pl) => (pl.id === id ? p : pl)),
+    });
+    return p;
+  },
+
+  async leavePlaylistCollaboration(id) {
+    await api.leavePlaylistCollaboration(id);
+    set({ playlists: get().playlists.filter((pl) => pl.id !== id) });
+  },
+
+  async saveQueueToPlaylist(playlistId, trackIds, mode) {
+    if (mode === "replace") {
+      return get().setPlaylistTracks(playlistId, trackIds);
+    }
+    return get().addTracksToPlaylist(playlistId, trackIds);
   },
 
   async deletePlaylist(id) {

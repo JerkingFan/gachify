@@ -50,11 +50,25 @@ func (h *Handler) listFollowing(w http.ResponseWriter, r *http.Request) {
 		httpserver.Error(w, http.StatusInternalServerError, "internal_error", "failed to list follows")
 		return
 	}
+	out := map[string]any{"user_ids": []string{}}
+	if len(ids) == 0 {
+		httpserver.JSON(w, http.StatusOK, out)
+		return
+	}
 	strs := make([]string, len(ids))
 	for i, id := range ids {
 		strs[i] = id.String()
 	}
-	httpserver.JSON(w, http.StatusOK, map[string]any{"user_ids": strs})
+	out["user_ids"] = strs
+	if h.users != nil {
+		items, err := h.users.ListPublicSummaries(r.Context(), ids)
+		if err != nil {
+			httpserver.Error(w, http.StatusInternalServerError, "internal_error", "failed to load users")
+			return
+		}
+		out["items"] = items
+	}
+	httpserver.JSON(w, http.StatusOK, out)
 }
 
 func (h *Handler) follow(w http.ResponseWriter, r *http.Request) {

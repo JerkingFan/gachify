@@ -85,6 +85,9 @@ func (h *Handler) publishTrack(w http.ResponseWriter, r *http.Request) {
 		httpserver.Error(w, http.StatusInternalServerError, "internal_error", "load failed")
 		return
 	}
+	if h.notify != nil {
+		h.notify.NotifyPublished(r.Context(), artist.ID, updated.ID, updated.Title)
+	}
 	httpserver.JSON(w, http.StatusOK, map[string]any{
 		"status":  "published",
 		"track":   updated,

@@ -14,6 +14,10 @@ import (
 )
 
 var ErrNotFound = errors.New("user not found")
+var ErrHandleTaken = errors.New("handle already taken")
+
+const userColumns = `id, email, handle, display_name, tier, trash_tolerance, gachi_persona, region,
+	avatar_url, liked_tracks_public, profile_bio, push_notifications, created_at, updated_at`
 
 type Repository struct {
 	pool *pgxpool.Pool
@@ -21,6 +25,21 @@ type Repository struct {
 
 func NewRepository(pool *pgxpool.Pool) *Repository {
 	return &Repository{pool: pool}
+}
+
+func scanUser(row pgx.Row) (domain.User, error) {
+	var u domain.User
+	var emailPtr, avatarPtr *string
+	err := row.Scan(
+		&u.ID, &emailPtr, &u.Handle, &u.DisplayName, &u.Tier, &u.TrashTolerance,
+		&u.GachiPersona, &u.Region, &avatarPtr, &u.LikedTracksPublic, &u.ProfileBio,
+		&u.PushNotifications, &u.CreatedAt, &u.UpdatedAt,
+	)
+	if emailPtr != nil {
+		u.Email = *emailPtr
+	}
+	u.AvatarURL = avatarPtr
+	return u, err
 }
 
 func (r *Repository) Create(ctx context.Context, in domain.CreateUserInput) (domain.User, error) {
@@ -40,19 +59,9 @@ func (r *Repository) Create(ctx context.Context, in domain.CreateUserInput) (dom
 	const q = `
 		INSERT INTO users (handle, display_name, tier, trash_tolerance, gachi_persona, region)
 		VALUES ($1, $2, $3, $4, $5, $6)
-		RETURNING id, email, handle, display_name, tier, trash_tolerance, gachi_persona, region, created_at, updated_at
-	`
-	var u domain.User
-	var emailPtr *string
-	err := r.pool.QueryRow(ctx, q,
-		in.Handle, in.DisplayName, string(tier), trash, persona, in.Region,
-	).Scan(
-		&u.ID, &emailPtr, &u.Handle, &u.DisplayName, &u.Tier, &u.TrashTolerance,
-		&u.GachiPersona, &u.Region, &u.CreatedAt, &u.UpdatedAt,
-	)
-	if emailPtr != nil {
-		u.Email = *emailPtr
-	}
+		RETURNING ` + userColumns
+	row := r.pool.QueryRow(ctx, q, in.Handle, in.DisplayName, string(tier), trash, persona, in.Region)
+	u, err := scanUser(row)
 	if err != nil {
 		return domain.User{}, fmt.Errorf("insert user: %w", err)
 	}
@@ -60,49 +69,167 @@ func (r *Repository) Create(ctx context.Context, in domain.CreateUserInput) (dom
 }
 
 func (r *Repository) GetByID(ctx context.Context, id uuid.UUID) (domain.User, error) {
-	const q = `
-		SELECT id, email, handle, display_name, tier, trash_tolerance, gachi_persona, region, created_at, updated_at
-		FROM users WHERE id = $1
-	`
-	var u domain.User
-	var emailPtr *string
-	err := r.pool.QueryRow(ctx, q, id).Scan(
-		&u.ID, &emailPtr, &u.Handle, &u.DisplayName, &u.Tier, &u.TrashTolerance,
-		&u.GachiPersona, &u.Region, &u.CreatedAt, &u.UpdatedAt,
-	)
-	if emailPtr != nil {
-		u.Email = *emailPtr
-	}
+	q := `SELECT ` + userColumns + ` FROM users WHERE id = $1`
+	u, err := scanUser(r.pool.QueryRow(ctx, q, id))
 	if errors.Is(err, pgx.ErrNoRows) {
 		return domain.User{}, ErrNotFound
 	}
 	if err != nil {
 		return domain.User{}, fmt.Errorf("get user: %w", err)
 	}
+	u.Email = ""
 	return u, nil
 }
 
-func (r *Repository) GetByHandle(ctx context.Context, handle string) (domain.User, error) {
+func (r *Repository) GetAccountByID(ctx context.Context, id uuid.UUID) (domain.AccountUser, error) {
 	const q = `
-		SELECT id, email, handle, display_name, tier, trash_tolerance, gachi_persona, region, created_at, updated_at
-		FROM users WHERE handle = $1
+		SELECT ` + userColumns + `, email_verified_at IS NOT NULL, COALESCE(password_hash, '') <> ''
+		FROM users WHERE id = $1
 	`
 	var u domain.User
-	var emailPtr *string
-	err := r.pool.QueryRow(ctx, q, handle).Scan(
+	var emailPtr, avatarPtr *string
+	var emailVerified, hasPassword bool
+	err := r.pool.QueryRow(ctx, q, id).Scan(
 		&u.ID, &emailPtr, &u.Handle, &u.DisplayName, &u.Tier, &u.TrashTolerance,
-		&u.GachiPersona, &u.Region, &u.CreatedAt, &u.UpdatedAt,
+		&u.GachiPersona, &u.Region, &avatarPtr, &u.LikedTracksPublic, &u.ProfileBio,
+		&u.CreatedAt, &u.UpdatedAt, &emailVerified, &hasPassword,
 	)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return domain.AccountUser{}, ErrNotFound
+	}
+	if err != nil {
+		return domain.AccountUser{}, fmt.Errorf("get account: %w", err)
+	}
 	if emailPtr != nil {
 		u.Email = *emailPtr
 	}
+	u.AvatarURL = avatarPtr
+	return domain.AccountUser{
+		User:          u,
+		EmailVerified: emailVerified,
+		HasPassword:   hasPassword,
+	}, nil
+}
+
+func (r *Repository) GetByHandle(ctx context.Context, handle string) (domain.User, error) {
+	q := `SELECT ` + userColumns + ` FROM users WHERE handle = $1`
+	u, err := scanUser(r.pool.QueryRow(ctx, q, handle))
 	if errors.Is(err, pgx.ErrNoRows) {
 		return domain.User{}, ErrNotFound
 	}
 	if err != nil {
 		return domain.User{}, fmt.Errorf("get user by handle: %w", err)
 	}
+	u.Email = ""
 	return u, nil
+}
+
+func (r *Repository) IsHandleTaken(ctx context.Context, handle string, excludeID uuid.UUID) (bool, error) {
+	var id uuid.UUID
+	err := r.pool.QueryRow(ctx, `
+		SELECT id FROM users WHERE handle = $1 AND id <> $2 LIMIT 1
+	`, handle, excludeID).Scan(&id)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+func (r *Repository) UpdateProfile(ctx context.Context, userID uuid.UUID, in domain.UpdateProfileInput) (domain.AccountUser, error) {
+	displayName := in.DisplayName
+	handle := in.Handle
+	avatarURL := in.AvatarURL
+	bio := in.ProfileBio
+	likedPublic := in.LikedTracksPublic
+	pushPref := in.PushNotifications
+
+	const q = `
+		UPDATE users SET
+			display_name = COALESCE($2, display_name),
+			handle = COALESCE($3, handle),
+			avatar_url = CASE WHEN $4::text IS NOT NULL THEN NULLIF(trim($4), '') ELSE avatar_url END,
+			profile_bio = COALESCE($5, profile_bio),
+			liked_tracks_public = COALESCE($6, liked_tracks_public),
+			push_notifications = COALESCE($7, push_notifications),
+			updated_at = now()
+		WHERE id = $1
+	`
+	tag, err := r.pool.Exec(ctx, q, userID, displayName, handle, avatarURL, bio, likedPublic, pushPref)
+	if err != nil {
+		if strings.Contains(err.Error(), "users_handle_key") {
+			return domain.AccountUser{}, ErrHandleTaken
+		}
+		return domain.AccountUser{}, fmt.Errorf("update profile: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return domain.AccountUser{}, ErrNotFound
+	}
+	return r.GetAccountByID(ctx, userID)
+}
+
+func (r *Repository) CountFollowers(ctx context.Context, userID uuid.UUID) (int, error) {
+	var n int
+	err := r.pool.QueryRow(ctx, `
+		SELECT COUNT(*)::int FROM user_follows WHERE followee_id = $1
+	`, userID).Scan(&n)
+	return n, err
+}
+
+func (r *Repository) GetPublicProfile(ctx context.Context, id uuid.UUID) (domain.PublicProfile, error) {
+	const q = `
+		SELECT u.id, u.handle, u.display_name, u.avatar_url, u.profile_bio, u.liked_tracks_public,
+			(SELECT COUNT(*)::int FROM tracks t WHERE t.creator_id = u.id AND t.status = 'published'),
+			(SELECT COUNT(*)::int FROM playlists p WHERE p.owner_id = u.id AND p.is_public = true),
+			(SELECT COUNT(*)::int FROM user_follows f WHERE f.follower_id = u.id),
+			(SELECT COUNT(*)::int FROM user_follows f WHERE f.followee_id = u.id)
+		FROM users u WHERE u.id = $1
+	`
+	var p domain.PublicProfile
+	var avatarPtr *string
+	err := r.pool.QueryRow(ctx, q, id).Scan(
+		&p.ID, &p.Handle, &p.DisplayName, &avatarPtr, &p.ProfileBio, &p.LikedTracksPublic,
+		&p.PublishedTracks, &p.PublicPlaylists, &p.FollowingCount, &p.FollowerCount,
+	)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return domain.PublicProfile{}, ErrNotFound
+	}
+	if err != nil {
+		return domain.PublicProfile{}, fmt.Errorf("get public profile: %w", err)
+	}
+	p.AvatarURL = avatarPtr
+	return p, nil
+}
+
+func (r *Repository) ListPublicSummaries(ctx context.Context, ids []uuid.UUID) ([]domain.PublicUserSummary, error) {
+	if len(ids) == 0 {
+		return []domain.PublicUserSummary{}, nil
+	}
+	rows, err := r.pool.Query(ctx, `
+		SELECT id, handle, display_name, avatar_url
+		FROM users WHERE id = ANY($1)
+		ORDER BY display_name ASC
+	`, ids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []domain.PublicUserSummary
+	for rows.Next() {
+		var s domain.PublicUserSummary
+		var avatarPtr *string
+		if err := rows.Scan(&s.ID, &s.Handle, &s.DisplayName, &avatarPtr); err != nil {
+			return nil, err
+		}
+		s.AvatarURL = avatarPtr
+		out = append(out, s)
+	}
+	if out == nil {
+		out = []domain.PublicUserSummary{}
+	}
+	return out, rows.Err()
 }
 
 func normalizeArtistSearch(f *domain.SearchArtistsFilter) {

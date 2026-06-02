@@ -1,0 +1,3 @@
+ALTER TABLE users DROP COLUMN IF EXISTS profile_bio;
+ALTER TABLE users DROP COLUMN IF EXISTS liked_tracks_public;
+ALTER TABLE users DROP COLUMN IF EXISTS avatar_url;

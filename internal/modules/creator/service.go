@@ -34,14 +34,19 @@ var allowedContentTypes = map[string]bool{
 	"application/octet-stream": true, // browsers sometimes send this for flac
 }
 
-type Service struct {
-	catalog *catalog.Repository
-	storage *storage.Client
-	queue   *queue.RedisQueue
+type FollowerCounter interface {
+	CountFollowers(ctx context.Context, userID uuid.UUID) (int, error)
 }
 
-func NewService(cat *catalog.Repository, st *storage.Client, q *queue.RedisQueue) *Service {
-	return &Service{catalog: cat, storage: st, queue: q}
+type Service struct {
+	catalog   *catalog.Repository
+	storage   *storage.Client
+	queue     *queue.RedisQueue
+	followers FollowerCounter
+}
+
+func NewService(cat *catalog.Repository, st *storage.Client, q *queue.RedisQueue, followers FollowerCounter) *Service {
+	return &Service{catalog: cat, storage: st, queue: q, followers: followers}
 }
 
 func (s *Service) InitUpload(ctx context.Context, creatorID uuid.UUID, in domain.UploadInitInput) (domain.UploadInitResponse, error) {
@@ -61,7 +66,17 @@ func (s *Service) InitUpload(ctx context.Context, creatorID uuid.UUID, in domain
 	trackID := uuid.New()
 	objectKey := fmt.Sprintf("masters/%s/%s/%s", creatorID, trackID, filename)
 
-	track, err := s.catalog.CreateDraftUpload(ctx, creatorID, title, in.DurationMs, in.GachiMetadata, objectKey, ct, filename)
+	desc := strings.TrimSpace(in.Description)
+	var track domain.Track
+	var err error
+	if in.TrackID != nil && *in.TrackID != uuid.Nil {
+		if err := s.catalog.AttachDraftMaster(ctx, *in.TrackID, creatorID, objectKey, ct, filename); err != nil {
+			return domain.UploadInitResponse{}, err
+		}
+		track, err = s.catalog.GetOwned(ctx, *in.TrackID, creatorID)
+	} else {
+		track, err = s.catalog.CreateDraftUpload(ctx, creatorID, title, desc, in.DurationMs, in.GachiMetadata, objectKey, ct, filename)
+	}
 	if err != nil {
 		return domain.UploadInitResponse{}, err
 	}
@@ -179,6 +194,10 @@ func (s *Service) ListMyTracks(ctx context.Context, creatorID uuid.UUID, limit, 
 		out[i] = items[i].Track
 	}
 	return out, nil
+}
+
+func (s *Service) UpdateTrackLyrics(ctx context.Context, creatorID, trackID uuid.UUID, lrc string) (domain.Track, error) {
+	return s.catalog.UpdateOwnedLyricsLRC(ctx, trackID, creatorID, lrc)
 }
 
 func sanitizeFilename(name string) string {

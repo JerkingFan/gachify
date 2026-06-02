@@ -2,6 +2,8 @@ package auth
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"strings"
 	"time"
 
@@ -119,6 +121,88 @@ func (s *Service) ResetPassword(ctx context.Context, token, password string) err
 
 func (s *Service) VerifyEmail(ctx context.Context, token string) error {
 	return s.repo.VerifyEmail(ctx, token)
+}
+
+func (s *Service) ResendVerification(ctx context.Context, userID uuid.UUID) error {
+	verified, err := s.repo.IsEmailVerified(ctx, userID)
+	if err != nil {
+		return err
+	}
+	if verified {
+		return nil
+	}
+	s.sendVerificationEmail(ctx, userID)
+	return nil
+}
+
+func (s *Service) UpdateProfile(ctx context.Context, userID uuid.UUID, in domain.UpdateProfileInput) (domain.AccountUser, error) {
+	if in.Handle != nil {
+		handle := strings.TrimSpace(strings.ToLower(*in.Handle))
+		if err := validate.Handle(handle); err != nil {
+			return domain.AccountUser{}, err
+		}
+		taken, err := s.users.IsHandleTaken(ctx, handle, userID)
+		if err != nil {
+			return domain.AccountUser{}, err
+		}
+		if taken {
+			return domain.AccountUser{}, users.ErrHandleTaken
+		}
+		in.Handle = &handle
+	}
+	if in.DisplayName != nil {
+		name := strings.TrimSpace(*in.DisplayName)
+		if name == "" {
+			return domain.AccountUser{}, fmt.Errorf("display_name is required")
+		}
+		in.DisplayName = &name
+	}
+	if in.ProfileBio != nil {
+		bio := strings.TrimSpace(*in.ProfileBio)
+		if len(bio) > 500 {
+			return domain.AccountUser{}, fmt.Errorf("profile_bio must be at most 500 characters")
+		}
+		in.ProfileBio = &bio
+	}
+	if in.AvatarURL != nil {
+		av := strings.TrimSpace(*in.AvatarURL)
+		if av != "" && len(av) > 2048 {
+			return domain.AccountUser{}, fmt.Errorf("avatar_url is too long")
+		}
+		in.AvatarURL = &av
+	}
+	if in.PushNotifications != nil {
+		p := strings.TrimSpace(strings.ToLower(*in.PushNotifications))
+		if p != "off" && p != "following" {
+			return domain.AccountUser{}, fmt.Errorf("push_notifications must be off or following")
+		}
+		in.PushNotifications = &p
+	}
+	u, err := s.users.UpdateProfile(ctx, userID, in)
+	if errors.Is(err, users.ErrHandleTaken) {
+		return domain.AccountUser{}, ErrHandleTaken
+	}
+	return u, err
+}
+
+func (s *Service) ChangePassword(ctx context.Context, userID uuid.UUID, in domain.ChangePasswordInput) error {
+	if err := validate.Password(in.NewPassword); err != nil {
+		return err
+	}
+	hash, err := s.repo.GetPasswordHash(ctx, userID)
+	if err != nil {
+		return err
+	}
+	if hash != "" {
+		if in.CurrentPassword == "" || !platformauth.CheckPassword(hash, in.CurrentPassword) {
+			return ErrInvalidLogin
+		}
+	}
+	newHash, err := platformauth.HashPassword(in.NewPassword)
+	if err != nil {
+		return err
+	}
+	return s.repo.UpdatePassword(ctx, userID, newHash)
 }
 
 func (s *Service) sendVerificationEmail(ctx context.Context, userID uuid.UUID) {

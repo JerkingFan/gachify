@@ -183,6 +183,14 @@ func (s *Service) GetHLSKey(ctx context.Context, trackID uuid.UUID) ([]byte, err
 	return s.redis.Get(ctx, queue.HLSKeyPrefix+":"+trackID.String()).Bytes()
 }
 
+func (s *Service) GetObjectBytes(ctx context.Context, objectKey string) ([]byte, error) {
+	return s.storage.GetObjectBytes(ctx, objectKey)
+}
+
+func (s *Service) PresignObject(ctx context.Context, objectKey string, ttl time.Duration) (string, error) {
+	return s.storage.PresignGet(ctx, objectKey, ttl)
+}
+
 type presignFn func(ctx context.Context, key string) (string, error)
 type playlistURLFn func(trackID, token, relPath string) string
 type keyURLFn func(trackID, token string) string

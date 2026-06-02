@@ -1,25 +1,28 @@
-import { Search, SearchX, User } from "lucide-react";
+import { Compass, Mic2, Search, SearchX, User } from "lucide-react";
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { TopBar } from "@/components/layout/TopBar";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { TrackRowSkeleton } from "@/components/ui/Skeleton";
 import { TrackRow } from "@/components/ui/TrackRow";
 import { useArtistSearch } from "@/hooks/useArtistSearch";
 import { useTrackSearch } from "@/hooks/useTrackSearch";
+import { GACHI_STATIONS } from "@/lib/stations";
 
 const BROWSE = [
-  { label: "Dungeon", query: "dungeon", color: "#1a472a" },
-  { label: "Boy Next Door", query: "boy next door", color: "#5038a0" },
-  { label: "Orchestral", query: "orchestral", color: "#8b2635" },
-  { label: "Brotherhood", query: "brotherhood", color: "#2d4a6f" },
-  { label: "Slap Bass", query: "slap", color: "#6b4423" },
-  { label: "Deep Fantasy", query: "deep", color: "#1a1a3d" },
+  { label: "Dungeon", href: "/discover?mood=dungeon", color: "#1a472a" },
+  { label: "Boy Next Door", href: "/discover?sample=boy_next_door", color: "#5038a0" },
+  { label: "Orchestral", href: "/discover?mood=orchestral", color: "#8b2635" },
+  { label: "Brotherhood", href: "/discover?mood=brotherhood", color: "#2d4a6f" },
+  { label: "Slap Bass", href: "/discover?mood=slap_bass", color: "#6b4423" },
+  { label: "Deep Fantasy", href: "/discover?min_deepness=7", color: "#1a1a3d" },
 ];
 
 export function SearchPage() {
   const [query, setQuery] = useState("");
-  const { results, total, loading, error } = useTrackSearch(query);
+  const [karaokeOnly, setKaraokeOnly] = useState(false);
+  const navigate = useNavigate();
+  const { results, total, loading, error } = useTrackSearch(query, karaokeOnly);
   const {
     results: artists,
     total: artistTotal,
@@ -40,17 +43,36 @@ export function SearchPage() {
             className="w-full rounded-full bg-white py-3.5 pl-12 pr-4 text-base text-black placeholder:text-neutral-500 focus:outline-none focus:ring-2 focus:ring-white"
             autoFocus
           />
+          <label className="mt-3 flex cursor-pointer items-center gap-2 text-sm text-spotify-muted">
+            <input
+              type="checkbox"
+              checked={karaokeOnly}
+              onChange={(e) => setKaraokeOnly(e.target.checked)}
+              className="accent-spotify-green"
+            />
+            <Mic2 className="h-4 w-4 text-spotify-green" />
+            Only tracks with karaoke lyrics
+          </label>
         </div>
 
-        {!query && (
+        {!query && !karaokeOnly && (
           <>
-            <h2 className="mb-4 text-xl font-bold">Browse all</h2>
-            <div className="grid grid-cols-2 gap-3 md:grid-cols-3 md:gap-4 lg:grid-cols-4">
+            <div className="mb-6 flex items-center justify-between">
+              <h2 className="text-xl font-bold">Browse by mood</h2>
+              <Link
+                to="/discover"
+                className="inline-flex items-center gap-1 text-sm font-semibold text-spotify-green hover:underline"
+              >
+                <Compass className="h-4 w-4" />
+                Discover
+              </Link>
+            </div>
+            <div className="mb-10 grid grid-cols-2 gap-3 md:grid-cols-3 md:gap-4 lg:grid-cols-4">
               {BROWSE.map((b) => (
                 <button
                   key={b.label}
                   type="button"
-                  onClick={() => setQuery(b.query)}
+                  onClick={() => navigate(b.href)}
                   className="relative h-24 overflow-hidden rounded-lg p-4 text-left font-bold transition hover:scale-[1.02] md:h-28"
                   style={{ backgroundColor: b.color }}
                 >
@@ -58,10 +80,28 @@ export function SearchPage() {
                 </button>
               ))}
             </div>
+
+            <h2 className="mb-4 text-xl font-bold">Gachi stations</h2>
+            <p className="mb-4 text-sm text-spotify-muted">
+              Metadata filters — power, BPM, mood tags — not just title search
+            </p>
+            <div className="grid gap-2 sm:grid-cols-2">
+              {GACHI_STATIONS.map((st) => (
+                <button
+                  key={st.id}
+                  type="button"
+                  onClick={() => navigate(`/discover?station=${st.id}`)}
+                  className="rounded-lg bg-spotify-highlight px-4 py-3 text-left transition hover:bg-spotify-elevated"
+                >
+                  <p className="font-semibold">{st.label}</p>
+                  <p className="text-sm text-spotify-muted">{st.description}</p>
+                </button>
+              ))}
+            </div>
           </>
         )}
 
-        {query && (
+        {(query || karaokeOnly) && (
           <>
             {(artistsLoading || artists.length > 0) && (
               <section className="mb-10">
@@ -128,7 +168,13 @@ export function SearchPage() {
                 <EmptyState
                   icon={SearchX}
                   title="No track results"
-                  description={`Nothing matched "${query}". Try "dungeon", "deep", or "boy".`}
+                  description={
+                    karaokeOnly
+                      ? "No published tracks with synced lyrics match your filters."
+                      : `Nothing matched "${query}". Try Discover for mood and power filters.`
+                  }
+                  actionLabel="Karaoke on Discover"
+                  actionTo="/discover?karaoke=1"
                 />
               )}
               {!loading &&

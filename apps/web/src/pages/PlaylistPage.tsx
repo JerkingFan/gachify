@@ -1,13 +1,15 @@
-import { ChevronDown, ChevronUp, Clock, Pencil, Play, Trash2, X } from "lucide-react";
+import { ChevronDown, ChevronUp, Clock, Copy, Download, Loader2, Pencil, Play, Trash2, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { api } from "@/api/client";
+import { PlaylistCollabPanel } from "@/components/playlist/PlaylistCollabPanel";
 import { TopBar } from "@/components/layout/TopBar";
 import { CoverArt } from "@/components/ui/CoverArt";
 import { PageMeta } from "@/components/ui/PageMeta";
+import { RadioStartButton } from "@/components/ui/RadioStartButton";
 import { ShareButton } from "@/components/ui/ShareButton";
 import { TrackRow } from "@/components/ui/TrackRow";
-import { coverSeedFromPlaylist, playlistTrackIds } from "@/lib/playlists";
+import { downloadPlaylistExport } from "@/lib/playlistExport";
 import { formatDuration } from "@/lib/tracks";
 import { useTracks } from "@/hooks/useTracks";
 import { useAuthStore } from "@/store/authStore";
@@ -34,6 +36,9 @@ export function PlaylistPage() {
   const [editPublic, setEditPublic] = useState(false);
   const [busy, setBusy] = useState(false);
   const [dragIndex, setDragIndex] = useState<number | null>(null);
+  const [cloneBusy, setCloneBusy] = useState(false);
+  const [cloneMsg, setCloneMsg] = useState("");
+  const [exportBusy, setExportBusy] = useState(false);
 
   useEffect(() => {
     if (!id) return;
@@ -70,6 +75,8 @@ export function PlaylistPage() {
   );
 
   const isOwner = Boolean(user?.id && playlist?.owner_id && user.id === playlist.owner_id);
+  const canEdit = isOwner || playlist?.can_edit === true;
+  const canClone = Boolean(isAuthenticated && playlist?.is_public && !isOwner);
   const totalMs = playlistTracks.reduce((s, t) => s + t.duration_ms, 0);
 
   const startEdit = () => {
@@ -223,16 +230,86 @@ export function PlaylistPage() {
       </div>
 
       <div className="px-6 pb-8">
+        {isAuthenticated && canEdit && playlist && (
+          <PlaylistCollabPanel
+            playlist={playlist}
+            isOwner={isOwner}
+            canEdit={canEdit}
+            onUpdate={setPlaylist}
+          />
+        )}
+
         <div className="mb-6 flex flex-wrap items-center gap-3">
           <button
             type="button"
             disabled={!playlistTracks.length}
             onClick={() => playlistTracks[0] && playTrack(playlistTracks[0], playlistTracks)}
             className="flex h-14 w-14 items-center justify-center rounded-full bg-spotify-green text-black shadow-xl hover:scale-105 disabled:opacity-50"
+            aria-label="Play playlist"
           >
             <Play className="h-7 w-7" fill="currentColor" />
           </button>
+          {playlistTracks[0] && (
+            <RadioStartButton
+              track={playlistTracks[0]}
+              queue={playlistTracks}
+              variant="primary"
+              label="Radio from playlist"
+              className="h-11 px-5"
+            />
+          )}
           <ShareButton path={sharePath} />
+          {playlistTracks.length > 0 && (
+            <div className="flex gap-1">
+              <button
+                type="button"
+                disabled={exportBusy}
+                title="Export M3U playlist file"
+                className="btn-icon touch-target"
+                onClick={() => {
+                  setExportBusy(true);
+                  void downloadPlaylistExport(
+                    playlist.id,
+                    "m3u",
+                    isOwner || isAuthenticated,
+                    playlist.title,
+                  ).finally(() => setExportBusy(false));
+                }}
+              >
+                <Download className="h-5 w-5" />
+              </button>
+            </div>
+          )}
+          {canClone && (
+            <button
+              type="button"
+              disabled={cloneBusy}
+              onClick={() => {
+                setCloneBusy(true);
+                setCloneMsg("");
+                void api
+                  .clonePlaylist(playlist.id)
+                  .then((p) => {
+                    setCloneMsg("Added to your library.");
+                    navigate(`/playlist/${p.id}`);
+                  })
+                  .catch((e) =>
+                    setCloneMsg(e instanceof Error ? e.message : "Could not clone playlist"),
+                  )
+                  .finally(() => setCloneBusy(false));
+              }}
+              className="inline-flex items-center gap-2 rounded-full border border-white/30 px-4 py-2 text-sm font-semibold hover:border-white hover:bg-white/10 disabled:opacity-50"
+              title="Save a private copy to your library"
+            >
+              {cloneBusy ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Copy className="h-4 w-4" />
+              )}
+              Save to library
+            </button>
+          )}
+          {cloneMsg && <p className="w-full text-sm text-spotify-muted">{cloneMsg}</p>}
           {isOwner && !editing && (
             <>
               <button
@@ -271,10 +348,10 @@ export function PlaylistPage() {
           <div
             key={t.id}
             className={`group relative ${dragIndex === i ? "opacity-50" : ""}`}
-            draggable={isOwner && !busy}
+            draggable={canEdit && !busy}
             onDragStart={() => setDragIndex(i)}
             onDragOver={(e) => {
-              if (isOwner) e.preventDefault();
+              if (canEdit) e.preventDefault();
             }}
             onDrop={(e) => {
               e.preventDefault();
@@ -283,7 +360,7 @@ export function PlaylistPage() {
             onDragEnd={() => setDragIndex(null)}
           >
             <TrackRow track={t} index={i} queue={playlistTracks} />
-            {isOwner && (
+            {canEdit && (
               <div className="absolute right-2 top-1/2 flex -translate-y-1/2 gap-1 opacity-0 group-hover:opacity-100">
                 <button
                   type="button"

@@ -1,7 +1,13 @@
-import { Clock, Heart, Music2, Play } from "lucide-react";
-import { useEffect, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Clock, Download, Heart, Loader2, Music2, Play } from "lucide-react";
+import { CreatorTrackStatsPanel } from "@/components/creator/CreatorTrackStatsPanel";
+import { SchedulePublishPanel } from "@/components/creator/SchedulePublishPanel";
+import { TrackSocialSection } from "@/components/social/TrackSocialSection";
+import { RadioStartButton } from "@/components/ui/RadioStartButton";
+import { useEffect, useRef, useState } from "react";
+import { Link, useParams, useSearchParams } from "react-router-dom";
 import { api } from "@/api/client";
+import { KaraokeButton } from "@/components/karaoke/KaraokeButton";
+import { useTrackLyrics } from "@/hooks/useTrackLyrics";
 import { TopBar } from "@/components/layout/TopBar";
 import { CoverArt } from "@/components/ui/CoverArt";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -12,12 +18,14 @@ import { TrackRow } from "@/components/ui/TrackRow";
 import { TrackRowSkeleton } from "@/components/ui/Skeleton";
 import { parseGachiMeta, formatDuration, getArtistName } from "@/lib/tracks";
 import { useAuthStore } from "@/store/authStore";
+import { useOfflineDownloads } from "@/hooks/useOfflineDownloads";
 import { useLibraryStore } from "@/store/libraryStore";
 import { usePlayerStore } from "@/store/playerStore";
 import type { Track, User } from "@/types";
 
 export function TrackPage() {
   const { id } = useParams<{ id: string }>();
+  const [searchParams] = useSearchParams();
   const [track, setTrack] = useState<Track | null>(null);
   const [creator, setCreator] = useState<User | null>(null);
   const [related, setRelated] = useState<Track[]>([]);
@@ -25,10 +33,18 @@ export function TrackPage() {
   const [error, setError] = useState<string | null>(null);
 
   const playTrack = usePlayerStore((s) => s.playTrack);
+  const seek = usePlayerStore((s) => s.seek);
+  const currentTrack = usePlayerStore((s) => s.currentTrack);
+  const progressMs = usePlayerStore((s) => s.progressMs);
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const me = useAuthStore((s) => s.user);
   const toggleLiked = useLibraryStore((s) => s.toggleLiked);
   const isLikedFn = useLibraryStore((s) => s.isLiked);
   const [liked, setLiked] = useState(false);
+  const lyricsDoc = useTrackLyrics(track);
+  const hasLyrics = Boolean(lyricsDoc?.lines?.length);
+  const offline = useOfflineDownloads();
+  const isOffline = offline.ids.includes(track?.id ?? "");
 
   useEffect(() => {
     if (!id) return;
@@ -52,6 +68,19 @@ export function TrackPage() {
       }
     })();
   }, [id, isLikedFn]);
+
+  useEffect(() => {
+    if (!track) return;
+    const raw = searchParams.get("t");
+    if (!raw) return;
+    const sec = Number(raw);
+    if (!Number.isFinite(sec) || sec < 0) return;
+    const ms = Math.round(sec * 1000);
+    if (currentTrack?.id !== track.id) {
+      playTrack(track, [track, ...related]);
+    }
+    window.setTimeout(() => seek(ms), 300);
+  }, [track?.id, searchParams.get("t")]);
 
   if (loading) {
     return (
@@ -83,6 +112,7 @@ export function TrackPage() {
   }
 
   const meta = parseGachiMeta(track);
+  const isOwner = Boolean(me && me.id === track.creator_id);
   const queue = [track, ...related];
   const sharePath = `/track/${track.id}`;
   const pageUrl =
@@ -94,6 +124,11 @@ export function TrackPage() {
         title={track.title}
         description={`${getArtistName(track)} · ${formatDuration(track.duration_ms)} · Gachify remix`}
         url={pageUrl}
+        oembedUrl={
+          typeof window !== "undefined"
+            ? `${window.location.origin}/share/oembed?url=${encodeURIComponent(pageUrl)}&format=json`
+            : undefined
+        }
       />
       <div className="bg-gradient-gachi">
         <TopBar gradient />
@@ -120,9 +155,16 @@ export function TrackPage() {
                 type="button"
                 onClick={() => playTrack(track, queue)}
                 className="flex h-14 w-14 items-center justify-center rounded-full bg-spotify-green text-black shadow-xl hover:scale-105"
+                aria-label="Play"
               >
                 <Play className="h-7 w-7" fill="currentColor" />
               </button>
+              <RadioStartButton
+                track={track}
+                queue={queue}
+                variant="primary"
+                label="Start radio"
+              />
               {isAuthenticated && (
                 <button
                   type="button"
@@ -133,13 +175,67 @@ export function TrackPage() {
                   <Heart className="h-6 w-6" fill={liked ? "currentColor" : "none"} />
                 </button>
               )}
-              <ShareButton path={sharePath} />
+              {isAuthenticated && liked && (
+                <button
+                  type="button"
+                  title={isOffline ? "Available offline" : "Download for offline"}
+                  disabled={offline.busy === track.id}
+                  onClick={() => {
+                    if (isOffline) {
+                      void offline.remove(track.id);
+                    } else {
+                      void offline.download(track.id);
+                    }
+                  }}
+                  className={`rounded-full border border-white/30 p-3 ${isOffline ? "text-spotify-green" : "text-white"}`}
+                >
+                  {offline.busy === track.id ? (
+                    <Loader2 className="h-6 w-6 animate-spin" />
+                  ) : (
+                    <Download className="h-6 w-6" />
+                  )}
+                </button>
+              )}
+              <ShareButton
+                path={sharePath}
+                title={track.title}
+                trackId={track.id}
+                timeSec={
+                  currentTrack?.id === track.id && progressMs > 0
+                    ? Math.floor(progressMs / 1000)
+                    : undefined
+                }
+              />
+              <KaraokeButton hasLyrics={hasLyrics} variant="pill" />
+              {!hasLyrics && (
+                <Link
+                  to="/discover?karaoke=1"
+                  className="text-xs text-spotify-muted underline hover:text-white"
+                >
+                  Find karaoke tracks
+                </Link>
+              )}
             </div>
           </div>
         </div>
       </div>
 
       <div className="px-6 py-8">
+        {track.description && (
+          <p className="mb-6 max-w-2xl text-sm text-spotify-muted">{track.description}</p>
+        )}
+
+        {isOwner && track.status === "approved" && (
+          <SchedulePublishPanel
+            track={track}
+            onUpdated={(t) => setTrack(t)}
+          />
+        )}
+
+        {isOwner && track.status === "published" && (
+          <CreatorTrackStatsPanel trackId={track.id} />
+        )}
+
         {(meta.mood_tags?.length || meta.dominant_male_sample) && (
           <section className="mb-8">
             <h2 className="mb-3 text-lg font-bold">About this remix</h2>
@@ -147,7 +243,14 @@ export function TrackPage() {
               {meta.dominant_male_sample && (
                 <>
                   <dt className="text-spotify-muted">Dominant sample</dt>
-                  <dd>{meta.dominant_male_sample.replace(/_/g, " ")}</dd>
+                  <dd>
+                    <Link
+                      to={`/discover?sample=${encodeURIComponent(meta.dominant_male_sample)}`}
+                      className="hover:underline"
+                    >
+                      {meta.dominant_male_sample.replace(/_/g, " ")}
+                    </Link>
+                  </dd>
                 </>
               )}
               {meta.bpm != null && (
@@ -163,16 +266,19 @@ export function TrackPage() {
                 </>
               )}
               {meta.mood_tags?.map((tag) => (
-                <span
+                <Link
                   key={tag}
-                  className="mr-2 inline-block rounded-full bg-spotify-highlight px-3 py-1 text-xs"
+                  to={`/discover?mood=${encodeURIComponent(tag)}`}
+                  className="mr-2 inline-block rounded-full bg-spotify-highlight px-3 py-1 text-xs hover:bg-spotify-elevated"
                 >
-                  {tag}
-                </span>
+                  {tag.replace(/_/g, " ")}
+                </Link>
               ))}
             </dl>
           </section>
         )}
+
+        {id && <TrackSocialSection trackId={id} isOwner={isOwner} />}
 
         {related.length > 0 && (
           <section>

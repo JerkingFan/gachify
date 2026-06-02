@@ -7,6 +7,7 @@ import (
 
 	"github.com/gachify/gachify/internal/domain"
 	"github.com/gachify/gachify/internal/modules/catalog"
+	"github.com/gachify/gachify/internal/modules/social"
 	"github.com/gachify/gachify/internal/modules/streaming"
 	"github.com/gachify/gachify/internal/modules/users"
 	"github.com/gachify/gachify/internal/platform/httpserver"
@@ -17,15 +18,17 @@ import (
 )
 
 type Handler struct {
-	catalog *catalog.Repository
-	users   *users.Repository
-	queue   *queue.RedisQueue
-	stream  *streaming.Service
-	signer  *streamtoken.TokenSigner
+	catalog  *catalog.Repository
+	users    *users.Repository
+	queue    *queue.RedisQueue
+	stream   *streaming.Service
+	signer   *streamtoken.TokenSigner
+	notify   *social.PublishNotifier
+	social   *social.Repository
 }
 
-func NewHandler(cat *catalog.Repository, userRepo *users.Repository, q *queue.RedisQueue, stream *streaming.Service, signer *streamtoken.TokenSigner) *Handler {
-	return &Handler{catalog: cat, users: userRepo, queue: q, stream: stream, signer: signer}
+func NewHandler(cat *catalog.Repository, userRepo *users.Repository, q *queue.RedisQueue, stream *streaming.Service, signer *streamtoken.TokenSigner, notify *social.PublishNotifier, socialRepo *social.Repository) *Handler {
+	return &Handler{catalog: cat, users: userRepo, queue: q, stream: stream, signer: signer, notify: notify, social: socialRepo}
 }
 
 func (h *Handler) Routes() chi.Router {
@@ -42,7 +45,21 @@ func (h *Handler) Routes() chi.Router {
 	r.Get("/queue/dlq", h.listDLQ)
 	r.Get("/queue/depths", h.queueDepths)
 	r.Post("/queue/dlq/retry", h.retryDLQ)
+	r.Get("/reports/tracks", h.listTrackReports)
 	return r
+}
+
+func (h *Handler) listTrackReports(w http.ResponseWriter, r *http.Request) {
+	if h.social == nil {
+		httpserver.JSON(w, http.StatusOK, map[string]any{"items": []any{}})
+		return
+	}
+	items, err := h.social.ListTrackReports(r.Context(), 50)
+	if err != nil {
+		httpserver.Error(w, http.StatusInternalServerError, "internal_error", "failed to load reports")
+		return
+	}
+	httpserver.JSON(w, http.StatusOK, map[string]any{"items": items})
 }
 
 func (h *Handler) listTracks(w http.ResponseWriter, r *http.Request) {
@@ -71,20 +88,15 @@ func (h *Handler) approveTrack(w http.ResponseWriter, r *http.Request) {
 		httpserver.Error(w, http.StatusBadRequest, "invalid_id", "invalid track id")
 		return
 	}
-	track, err := h.catalog.GetByID(r.Context(), id)
-	if errors.Is(err, catalog.ErrNotFound) {
-		httpserver.Error(w, http.StatusNotFound, "not_found", "track not found")
-		return
-	}
-	if track.Status != domain.TrackPendingReview {
-		httpserver.Error(w, http.StatusConflict, "invalid_state", "track is not pending review")
-		return
-	}
-	if err := h.catalog.UpdateStatus(r.Context(), id, domain.TrackPublished, nil); err != nil {
+	if err := h.catalog.AdminApprove(r.Context(), id); err != nil {
+		if errors.Is(err, catalog.ErrNotFound) {
+			httpserver.Error(w, http.StatusConflict, "invalid_state", "track is not pending review")
+			return
+		}
 		httpserver.Error(w, http.StatusInternalServerError, "internal_error", "approve failed")
 		return
 	}
-	httpserver.JSON(w, http.StatusOK, map[string]string{"status": "published"})
+	httpserver.JSON(w, http.StatusOK, map[string]string{"status": "approved"})
 }
 
 func (h *Handler) rejectTrack(w http.ResponseWriter, r *http.Request) {

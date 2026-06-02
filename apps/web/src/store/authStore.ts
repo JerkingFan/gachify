@@ -25,6 +25,7 @@ interface AuthState {
   login: (email: string, password: string) => Promise<void>;
   register: (input: RegisterInput) => Promise<void>;
   logout: () => Promise<void>;
+  refreshUser: () => Promise<void>;
 }
 
 export const useAuthStore = create<AuthState>((set) => {
@@ -91,6 +92,15 @@ export const useAuthStore = create<AuthState>((set) => {
       clearTokens();
       useLibraryStore.getState().reset();
       set({ user: null, isAuthenticated: false });
+    },
+
+    async refreshUser() {
+      try {
+        const user = await api.me();
+        set({ user, isAuthenticated: true });
+      } catch {
+        /* ignore */
+      }
     },
   };
 });

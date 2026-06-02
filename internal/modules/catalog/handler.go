@@ -3,6 +3,7 @@ package catalog
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"strconv"
@@ -104,6 +105,46 @@ func (h *Handler) list(w http.ResponseWriter, r *http.Request) {
 	}
 	f.Query = strings.TrimSpace(r.URL.Query().Get("q"))
 	f.Sort = strings.TrimSpace(r.URL.Query().Get("sort"))
+	f.MoodTag = strings.TrimSpace(r.URL.Query().Get("mood"))
+	f.Sample = strings.TrimSpace(r.URL.Query().Get("sample"))
+	if v := r.URL.Query().Get("min_power"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil {
+			f.MinPower = &n
+		}
+	}
+	if v := r.URL.Query().Get("max_power"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil {
+			f.MaxPower = &n
+		}
+	}
+	if v := r.URL.Query().Get("min_deepness"); v != "" {
+		if x, err := strconv.ParseFloat(v, 32); err == nil {
+			f32 := float32(x)
+			f.MinDeepness = &f32
+		}
+	}
+	if v := r.URL.Query().Get("max_deepness"); v != "" {
+		if x, err := strconv.ParseFloat(v, 32); err == nil {
+			f32 := float32(x)
+			f.MaxDeepness = &f32
+		}
+	}
+	if v := r.URL.Query().Get("min_bpm"); v != "" {
+		if x, err := strconv.ParseFloat(v, 32); err == nil {
+			f32 := float32(x)
+			f.MinBPM = &f32
+		}
+	}
+	if v := r.URL.Query().Get("max_bpm"); v != "" {
+		if x, err := strconv.ParseFloat(v, 32); err == nil {
+			f32 := float32(x)
+			f.MaxBPM = &f32
+		}
+	}
+	if v := r.URL.Query().Get("has_lyrics"); v == "true" || v == "1" {
+		t := true
+		f.HasLyrics = &t
+	}
 	if err := validate.SearchQuery(f.Query); err != nil {
 		httpserver.Error(w, http.StatusBadRequest, "invalid_query", err.Error())
 		return
@@ -123,9 +164,11 @@ func (h *Handler) list(w http.ResponseWriter, r *http.Request) {
 		statusKey = string(*f.Status)
 	}
 
+	metaKey := listFilterMetaKey(f)
+
 	var cached map[string]any
 	if h.cache != nil {
-		cacheKey := h.cache.TracksListKey(statusKey, f.Query, f.Sort, f.Limit, f.Offset, creatorKey)
+		cacheKey := h.cache.TracksListKey(statusKey, f.Query, f.Sort, f.Limit, f.Offset, creatorKey, metaKey)
 		if ok, _ := h.cache.GetJSON(r.Context(), cacheKey, &cached); ok {
 			httpserver.JSON(w, http.StatusOK, cached)
 			return
@@ -152,10 +195,42 @@ func (h *Handler) list(w http.ResponseWriter, r *http.Request) {
 		"has_more": f.Offset+len(tracks) < total,
 	}
 	if h.cache != nil {
-		cacheKey := h.cache.TracksListKey(statusKey, f.Query, f.Sort, f.Limit, f.Offset, creatorKey)
+		cacheKey := h.cache.TracksListKey(statusKey, f.Query, f.Sort, f.Limit, f.Offset, creatorKey, metaKey)
 		_ = h.cache.SetJSON(r.Context(), cacheKey, response, 0)
 	}
 	httpserver.JSON(w, http.StatusOK, response)
+}
+
+func listFilterMetaKey(f domain.ListTracksFilter) string {
+	var parts []string
+	if f.MoodTag != "" {
+		parts = append(parts, "mood:"+f.MoodTag)
+	}
+	if f.Sample != "" {
+		parts = append(parts, "sample:"+f.Sample)
+	}
+	if f.MinPower != nil {
+		parts = append(parts, fmt.Sprintf("pmin:%d", *f.MinPower))
+	}
+	if f.MaxPower != nil {
+		parts = append(parts, fmt.Sprintf("pmax:%d", *f.MaxPower))
+	}
+	if f.MinDeepness != nil {
+		parts = append(parts, fmt.Sprintf("dmin:%g", *f.MinDeepness))
+	}
+	if f.MaxDeepness != nil {
+		parts = append(parts, fmt.Sprintf("dmax:%g", *f.MaxDeepness))
+	}
+	if f.MinBPM != nil {
+		parts = append(parts, fmt.Sprintf("bmin:%g", *f.MinBPM))
+	}
+	if f.MaxBPM != nil {
+		parts = append(parts, fmt.Sprintf("bmax:%g", *f.MaxBPM))
+	}
+	if f.HasLyrics != nil && *f.HasLyrics {
+		parts = append(parts, "lyrics:1")
+	}
+	return strings.Join(parts, "|")
 }
 
 func (h *Handler) recordPlay(w http.ResponseWriter, r *http.Request) {
@@ -164,7 +239,11 @@ func (h *Handler) recordPlay(w http.ResponseWriter, r *http.Request) {
 		httpserver.Error(w, http.StatusBadRequest, "invalid_id", "invalid track id")
 		return
 	}
-	if err := h.repo.IncrementPlayCount(r.Context(), id); errors.Is(err, ErrNotFound) {
+	var in domain.RecordPlayInput
+	if r.Body != nil {
+		_ = json.NewDecoder(r.Body).Decode(&in)
+	}
+	if err := h.repo.IncrementPlayCount(r.Context(), id, in.Source); errors.Is(err, ErrNotFound) {
 		httpserver.Error(w, http.StatusNotFound, "not_found", "track not found")
 		return
 	} else if err != nil {

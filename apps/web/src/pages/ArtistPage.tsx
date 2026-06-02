@@ -1,6 +1,6 @@
 import { Play, UserCircle, UserPlus, UserMinus } from "lucide-react";
 import { useEffect, useState } from "react";
-import { useParams } from "react-router-dom";
+import { Link, useParams } from "react-router-dom";
 import { api } from "@/api/client";
 import { TopBar } from "@/components/layout/TopBar";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -90,6 +90,12 @@ export function ArtistPage() {
             <p className="text-xs font-semibold uppercase">Remixer</p>
             <h1 className="mt-2 text-4xl font-black md:text-6xl">{artist.display_name}</h1>
             <p className="mt-2 text-spotify-muted">@{artist.handle}</p>
+            <Link
+              to={`/profile/${artist.id}`}
+              className="text-sm text-spotify-green hover:underline"
+            >
+              Full profile
+            </Link>
             <p className="mt-1 text-sm text-spotify-muted">
               {published.length} public remix{published.length === 1 ? "" : "es"}
             </p>

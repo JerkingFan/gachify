@@ -42,6 +42,9 @@ func (h *Handler) Routes(tokens *platformauth.TokenService, rl *ratelimit.Limite
 	r.Group(func(pr chi.Router) {
 		pr.Use(platformauth.Middleware(tokens, blacklist))
 		pr.Get("/me", h.me)
+		pr.Patch("/me", h.updateMe)
+		pr.Post("/change-password", h.changePassword)
+		pr.Post("/resend-verification", h.resendVerification)
 	})
 	return r
 }
@@ -136,7 +139,7 @@ func (h *Handler) me(w http.ResponseWriter, r *http.Request) {
 		httpserver.Error(w, http.StatusUnauthorized, "unauthorized", "not authenticated")
 		return
 	}
-	u, err := h.users.GetByID(r.Context(), userID)
+	u, err := h.users.GetAccountByID(r.Context(), userID)
 	if errors.Is(err, users.ErrNotFound) {
 		httpserver.Error(w, http.StatusNotFound, "not_found", "user not found")
 		return
@@ -146,6 +149,65 @@ func (h *Handler) me(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	httpserver.JSON(w, http.StatusOK, u)
+}
+
+func (h *Handler) updateMe(w http.ResponseWriter, r *http.Request) {
+	userID, ok := platformauth.UserIDFromContext(r.Context())
+	if !ok {
+		httpserver.Error(w, http.StatusUnauthorized, "unauthorized", "not authenticated")
+		return
+	}
+	var in domain.UpdateProfileInput
+	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
+		httpserver.Error(w, http.StatusBadRequest, "invalid_json", "invalid body")
+		return
+	}
+	u, err := h.svc.UpdateProfile(r.Context(), userID, in)
+	if errors.Is(err, users.ErrHandleTaken) {
+		httpserver.Error(w, http.StatusConflict, "handle_taken", "handle already exists")
+		return
+	}
+	if err != nil {
+		httpserver.Error(w, http.StatusBadRequest, "invalid_profile", err.Error())
+		return
+	}
+	httpserver.JSON(w, http.StatusOK, u)
+}
+
+func (h *Handler) changePassword(w http.ResponseWriter, r *http.Request) {
+	userID, ok := platformauth.UserIDFromContext(r.Context())
+	if !ok {
+		httpserver.Error(w, http.StatusUnauthorized, "unauthorized", "not authenticated")
+		return
+	}
+	var in domain.ChangePasswordInput
+	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
+		httpserver.Error(w, http.StatusBadRequest, "invalid_json", "invalid body")
+		return
+	}
+	err := h.svc.ChangePassword(r.Context(), userID, in)
+	if errors.Is(err, ErrInvalidLogin) {
+		httpserver.Error(w, http.StatusUnauthorized, "invalid_password", "current password is incorrect")
+		return
+	}
+	if err != nil {
+		httpserver.Error(w, http.StatusBadRequest, "invalid_password", err.Error())
+		return
+	}
+	httpserver.JSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
+func (h *Handler) resendVerification(w http.ResponseWriter, r *http.Request) {
+	userID, ok := platformauth.UserIDFromContext(r.Context())
+	if !ok {
+		httpserver.Error(w, http.StatusUnauthorized, "unauthorized", "not authenticated")
+		return
+	}
+	if err := h.svc.ResendVerification(r.Context(), userID); err != nil {
+		httpserver.Error(w, http.StatusInternalServerError, "internal_error", "could not send verification email")
+		return
+	}
+	httpserver.JSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
 func (h *Handler) oidcProviders(w http.ResponseWriter, _ *http.Request) {

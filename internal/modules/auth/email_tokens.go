@@ -110,3 +110,32 @@ func (r *Repository) UserEmail(ctx context.Context, userID uuid.UUID) (string, e
 	}
 	return *email, nil
 }
+
+func (r *Repository) GetPasswordHash(ctx context.Context, userID uuid.UUID) (string, error) {
+	var hash *string
+	err := r.pool.QueryRow(ctx, `SELECT password_hash FROM users WHERE id = $1`, userID).Scan(&hash)
+	if err != nil {
+		return "", err
+	}
+	if hash == nil {
+		return "", nil
+	}
+	return *hash, nil
+}
+
+func (r *Repository) UpdatePassword(ctx context.Context, userID uuid.UUID, passwordHash string) error {
+	tag, err := r.pool.Exec(ctx, `UPDATE users SET password_hash = $2, updated_at = now() WHERE id = $1`, userID, passwordHash)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrInvalidLogin
+	}
+	return nil
+}
+
+func (r *Repository) IsEmailVerified(ctx context.Context, userID uuid.UUID) (bool, error) {
+	var verified bool
+	err := r.pool.QueryRow(ctx, `SELECT email_verified_at IS NOT NULL FROM users WHERE id = $1`, userID).Scan(&verified)
+	return verified, err
+}

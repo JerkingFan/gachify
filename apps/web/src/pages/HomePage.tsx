@@ -1,5 +1,6 @@
-import { Music2, Play, ServerCrash } from "lucide-react";
+import { Compass, Music2, Play, ServerCrash, Sparkles } from "lucide-react";
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { api } from "@/api/client";
 import { PlaylistCard } from "@/components/ui/PlaylistCard";
 import { coverSeedFromPlaylist } from "@/lib/playlists";
@@ -10,10 +11,13 @@ import { TopBar } from "@/components/layout/TopBar";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { HeroSkeleton, TrackGridSkeleton } from "@/components/ui/Skeleton";
 import { parseGachiMeta } from "@/lib/tracks";
-import { getRecentIds } from "@/lib/storage";
+import { useRecentTracks } from "@/hooks/useRecentTracks";
 import { useTracks } from "@/hooks/useTracks";
 import { useTrendingTracks } from "@/hooks/useTrendingTracks";
 import { useFeed } from "@/hooks/useFeed";
+import { useForYou } from "@/hooks/useForYou";
+import { useFilterPresets } from "@/hooks/useFilterPresets";
+import { filtersToSearchParams, type TrackFilterParams } from "@/lib/trackFilters";
 import { useAuthStore } from "@/store/authStore";
 import { usePlayerStore } from "@/store/playerStore";
 
@@ -29,6 +33,8 @@ export function HomePage() {
   const { tracks: trending, loading: trendingLoading } = useTrendingTracks(10);
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const { tracks: feedTracks, loading: feedLoading } = useFeed(10);
+  const { tracks: forYouTracks, loading: forYouLoading } = useForYou(12);
+  const { presets } = useFilterPresets();
   const playTrack = usePlayerStore((s) => s.playTrack);
   const setQueue = usePlayerStore((s) => s.setQueue);
   const [publicPlaylists, setPublicPlaylists] = useState<ServerPlaylist[]>([]);
@@ -37,10 +43,7 @@ export function HomePage() {
     void api.getPublicPlaylists(12).then((r) => setPublicPlaylists(r.items));
   }, []);
 
-  const recentIds = getRecentIds();
-  const recent = recentIds
-    .map((id) => tracks.find((t) => t.id === id))
-    .filter(Boolean) as typeof tracks;
+  const { tracks: recent, loading: recentLoading } = useRecentTracks(tracks, 5);
 
   const byPower = [...tracks].sort((a, b) => {
     const pa = parseGachiMeta(a).gachi_power_level ?? 0;
@@ -111,18 +114,76 @@ export function HomePage() {
 
               {!error && tracks.length > 0 && (
                 <>
-                  {recent.length > 0 && (
+                  {(recent.length > 0 || recentLoading) && (
                     <Section title="Recently played">
-                      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
-                        {recent.slice(0, 5).map((t) => (
-                          <TrackCard key={t.id} track={t} queue={tracks} />
-                        ))}
+                      {recentLoading && recent.length === 0 ? (
+                        <TrackGridSkeleton count={5} />
+                      ) : (
+                        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+                          {recent.map((t) => (
+                            <TrackCard key={t.id} track={t} queue={recent} />
+                          ))}
+                        </div>
+                      )}
+                    </Section>
+                  )}
+
+                  {isAuthenticated && (forYouTracks.length > 0 || forYouLoading) && (
+                    <Section
+                      title="For you"
+                      subtitle="Based on your history, likes & subscriptions"
+                    >
+                      {forYouLoading && forYouTracks.length === 0 ? (
+                        <TrackGridSkeleton count={10} />
+                      ) : (
+                        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+                          {forYouTracks.map((t) => (
+                            <TrackCard key={t.id} track={t} queue={forYouTracks} showRadio />
+                          ))}
+                        </div>
+                      )}
+                    </Section>
+                  )}
+
+                  {isAuthenticated && presets.length > 0 && (
+                    <Section title="Your mixes" subtitle="Saved Discover filters — one tap">
+                      <div className="flex flex-wrap gap-2">
+                        {presets.map((p) => {
+                          const qs = filtersToSearchParams(p.filters as TrackFilterParams).toString();
+                          return (
+                            <Link
+                              key={p.id}
+                              to={`/discover${qs ? `?${qs}` : ""}`}
+                              className="inline-flex items-center gap-2 rounded-full bg-spotify-highlight px-4 py-2 text-sm font-semibold hover:bg-spotify-elevated"
+                            >
+                              <Sparkles className="h-4 w-4 text-spotify-green" />
+                              {p.name}
+                            </Link>
+                          );
+                        })}
+                        <Link
+                          to="/discover"
+                          className="inline-flex items-center rounded-full border border-white/30 px-4 py-2 text-sm font-semibold text-spotify-muted hover:text-white"
+                        >
+                          + Discover
+                        </Link>
                       </div>
                     </Section>
                   )}
 
                   {isAuthenticated && feedTracks.length > 0 && (
-                    <Section title="From artists you follow" subtitle="Your subscription feed">
+                    <Section
+                      title="From artists you follow"
+                      subtitle="See all in Subscriptions"
+                      action={
+                        <Link
+                          to="/following"
+                          className="text-sm font-semibold text-spotify-green hover:underline"
+                        >
+                          Open feed
+                        </Link>
+                      }
+                    >
                       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
                         {(feedLoading ? tracks : feedTracks).slice(0, 10).map((t) => (
                           <TrackCard key={t.id} track={t} queue={feedTracks} />
@@ -131,7 +192,15 @@ export function HomePage() {
                     </Section>
                   )}
 
-                  <Section title="Trending gachi remixes" subtitle="By play count — updated live">
+                  <Section
+                    title="Trending gachi remixes"
+                    subtitle="By play count — updated live"
+                    action={
+                      <Link to="/charts" className="text-sm font-semibold text-spotify-muted hover:text-white">
+                        Weekly top 50 →
+                      </Link>
+                    }
+                  >
                     <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
                       {(trendingLoading ? tracks : trending).slice(0, 10).map((t) => (
                         <TrackCard key={t.id} track={t} queue={trending.length ? trending : tracks} />
@@ -169,8 +238,29 @@ export function HomePage() {
                     </Section>
                   )}
 
+                  <Section title="Explore by vibe">
+                    <Link
+                      to="/discover"
+                      className="inline-flex items-center gap-2 rounded-full bg-spotify-highlight px-5 py-2.5 text-sm font-semibold hover:bg-spotify-elevated"
+                    >
+                      <Compass className="h-4 w-4 text-spotify-green" />
+                      Open Discover — moods, stations & radio
+                    </Link>
+                  </Section>
+
                   {deep.length > 0 && (
-                    <Section title="Deep dark fantasy" subtitle="deepness_score ≥ 7">
+                    <Section
+                      title="Deep dark fantasy"
+                      subtitle="deepness_score ≥ 7"
+                      action={
+                        <Link
+                          to="/discover?min_deepness=7"
+                          className="text-sm font-semibold text-spotify-muted hover:text-white"
+                        >
+                          See all
+                        </Link>
+                      }
+                    >
                       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
                         {deep.map((t) => (
                           <TrackCard key={t.id} track={t} queue={deep} />

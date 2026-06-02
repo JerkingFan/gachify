@@ -1,6 +1,5 @@
-import { X } from "lucide-react";
-import { useEffect, useRef } from "react";
-import { activeLyricIndex } from "@/lib/lyrics";
+import { Maximize2, X } from "lucide-react";
+import { KaraokeLyrics } from "@/components/player/KaraokeLyrics";
 import { usePlayerStore } from "@/store/playerStore";
 import { useUIStore } from "@/store/uiStore";
 import type { LyricsDocument } from "@/types";
@@ -11,15 +10,8 @@ type Props = {
 
 export function KaraokePanel({ doc }: Props) {
   const close = useUIStore((s) => s.setKaraokeOpen);
-  const progressMs = usePlayerStore((s) => s.progressMs);
+  const openFullscreen = useUIStore((s) => s.openKaraokeFullscreen);
   const currentTrack = usePlayerStore((s) => s.currentTrack);
-  const activeRef = useRef<HTMLDivElement | null>(null);
-
-  const active = activeLyricIndex(doc.lines, progressMs);
-
-  useEffect(() => {
-    activeRef.current?.scrollIntoView({ block: "center", behavior: "smooth" });
-  }, [active]);
 
   return (
     <div className="fixed inset-x-0 bottom-[90px] z-50 mx-auto max-h-[45vh] w-full max-w-3xl rounded-t-2xl border border-white/10 bg-spotify-elevated/95 shadow-2xl backdrop-blur-md md:bottom-[100px]">
@@ -28,35 +20,28 @@ export function KaraokePanel({ doc }: Props) {
           <p className="text-xs uppercase text-spotify-muted">♂️ Karaoke</p>
           <p className="truncate text-sm font-semibold">{currentTrack?.title}</p>
         </div>
-        <button
-          type="button"
-          onClick={() => close(false)}
-          className="rounded-full p-2 hover:bg-white/10"
-          aria-label="Close karaoke"
-        >
-          <X className="h-5 w-5" />
-        </button>
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            onClick={openFullscreen}
+            className="rounded-full p-2 hover:bg-white/10"
+            aria-label="Fullscreen karaoke"
+            title="Fullscreen karaoke"
+          >
+            <Maximize2 className="h-5 w-5" />
+          </button>
+          <button
+            type="button"
+            onClick={() => close(false)}
+            className="rounded-full p-2 hover:bg-white/10"
+            aria-label="Close karaoke"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
       </div>
-      <div className="max-h-[36vh] overflow-y-auto px-6 py-6 text-center">
-        {doc.lines.map((line, i) => {
-          const isActive = i === active;
-          const isPast = i < active;
-          return (
-            <div
-              key={`${line.start_ms}-${i}`}
-              ref={isActive ? activeRef : undefined}
-              className={`py-2 text-lg transition-all duration-200 md:text-2xl ${
-                isActive
-                  ? "scale-105 font-bold text-spotify-green"
-                  : isPast
-                    ? "text-white/40"
-                    : "text-white/70"
-              }`}
-            >
-              {line.text}
-            </div>
-          );
-        })}
+      <div className="px-4 py-4">
+        <KaraokeLyrics doc={doc} trackId={currentTrack?.id} />
       </div>
     </div>
   );

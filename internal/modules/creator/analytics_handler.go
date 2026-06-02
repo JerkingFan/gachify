@@ -35,10 +35,12 @@ func (h *Handler) analytics(w http.ResponseWriter, r *http.Request) {
 			"duration_ms": t.DurationMs,
 		})
 	}
+	followers, _ := h.svc.FollowerCount(r.Context(), uid)
 	httpserver.JSON(w, http.StatusOK, map[string]any{
 		"total_plays":       totalPlays,
 		"published_tracks":  published,
 		"total_tracks":      len(tracks),
+		"follower_count":    followers,
 		"items":             items,
 	})
 }

@@ -10,6 +10,18 @@ interface UIState {
   karaokeOpen: boolean;
   setKaraokeOpen: (open: boolean) => void;
   toggleKaraoke: () => void;
+  nowPlayingOpen: boolean;
+  setNowPlayingOpen: (open: boolean) => void;
+  openNowPlaying: () => void;
+  openNowPlayingWithKaraoke: () => void;
+  expandKaraokeInNowPlaying: boolean;
+  clearExpandKaraokeInNowPlaying: () => void;
+  closeNowPlaying: () => void;
+  karaokeFullscreenOpen: boolean;
+  openKaraokeFullscreen: () => void;
+  closeKaraokeFullscreen: () => void;
+  shortcutsHelpOpen: boolean;
+  setShortcutsHelpOpen: (open: boolean) => void;
 }
 
 export const useUIStore = create<UIState>((set) => ({
@@ -22,4 +34,39 @@ export const useUIStore = create<UIState>((set) => ({
   karaokeOpen: false,
   setKaraokeOpen: (open) => set({ karaokeOpen: open }),
   toggleKaraoke: () => set((s) => ({ karaokeOpen: !s.karaokeOpen })),
+  nowPlayingOpen: false,
+  setNowPlayingOpen: (open) => set({ nowPlayingOpen: open }),
+  expandKaraokeInNowPlaying: false,
+  openNowPlaying: () =>
+    set({
+      nowPlayingOpen: true,
+      queuePanelOpen: false,
+      karaokeOpen: false,
+      expandKaraokeInNowPlaying: false,
+    }),
+  openNowPlayingWithKaraoke: () =>
+    set({
+      nowPlayingOpen: true,
+      queuePanelOpen: false,
+      karaokeOpen: false,
+      expandKaraokeInNowPlaying: true,
+    }),
+  clearExpandKaraokeInNowPlaying: () => set({ expandKaraokeInNowPlaying: false }),
+  closeNowPlaying: () =>
+    set({
+      nowPlayingOpen: false,
+      expandKaraokeInNowPlaying: false,
+      karaokeFullscreenOpen: false,
+    }),
+  karaokeFullscreenOpen: false,
+  openKaraokeFullscreen: () =>
+    set({
+      karaokeFullscreenOpen: true,
+      nowPlayingOpen: false,
+      karaokeOpen: false,
+      queuePanelOpen: false,
+    }),
+  closeKaraokeFullscreen: () => set({ karaokeFullscreenOpen: false }),
+  shortcutsHelpOpen: false,
+  setShortcutsHelpOpen: (open) => set({ shortcutsHelpOpen: open }),
 }));

@@ -45,7 +45,15 @@ type Config struct {
 	CacheEnabled               bool
 	CacheTTL                   time.Duration
 	MetricsEnabled             bool
-	SMTP                       email.SMTPConfig
+	SpotifyClientID     string
+	SpotifyClientSecret string
+	YouTubeAPIKey       string
+	VAPIDPublicKey      string
+	VAPIDPrivateKey     string
+	VAPIDSubject        string
+	OfflineMaxDownloads int
+	OfflineSegmentTTL   time.Duration
+	SMTP                email.SMTPConfig
 }
 
 type RateLimitConfig struct {
@@ -138,6 +146,17 @@ func Load() (Config, error) {
 		return Config{}, fmt.Errorf("GACHIFY_CACHE_TTL: %w", err)
 	}
 	cfg.MetricsEnabled = getEnv("GACHIFY_METRICS_ENABLED", "true") == "true"
+	cfg.SpotifyClientID = os.Getenv("GACHIFY_SPOTIFY_CLIENT_ID")
+	cfg.SpotifyClientSecret = os.Getenv("GACHIFY_SPOTIFY_CLIENT_SECRET")
+	cfg.YouTubeAPIKey = os.Getenv("GACHIFY_YOUTUBE_API_KEY")
+	cfg.VAPIDPublicKey = os.Getenv("GACHIFY_VAPID_PUBLIC_KEY")
+	cfg.VAPIDPrivateKey = os.Getenv("GACHIFY_VAPID_PRIVATE_KEY")
+	cfg.VAPIDSubject = getEnv("GACHIFY_VAPID_SUBJECT", "mailto:push@gachify.local")
+	cfg.OfflineMaxDownloads = parseIntDefault(getEnv("GACHIFY_OFFLINE_MAX_DOWNLOADS", "25"), 25)
+	cfg.OfflineSegmentTTL, err = time.ParseDuration(getEnv("GACHIFY_OFFLINE_SEGMENT_TTL", "168h"))
+	if err != nil {
+		return Config{}, fmt.Errorf("GACHIFY_OFFLINE_SEGMENT_TTL: %w", err)
+	}
 	cfg.SMTP = email.SMTPConfig{
 		Host:     os.Getenv("GACHIFY_SMTP_HOST"),
 		Port:     parseIntDefault(getEnv("GACHIFY_SMTP_PORT", "587"), 587),

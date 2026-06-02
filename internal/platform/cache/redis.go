@@ -63,8 +63,8 @@ func (s *Store) SetJSON(ctx context.Context, key string, value any, ttl time.Dur
 	return s.client.Set(ctx, key, raw, ttl).Err()
 }
 
-func (s *Store) TracksListKey(status, query, sort string, limit, offset int, creatorID string) string {
-	return s.key("tracks", status, query, sort, fmt.Sprintf("%d", limit), fmt.Sprintf("%d", offset), creatorID)
+func (s *Store) TracksListKey(status, query, sort string, limit, offset int, creatorID, metaFilters string) string {
+	return s.key("tracks", status, query, sort, fmt.Sprintf("%d", limit), fmt.Sprintf("%d", offset), creatorID, metaFilters)
 }
 
 func (s *Store) InvalidateTracks(ctx context.Context) error {

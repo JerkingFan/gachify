@@ -1,10 +1,12 @@
-import { Home, Library, Search, Upload } from "lucide-react";
+import { Compass, Home, Library, Rss, Search, Upload } from "lucide-react";
 import { NavLink } from "react-router-dom";
 import { useAuthStore } from "@/store/authStore";
 import { useUIStore } from "@/store/uiStore";
 
 const items = [
   { to: "/", icon: Home, label: "Home", end: true },
+  { to: "/following", icon: Rss, label: "Following", auth: true },
+  { to: "/discover", icon: Compass, label: "Discover" },
   { to: "/search", icon: Search, label: "Search" },
   { to: "/library", icon: Library, label: "Library" },
   { to: "/upload", icon: Upload, label: "Upload", auth: true },

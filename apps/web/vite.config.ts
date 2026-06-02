@@ -8,26 +8,48 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: "autoUpdate",
-      includeAssets: ["favicon.svg"],
+      includeAssets: ["favicon.svg", "pwa-192.svg", "pwa-512.svg"],
+      devOptions: {
+        enabled: true,
+        type: "module",
+      },
       manifest: {
         name: "Gachify",
         short_name: "Gachify",
-        description: "Deep Dark Fantasy, delivered at scale.",
+        description: "Gachi remix player — karaoke, radio, lock-screen controls.",
         theme_color: "#121212",
         background_color: "#121212",
         display: "standalone",
+        display_override: ["standalone", "minimal-ui"],
+        orientation: "portrait",
+        categories: ["music", "entertainment"],
         start_url: "/",
+        scope: "/",
         icons: [
           {
-            src: "/favicon.svg",
-            sizes: "any",
+            src: "/pwa-192.svg",
+            sizes: "192x192",
             type: "image/svg+xml",
-            purpose: "any maskable",
+            purpose: "any",
+          },
+          {
+            src: "/pwa-512.svg",
+            sizes: "512x512",
+            type: "image/svg+xml",
+            purpose: "any",
+          },
+          {
+            src: "/pwa-512.svg",
+            sizes: "512x512",
+            type: "image/svg+xml",
+            purpose: "maskable",
           },
         ],
       },
       workbox: {
+        importScripts: ["push-handler.js"],
         navigateFallback: "/index.html",
+        globPatterns: ["**/*.{js,css,html,ico,png,svg,woff2}"],
         runtimeCaching: [
           {
             urlPattern: ({ url }) => url.pathname.startsWith("/api/v1/me/liked"),
@@ -36,6 +58,15 @@ export default defineConfig({
               cacheName: "gachify-liked",
               networkTimeoutSeconds: 5,
               expiration: { maxEntries: 1, maxAgeSeconds: 60 * 60 * 24 },
+            },
+          },
+          {
+            urlPattern: ({ url }) => url.pathname.startsWith("/api/v1/me/playlists"),
+            handler: "NetworkFirst",
+            options: {
+              cacheName: "gachify-playlists",
+              networkTimeoutSeconds: 5,
+              expiration: { maxEntries: 1, maxAgeSeconds: 60 * 60 * 12 },
             },
           },
           {
@@ -64,6 +95,24 @@ export default defineConfig({
               expiration: { maxEntries: 64, maxAgeSeconds: 60 * 60 },
             },
           },
+          {
+            urlPattern: ({ url }) => url.pathname.includes("/stream/"),
+            handler: "NetworkFirst",
+            options: {
+              cacheName: "gachify-stream",
+              networkTimeoutSeconds: 8,
+              expiration: { maxEntries: 24, maxAgeSeconds: 60 * 60 * 6 },
+            },
+          },
+          {
+            urlPattern: ({ request }) => request.destination === "audio",
+            handler: "CacheFirst",
+            options: {
+              cacheName: "gachify-audio-previews",
+              expiration: { maxEntries: 48, maxAgeSeconds: 60 * 60 * 24 * 7 },
+              cacheableResponse: { statuses: [0, 200] },
+            },
+          },
         ],
       },
     }),
@@ -85,6 +134,10 @@ export default defineConfig({
         changeOrigin: true,
       },
       "/share": {
+        target: process.env.VITE_API_PROXY_TARGET ?? "http://localhost:8080",
+        changeOrigin: true,
+      },
+      "/stream": {
         target: process.env.VITE_API_PROXY_TARGET ?? "http://localhost:8080",
         changeOrigin: true,
       },

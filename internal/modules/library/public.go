@@ -14,6 +14,7 @@ import (
 func (h *Handler) PublicRoutes() chi.Router {
 	r := chi.NewRouter()
 	r.Get("/", h.listPublicPlaylists)
+	r.Get("/{id}/export", h.exportPlaylist)
 	r.Get("/{id}", h.getPublicPlaylist)
 	return r
 }

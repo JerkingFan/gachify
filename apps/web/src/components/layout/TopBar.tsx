@@ -1,6 +1,7 @@
-import { ChevronLeft, ChevronRight, Menu } from "lucide-react";
+import { ChevronLeft, ChevronRight, Keyboard, Menu } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useUIStore } from "@/store/uiStore";
+import { NotificationsBell } from "@/components/social/NotificationsBell";
 import { UserMenu } from "./UserMenu";
 
 interface TopBarProps {
@@ -56,10 +57,14 @@ export function TopBar({ title, gradient }: TopBarProps) {
       <div className="ml-auto flex items-center gap-2 md:gap-3">
         <button
           type="button"
-          className="hidden rounded-full bg-spotify-highlight px-4 py-1 text-sm font-semibold hover:scale-105 sm:inline-block"
+          onClick={() => useUIStore.getState().setShortcutsHelpOpen(true)}
+          className="btn-icon touch-target hidden sm:flex"
+          aria-label="Keyboard shortcuts"
+          title="Keyboard shortcuts (?)"
         >
-          Upgrade
+          <Keyboard className="h-5 w-5" />
         </button>
+        <NotificationsBell />
         <UserMenu />
       </div>
     </header>

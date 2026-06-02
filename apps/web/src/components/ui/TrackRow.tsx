@@ -1,4 +1,5 @@
-import { Heart, MoreHorizontal } from "lucide-react";
+import { Heart, Mic2, MoreHorizontal } from "lucide-react";
+import { trackHasLyricsFromTrack } from "@/lib/lyrics";
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { formatDuration, getArtistName } from "@/lib/tracks";
@@ -42,6 +43,7 @@ export function TrackRow({ track, index, queue, showIndex = true }: TrackRowProp
 
   const isCurrent = current?.id === track.id;
   const isActive = isCurrent && playing;
+  const hasKaraoke = trackHasLyricsFromTrack(track);
 
   const handlePlay = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -86,9 +88,12 @@ export function TrackRow({ track, index, queue, showIndex = true }: TrackRowProp
           <Link
             to={`/track/${track.id}`}
             onClick={(e) => e.stopPropagation()}
-            className={`block truncate hover:underline ${isCurrent ? "text-spotify-green" : "text-white"}`}
+            className={`flex items-center gap-1 truncate hover:underline ${isCurrent ? "text-spotify-green" : "text-white"}`}
           >
-            {track.title}
+            <span className="truncate">{track.title}</span>
+            {hasKaraoke && (
+              <Mic2 className="h-3.5 w-3.5 shrink-0 text-spotify-green" aria-label="Karaoke" />
+            )}
           </Link>
           <p className="truncate text-xs text-spotify-muted">{getArtistName(track)}</p>
         </div>

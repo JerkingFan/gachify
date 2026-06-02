@@ -1,13 +1,20 @@
-import { Home, Library, LogIn, Plus, Search, Sparkles, Upload, X } from "lucide-react";
+import { Compass, Home, Library, LogIn, Plus, Rss, Search, Sparkles, TrendingUp, Upload, Users, X } from "lucide-react";
 import { Link, NavLink } from "react-router-dom";
+import { UserAvatar } from "@/components/ui/UserAvatar";
+import { getLocale, t } from "@/lib/i18n";
 import { useAuthStore } from "@/store/authStore";
 import { useLibraryStore } from "@/store/libraryStore";
 import { useUIStore } from "@/store/uiStore";
 
 const mainNav = [
-  { to: "/", icon: Home, label: "Home" },
-  { to: "/search", icon: Search, label: "Search" },
-  { to: "/upload", icon: Upload, label: "Upload", auth: true },
+  { to: "/", icon: Home, labelKey: "nav.home" },
+  { to: "/following", icon: Rss, labelKey: "nav.following", auth: true },
+  { to: "/discover", icon: Compass, labelKey: "nav.discover" },
+  { to: "/charts", icon: TrendingUp, labelKey: "nav.charts" },
+  { to: "/party", icon: Users, labelKey: "nav.party" },
+  { to: "/search", icon: Search, labelKey: "nav.search" },
+  { to: "/creator", icon: Sparkles, labelKey: "nav.creator", auth: true },
+  { to: "/upload", icon: Upload, labelKey: "nav.upload", auth: true },
 ];
 
 interface SidebarProps {
@@ -20,6 +27,7 @@ export function Sidebar({ mobile }: SidebarProps) {
   const playlists = useLibraryStore((s) => s.playlists);
   const createPlaylist = useLibraryStore((s) => s.createPlaylist);
   const setSidebarOpen = useUIStore((s) => s.setSidebarOpen);
+  const locale = getLocale();
 
   const handleCreatePlaylist = () => {
     if (!isAuthenticated) return;
@@ -56,7 +64,7 @@ export function Sidebar({ mobile }: SidebarProps) {
           <span className="text-xl font-bold tracking-tight">Gachify</span>
         </div>
         <nav className="flex flex-col gap-1 px-1">
-          {mainNav.map(({ to, icon: Icon, label, auth }) => {
+          {mainNav.map(({ to, icon: Icon, labelKey, auth }) => {
             if (auth && !isAuthenticated) return null;
             return (
               <NavLink
@@ -69,7 +77,7 @@ export function Sidebar({ mobile }: SidebarProps) {
                 }
               >
                 <Icon className="h-6 w-6" strokeWidth={2} />
-                {label}
+                {t(labelKey, locale)}
               </NavLink>
             );
           })}
@@ -86,7 +94,7 @@ export function Sidebar({ mobile }: SidebarProps) {
             }
           >
             <Library className="h-6 w-6" />
-            Your Library
+            {t("nav.library", locale)}
           </NavLink>
           {isAuthenticated && (
             <button
@@ -137,10 +145,27 @@ export function Sidebar({ mobile }: SidebarProps) {
 
       {isAuthenticated && user && (
         <div className="rounded-lg bg-spotify-highlight p-3">
-          <p className="truncate text-sm font-semibold text-white">
-            {user.display_name}
-          </p>
-          <p className="truncate text-xs text-spotify-muted">@{user.handle}</p>
+          <Link
+            to={`/profile/${user.id}`}
+            className="flex items-center gap-2 hover:opacity-90"
+          >
+            <UserAvatar user={user} size="sm" />
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-semibold text-white">
+                {user.display_name}
+              </p>
+              <p className="truncate text-xs text-spotify-muted">@{user.handle}</p>
+            </div>
+          </Link>
+          <div className="mt-2 flex gap-2 text-xs">
+            <Link to="/settings" className="text-spotify-muted hover:text-white">
+              Settings
+            </Link>
+            <span className="text-spotify-subtle">·</span>
+            <Link to="/creator" className="text-spotify-muted hover:text-white">
+              Creator
+            </Link>
+          </div>
         </div>
       )}
 

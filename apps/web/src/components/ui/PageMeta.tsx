@@ -5,9 +5,10 @@ type PageMetaProps = {
   description?: string;
   url?: string;
   image?: string;
+  oembedUrl?: string;
 };
 
-export function PageMeta({ title, description, url, image }: PageMetaProps) {
+export function PageMeta({ title, description, url, image, oembedUrl }: PageMetaProps) {
   const fullTitle = title.includes("Gachify") ? title : `${title} · Gachify`;
   const desc = description ?? "Deep Dark Fantasy, delivered at scale.";
   return (
@@ -18,6 +19,9 @@ export function PageMeta({ title, description, url, image }: PageMetaProps) {
       <meta property="og:description" content={desc} />
       {url && <meta property="og:url" content={url} />}
       {image && <meta property="og:image" content={image} />}
+      {oembedUrl && (
+        <link rel="alternate" type="application/json+oembed" href={oembedUrl} title="Gachify oEmbed" />
+      )}
       <meta property="og:type" content="website" />
     </Helmet>
   );

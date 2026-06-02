@@ -44,10 +44,11 @@ func scanPublicPlaylistRow(row interface {
 }
 
 func (r *Repository) RemoveTrackFromPlaylist(ctx context.Context, userID, playlistID, trackID uuid.UUID) (domain.Playlist, error) {
-	p, err := r.GetPlaylist(ctx, userID, playlistID)
-	if err != nil {
-		return domain.Playlist{}, err
+	acc, err := r.resolvePlaylistAccess(ctx, userID, playlistID)
+	if err != nil || !acc.canEdit {
+		return domain.Playlist{}, ErrPlaylistNotFound
 	}
+	p := acc.playlist
 	items, err := parseItems(p.Items)
 	if err != nil {
 		return domain.Playlist{}, err
@@ -62,8 +63,9 @@ func (r *Repository) RemoveTrackFromPlaylist(ctx context.Context, userID, playli
 }
 
 func (r *Repository) SetPlaylistItems(ctx context.Context, userID, playlistID uuid.UUID, trackIDs []uuid.UUID) (domain.Playlist, error) {
-	if _, err := r.GetPlaylist(ctx, userID, playlistID); err != nil {
-		return domain.Playlist{}, err
+	acc, err := r.resolvePlaylistAccess(ctx, userID, playlistID)
+	if err != nil || !acc.canEdit {
+		return domain.Playlist{}, ErrPlaylistNotFound
 	}
 	now := time.Now()
 	items := make([]domain.PlaylistItem, 0, len(trackIDs))
@@ -76,6 +78,13 @@ func (r *Repository) SetPlaylistItems(ctx context.Context, userID, playlistID uu
 }
 
 func (r *Repository) savePlaylistItems(ctx context.Context, userID, playlistID uuid.UUID, items []domain.PlaylistItem) (domain.Playlist, error) {
+	acc, err := r.resolvePlaylistAccess(ctx, userID, playlistID)
+	if err != nil {
+		return domain.Playlist{}, err
+	}
+	if !acc.canEdit {
+		return domain.Playlist{}, ErrPlaylistNotFound
+	}
 	for i := range items {
 		items[i].Position = i
 	}
@@ -83,14 +92,11 @@ func (r *Repository) savePlaylistItems(ctx context.Context, userID, playlistID u
 	if err != nil {
 		return domain.Playlist{}, fmt.Errorf("marshal items: %w", err)
 	}
-	var p domain.Playlist
-	err = r.pool.QueryRow(ctx, `
-		UPDATE playlists SET items = $3, updated_at = now()
-		WHERE id = $1 AND owner_id = $2
-		RETURNING id, owner_id, title, description, is_public, items, created_at, updated_at
-	`, playlistID, userID, raw).Scan(
-		&p.ID, &p.OwnerID, &p.Title, &p.Description, &p.IsPublic, &p.Items,
-		&p.CreatedAt, &p.UpdatedAt,
-	)
-	return p, err
+	_, err = r.pool.Exec(ctx, `
+		UPDATE playlists SET items = $2, updated_at = now() WHERE id = $1
+	`, playlistID, raw)
+	if err != nil {
+		return domain.Playlist{}, err
+	}
+	return r.GetPlaylist(ctx, userID, playlistID)
 }

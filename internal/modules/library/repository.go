@@ -74,51 +74,90 @@ func (r *Repository) IsLiked(ctx context.Context, userID, trackID uuid.UUID) (bo
 
 func (r *Repository) ListPlaylists(ctx context.Context, userID uuid.UUID) ([]domain.Playlist, error) {
 	rows, err := r.pool.Query(ctx, `
-		SELECT id, owner_id, title, description, is_public, items, created_at, updated_at
-		FROM playlists WHERE owner_id = $1 ORDER BY created_at ASC
+		SELECT `+playlistSelectCols+`,
+			(p.owner_id = $1) AS is_owner,
+			true AS can_edit
+		FROM playlists p
+		WHERE p.owner_id = $1
+		UNION
+		SELECT `+playlistSelectCols+`,
+			false AS is_owner,
+			true AS can_edit
+		FROM playlists p
+		INNER JOIN playlist_collaborators c ON c.playlist_id = p.id AND c.user_id = $1
+		WHERE p.owner_id <> $1
+		ORDER BY updated_at DESC
 	`, userID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	return scanPlaylists(rows)
+	return scanPlaylistsWithAccess(rows)
 }
 
-func (r *Repository) GetPlaylist(ctx context.Context, userID, playlistID uuid.UUID) (domain.Playlist, error) {
-	var p domain.Playlist
-	err := r.pool.QueryRow(ctx, `
-		SELECT id, owner_id, title, description, is_public, items, created_at, updated_at
-		FROM playlists WHERE id = $1 AND owner_id = $2
-	`, playlistID, userID).Scan(
-		&p.ID, &p.OwnerID, &p.Title, &p.Description, &p.IsPublic, &p.Items,
-		&p.CreatedAt, &p.UpdatedAt,
-	)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return domain.Playlist{}, ErrPlaylistNotFound
+func scanPlaylistsWithAccess(rows pgx.Rows) ([]domain.Playlist, error) {
+	var list []domain.Playlist
+	for rows.Next() {
+		var p domain.Playlist
+		var inviteToken *string
+		if err := rows.Scan(
+			&p.ID, &p.OwnerID, &p.Title, &p.Description, &p.IsPublic, &p.IsCollaborative, &inviteToken,
+			&p.Items, &p.CreatedAt, &p.UpdatedAt,
+			&p.IsOwner, &p.CanEdit,
+		); err != nil {
+			return nil, err
+		}
+		if inviteToken != nil && p.IsOwner {
+			p.InviteToken = *inviteToken
+		}
+		list = append(list, p)
 	}
-	return p, err
+	if list == nil {
+		list = []domain.Playlist{}
+	}
+	return list, rows.Err()
 }
 
 func (r *Repository) CreatePlaylist(ctx context.Context, userID uuid.UUID, in domain.CreatePlaylistInput) (domain.Playlist, error) {
 	items := json.RawMessage(`[]`)
+	var inviteToken *string
+	if in.IsCollaborative {
+		t, err := newInviteToken()
+		if err != nil {
+			return domain.Playlist{}, err
+		}
+		inviteToken = &t
+	}
 	const q = `
-		INSERT INTO playlists (owner_id, title, description, is_public, items)
-		VALUES ($1, $2, $3, $4, $5)
-		RETURNING id, owner_id, title, description, is_public, items, created_at, updated_at
-	`
+		INSERT INTO playlists (owner_id, title, description, is_public, is_collaborative, invite_token, items)
+		VALUES ($1, $2, $3, $4, $5, $6, $7)
+		RETURNING ` + playlistSelectCols
 	var p domain.Playlist
-	err := r.pool.QueryRow(ctx, q, userID, in.Title, in.Description, in.IsPublic, items).Scan(
-		&p.ID, &p.OwnerID, &p.Title, &p.Description, &p.IsPublic, &p.Items,
-		&p.CreatedAt, &p.UpdatedAt,
+	var tokenOut *string
+	err := r.pool.QueryRow(ctx, q, userID, in.Title, in.Description, in.IsPublic, in.IsCollaborative, inviteToken, items).Scan(
+		&p.ID, &p.OwnerID, &p.Title, &p.Description, &p.IsPublic, &p.IsCollaborative, &tokenOut,
+		&p.Items, &p.CreatedAt, &p.UpdatedAt,
 	)
+	if err != nil {
+		return domain.Playlist{}, err
+	}
+	if tokenOut != nil {
+		p.InviteToken = *tokenOut
+	}
+	p.IsOwner = true
+	p.CanEdit = true
 	return p, err
 }
 
 func (r *Repository) UpdatePlaylist(ctx context.Context, userID, playlistID uuid.UUID, in domain.UpdatePlaylistInput) (domain.Playlist, error) {
-	p, err := r.GetPlaylist(ctx, userID, playlistID)
+	acc, err := r.resolvePlaylistAccess(ctx, userID, playlistID)
 	if err != nil {
 		return domain.Playlist{}, err
 	}
+	if !acc.isOwner {
+		return domain.Playlist{}, ErrPlaylistNotFound
+	}
+	p := acc.playlist
 	if in.Title != nil {
 		p.Title = *in.Title
 	}
@@ -128,15 +167,40 @@ func (r *Repository) UpdatePlaylist(ctx context.Context, userID, playlistID uuid
 	if in.IsPublic != nil {
 		p.IsPublic = *in.IsPublic
 	}
+	if in.IsCollaborative != nil {
+		p.IsCollaborative = *in.IsCollaborative
+		if !*in.IsCollaborative {
+			p.InviteToken = ""
+		} else if p.InviteToken == "" {
+			t, err := newInviteToken()
+			if err != nil {
+				return domain.Playlist{}, err
+			}
+			p.InviteToken = t
+		}
+	}
+	var tokenParam *string
+	if p.InviteToken != "" {
+		tokenParam = &p.InviteToken
+	}
+	var tokenOut *string
 	err = r.pool.QueryRow(ctx, `
-		UPDATE playlists SET title = $3, description = $4, is_public = $5
+		UPDATE playlists SET title = $3, description = $4, is_public = $5,
+			is_collaborative = $6, invite_token = $7
 		WHERE id = $1 AND owner_id = $2
-		RETURNING id, owner_id, title, description, is_public, items, created_at, updated_at
-	`, playlistID, userID, p.Title, p.Description, p.IsPublic).Scan(
-		&p.ID, &p.OwnerID, &p.Title, &p.Description, &p.IsPublic, &p.Items,
-		&p.CreatedAt, &p.UpdatedAt,
+		RETURNING `+playlistSelectCols,
+		playlistID, userID, p.Title, p.Description, p.IsPublic, p.IsCollaborative, tokenParam,
+	).Scan(
+		&p.ID, &p.OwnerID, &p.Title, &p.Description, &p.IsPublic, &p.IsCollaborative, &tokenOut,
+		&p.Items, &p.CreatedAt, &p.UpdatedAt,
 	)
-	return p, err
+	if err != nil {
+		return domain.Playlist{}, err
+	}
+	if tokenOut != nil {
+		p.InviteToken = *tokenOut
+	}
+	return r.playlistForUser(playlistAccess{playlist: p, isOwner: true, canEdit: true}), nil
 }
 
 func (r *Repository) DeletePlaylist(ctx context.Context, userID, playlistID uuid.UUID) error {
@@ -151,10 +215,14 @@ func (r *Repository) DeletePlaylist(ctx context.Context, userID, playlistID uuid
 }
 
 func (r *Repository) AddTracksToPlaylist(ctx context.Context, userID, playlistID uuid.UUID, trackIDs []uuid.UUID) (domain.Playlist, error) {
-	p, err := r.GetPlaylist(ctx, userID, playlistID)
+	acc, err := r.resolvePlaylistAccess(ctx, userID, playlistID)
 	if err != nil {
 		return domain.Playlist{}, err
 	}
+	if !acc.canEdit {
+		return domain.Playlist{}, ErrPlaylistNotFound
+	}
+	p := acc.playlist
 	items, err := parseItems(p.Items)
 	if err != nil {
 		return domain.Playlist{}, err
@@ -176,18 +244,7 @@ func (r *Repository) AddTracksToPlaylist(ctx context.Context, userID, playlistID
 		})
 		pos++
 	}
-	raw, err := json.Marshal(items)
-	if err != nil {
-		return domain.Playlist{}, err
-	}
-	err = r.pool.QueryRow(ctx, `
-		UPDATE playlists SET items = $3 WHERE id = $1 AND owner_id = $2
-		RETURNING id, owner_id, title, description, is_public, items, created_at, updated_at
-	`, playlistID, userID, raw).Scan(
-		&p.ID, &p.OwnerID, &p.Title, &p.Description, &p.IsPublic, &p.Items,
-		&p.CreatedAt, &p.UpdatedAt,
-	)
-	return p, err
+	return r.savePlaylistItems(ctx, userID, playlistID, items)
 }
 
 func (r *Repository) ImportLibrary(ctx context.Context, userID uuid.UUID, in domain.LibraryImportInput) error {
@@ -253,20 +310,57 @@ func parseItems(raw json.RawMessage) ([]domain.PlaylistItem, error) {
 	return items, nil
 }
 
-func scanPlaylists(rows pgx.Rows) ([]domain.Playlist, error) {
-	var list []domain.Playlist
-	for rows.Next() {
-		var p domain.Playlist
-		if err := rows.Scan(
-			&p.ID, &p.OwnerID, &p.Title, &p.Description, &p.IsPublic, &p.Items,
-			&p.CreatedAt, &p.UpdatedAt,
-		); err != nil {
-			return nil, err
+type PlayerStateRow struct {
+	TrackIDs   []uuid.UUID
+	QueueIndex int
+	ProgressMs int
+}
+
+func (r *Repository) GetPlayerState(ctx context.Context, userID uuid.UUID) (PlayerStateRow, error) {
+	var raw []byte
+	var idx, progress int
+	err := r.pool.QueryRow(ctx, `
+		SELECT track_ids, queue_index, progress_ms
+		FROM user_player_state WHERE user_id = $1
+	`, userID).Scan(&raw, &idx, &progress)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return PlayerStateRow{TrackIDs: []uuid.UUID{}}, nil
+	}
+	if err != nil {
+		return PlayerStateRow{}, err
+	}
+	var ids []string
+	if err := json.Unmarshal(raw, &ids); err != nil {
+		return PlayerStateRow{}, err
+	}
+	out := PlayerStateRow{QueueIndex: idx, ProgressMs: progress}
+	for _, s := range ids {
+		id, err := uuid.Parse(s)
+		if err != nil {
+			continue
 		}
-		list = append(list, p)
+		out.TrackIDs = append(out.TrackIDs, id)
 	}
-	if list == nil {
-		list = []domain.Playlist{}
+	return out, nil
+}
+
+func (r *Repository) UpsertPlayerState(ctx context.Context, userID uuid.UUID, trackIDs []uuid.UUID, queueIndex, progressMs int) error {
+	strs := make([]string, len(trackIDs))
+	for i, id := range trackIDs {
+		strs[i] = id.String()
 	}
-	return list, rows.Err()
+	raw, err := json.Marshal(strs)
+	if err != nil {
+		return err
+	}
+	_, err = r.pool.Exec(ctx, `
+		INSERT INTO user_player_state (user_id, track_ids, queue_index, progress_ms, updated_at)
+		VALUES ($1, $2, $3, $4, now())
+		ON CONFLICT (user_id) DO UPDATE SET
+			track_ids = EXCLUDED.track_ids,
+			queue_index = EXCLUDED.queue_index,
+			progress_ms = EXCLUDED.progress_ms,
+			updated_at = now()
+	`, userID, raw, queueIndex, progressMs)
+	return err
 }

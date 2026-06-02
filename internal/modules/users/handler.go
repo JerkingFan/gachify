@@ -7,6 +7,8 @@ import (
 	"strings"
 
 	"github.com/gachify/gachify/internal/domain"
+	"github.com/gachify/gachify/internal/modules/catalog"
+	"github.com/gachify/gachify/internal/modules/library"
 	"github.com/gachify/gachify/internal/platform/httpserver"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
@@ -14,16 +16,22 @@ import (
 
 type Handler struct {
 	repo *Repository
+	lib  *library.Repository
+	cat  *catalog.Repository
 }
 
-func NewHandler(repo *Repository) *Handler {
-	return &Handler{repo: repo}
+func NewHandler(repo *Repository, lib *library.Repository, cat *catalog.Repository) *Handler {
+	return &Handler{repo: repo, lib: lib, cat: cat}
 }
 
 func (h *Handler) Routes() chi.Router {
 	r := chi.NewRouter()
-	r.Get("/{id}", h.getByID)
 	r.Get("/by-handle/{handle}", h.getByHandle)
+	r.Get("/{id}/profile", h.publicProfile)
+	r.Get("/{id}/playlists", h.publicPlaylists)
+	r.Get("/{id}/following", h.publicFollowing)
+	r.Get("/{id}/liked", h.publicLiked)
+	r.Get("/{id}", h.getByID)
 	return r
 }
 

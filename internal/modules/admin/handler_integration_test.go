@@ -13,6 +13,7 @@ import (
 	"github.com/gachify/gachify/internal/domain"
 	"github.com/gachify/gachify/internal/modules/admin"
 	"github.com/gachify/gachify/internal/modules/catalog"
+	"github.com/gachify/gachify/internal/modules/social"
 	"github.com/gachify/gachify/internal/modules/users"
 	"github.com/gachify/gachify/internal/platform/queue"
 	"github.com/gachify/gachify/internal/testutil"
@@ -53,7 +54,7 @@ func TestHandler_ApproveRejectPendingTrack(t *testing.T) {
 	}
 
 	q := queue.NewRedisQueueFromClient(redisClient)
-	h := admin.NewHandler(cat, userRepo, q, nil, nil)
+	h := admin.NewHandler(cat, userRepo, q, nil, nil, nil, social.NewRepository(pool))
 
 	const secret = "integration-admin-secret"
 	router := chi.NewRouter()
@@ -93,8 +94,8 @@ func TestHandler_ApproveRejectPendingTrack(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if updated.Status != domain.TrackPublished {
-		t.Fatalf("expected published, got %s", updated.Status)
+	if updated.Status != domain.TrackApproved {
+		t.Fatalf("expected approved, got %s", updated.Status)
 	}
 
 	// Reject flow on another track

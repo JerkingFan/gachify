@@ -12,6 +12,9 @@ import (
 
 	"github.com/gachify/gachify/internal/config"
 	"github.com/gachify/gachify/internal/modules/catalog"
+	"github.com/gachify/gachify/internal/modules/push"
+	"github.com/gachify/gachify/internal/modules/social"
+	"github.com/gachify/gachify/internal/modules/users"
 	"github.com/gachify/gachify/internal/platform/database"
 	"github.com/gachify/gachify/internal/platform/metrics"
 	"github.com/gachify/gachify/internal/platform/observability"
@@ -50,6 +53,16 @@ func main() {
 	defer q.Close()
 
 	cat := catalog.NewRepository(pool)
+	userRepo := users.NewRepository(pool)
+	socialRepo := social.NewRepository(pool)
+	pushRepo := push.NewRepository(pool)
+	pushSvc := push.NewService(push.Config{
+		VAPIDPublicKey:  cfg.VAPIDPublicKey,
+		VAPIDPrivateKey: cfg.VAPIDPrivateKey,
+		VAPIDSubject:    cfg.VAPIDSubject,
+		FrontendURL:     cfg.FrontendURL,
+	}, pushRepo)
+	notify := social.NewPublishNotifier(socialRepo, userRepo, pushSvc)
 	st, err := storage.NewClient(ctx, cfg)
 	if err != nil {
 		log.Error("s3", "error", err)
@@ -73,6 +86,7 @@ func main() {
 	defer cancelWorker()
 
 	go reportQueueDepth(ctx, q, log)
+	go worker.RunScheduledPublishLoop(workerCtx, log, cat, notify)
 
 	for {
 		select {
@@ -131,7 +145,7 @@ func main() {
 				activeJobMu.Unlock()
 			}()
 
-			runErr := worker.RunTranscodeJob(workerCtx, log, cat, st, q, job, cfg.ModerationEnabled)
+			runErr := worker.RunTranscodeJob(workerCtx, log, cat, st, q, job, cfg.ModerationEnabled, notify)
 			_ = q.AckTranscode(context.Background(), job)
 			if runErr != nil {
 				observability.CaptureException(runErr)

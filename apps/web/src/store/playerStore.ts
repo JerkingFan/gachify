@@ -1,10 +1,36 @@
 import { create } from "zustand";
 import { api } from "@/api/client";
+import { shouldCrossfade, shouldGapless } from "@/lib/continuousMix";
 import { addRecent } from "@/lib/storage";
 import { recordPlayOnce } from "@/lib/plays";
 import type { Track } from "@/types";
 
 type RepeatMode = "off" | "all" | "one";
+export type EqPreset = "off" | "bass" | "dungeon";
+
+const EQ_KEY = "gachify:eq-preset";
+const INCOGNITO_KEY = "gachify:incognito";
+const RATE_KEY = "gachify:playback-rate";
+
+export type PlaybackRate = 0.75 | 1 | 1.25 | 1.5;
+
+function loadIncognito(): boolean {
+  if (typeof window === "undefined") return false;
+  return sessionStorage.getItem(INCOGNITO_KEY) === "1";
+}
+
+function loadPlaybackRate(): PlaybackRate {
+  if (typeof window === "undefined") return 1;
+  const v = Number(localStorage.getItem(RATE_KEY));
+  if (v === 0.75 || v === 1.25 || v === 1.5) return v;
+  return 1;
+}
+
+function loadEqPreset(): EqPreset {
+  if (typeof window === "undefined") return "off";
+  const v = localStorage.getItem(EQ_KEY);
+  return v === "bass" || v === "dungeon" ? v : "off";
+}
 
 interface PlayerState {
   currentTrack: Track | null;
@@ -17,6 +43,14 @@ interface PlayerState {
   repeat: RepeatMode;
   /** When true, fetches the next similar track when the queue ends (infinite radio). */
   radioMode: boolean;
+  /** Next track load should crossfade (continuous mix). */
+  crossfadeOnLoad: boolean;
+  /** Near-instant transition for back-to-back DJ mixes. */
+  gaplessOnLoad: boolean;
+  eqPreset: EqPreset;
+  incognito: boolean;
+  playbackRate: PlaybackRate;
+  sleepTimerEndsAt: number | null;
   audio: HTMLAudioElement | null;
 
   setQueue: (tracks: Track[], startIndex?: number) => void;
@@ -30,11 +64,18 @@ interface PlayerState {
   toggleShuffle: () => void;
   cycleRepeat: () => void;
   toggleRadioMode: () => void;
+  /** Play track with radio on and prefetch similar tracks into the queue. */
+  startRadio: (track: Track, seedQueue?: Track[]) => Promise<void>;
   tick: (ms: number) => void;
   bindAudio: (el: HTMLAudioElement) => void;
   removeFromQueue: (index: number) => void;
   playQueueIndex: (index: number) => void;
   clearUpcoming: () => void;
+  reorderQueue: (fromIndex: number, toIndex: number) => void;
+  setEqPreset: (preset: EqPreset) => void;
+  toggleIncognito: () => void;
+  setPlaybackRate: (rate: PlaybackRate) => void;
+  setSleepTimer: (minutes: number | null) => void;
 }
 
 function shuffleArray<T>(arr: T[]): T[] {
@@ -56,6 +97,12 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   shuffle: false,
   repeat: "off",
   radioMode: true,
+  crossfadeOnLoad: false,
+  gaplessOnLoad: false,
+  eqPreset: loadEqPreset(),
+  incognito: loadIncognito(),
+  playbackRate: loadPlaybackRate(),
+  sleepTimerEndsAt: null,
   audio: null,
 
   bindAudio(el) {
@@ -71,14 +118,27 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
     const state = get();
     const q = queue ?? (state.queue.length ? state.queue : [track]);
     const idx = q.findIndex((t) => t.id === track.id);
-    addRecent(track.id);
-    recordPlayOnce(track.id);
+    const gapless =
+      state.currentTrack != null &&
+      state.currentTrack.id !== track.id &&
+      shouldGapless(state.currentTrack, track);
+    const crossfade =
+      !gapless &&
+      state.currentTrack != null &&
+      state.currentTrack.id !== track.id &&
+      shouldCrossfade(state.currentTrack, track);
+    if (!state.incognito) {
+      addRecent(track.id);
+      recordPlayOnce(track.id);
+    }
     set({
       currentTrack: track,
       queue: q,
       queueIndex: idx >= 0 ? idx : 0,
       progressMs: 0,
       isPlaying: true,
+      crossfadeOnLoad: crossfade,
+      gaplessOnLoad: gapless,
     });
   },
 
@@ -168,6 +228,23 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
     set((s) => ({ radioMode: !s.radioMode }));
   },
 
+  async startRadio(track, seedQueue) {
+    set({ radioMode: true });
+    const base = seedQueue?.length ? seedQueue : [track];
+    const idx = base.findIndex((t) => t.id === track.id);
+    try {
+      const exclude = base.map((t) => t.id);
+      const res = await api.getRecommendNext(track.id, exclude, 10);
+      const seen = new Set(exclude);
+      const fresh = res.items.filter((t) => !seen.has(t.id));
+      const queue = fresh.length ? [...base, ...fresh] : base;
+      get().playTrack(track, queue);
+      if (idx >= 0) set({ queueIndex: idx });
+    } catch {
+      get().playTrack(track, base);
+    }
+  },
+
   tick(ms) {
     set({ progressMs: ms });
   },
@@ -202,6 +279,53 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
     if (!currentTrack || queueIndex >= queue.length - 1) return;
     const next = queue.slice(0, queueIndex + 1);
     set({ queue: next });
+  },
+
+  reorderQueue(fromIndex, toIndex) {
+    const { queue, queueIndex } = get();
+    if (
+      fromIndex === toIndex ||
+      fromIndex < 0 ||
+      toIndex < 0 ||
+      fromIndex >= queue.length ||
+      toIndex >= queue.length
+    ) {
+      return;
+    }
+    const next = [...queue];
+    const [item] = next.splice(fromIndex, 1);
+    next.splice(toIndex, 0, item);
+    let nextIndex = queueIndex;
+    if (fromIndex === queueIndex) nextIndex = toIndex;
+    else if (fromIndex < queueIndex && toIndex >= queueIndex) nextIndex--;
+    else if (fromIndex > queueIndex && toIndex <= queueIndex) nextIndex++;
+    set({ queue: next, queueIndex: nextIndex });
+  },
+
+  setEqPreset(preset) {
+    localStorage.setItem(EQ_KEY, preset);
+    set({ eqPreset: preset });
+  },
+
+  toggleIncognito() {
+    const next = !get().incognito;
+    sessionStorage.setItem(INCOGNITO_KEY, next ? "1" : "0");
+    set({ incognito: next });
+  },
+
+  setPlaybackRate(rate) {
+    localStorage.setItem(RATE_KEY, String(rate));
+    const audio = get().audio;
+    if (audio) audio.playbackRate = rate;
+    set({ playbackRate: rate });
+  },
+
+  setSleepTimer(minutes) {
+    if (minutes == null || minutes <= 0) {
+      set({ sleepTimerEndsAt: null });
+      return;
+    }
+    set({ sleepTimerEndsAt: Date.now() + minutes * 60_000 });
   },
 }));
 

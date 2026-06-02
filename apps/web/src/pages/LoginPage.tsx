@@ -1,9 +1,11 @@
 import { useState } from "react";
-import { Link, Navigate, useNavigate } from "react-router-dom";
+import { Link, Navigate, useNavigate, useSearchParams } from "react-router-dom";
 import { useAuthStore } from "@/store/authStore";
 
 export function LoginPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const returnTo = searchParams.get("returnTo") || "/";
   const { login, register, isAuthenticated } = useAuthStore();
   const [mode, setMode] = useState<"login" | "register">("login");
   const [email, setEmail] = useState("");
@@ -14,7 +16,7 @@ export function LoginPage() {
   const [loading, setLoading] = useState(false);
 
   if (isAuthenticated) {
-    return <Navigate to="/" replace />;
+    return <Navigate to={returnTo.startsWith("/") ? returnTo : "/"} replace />;
   }
 
   const submit = async (e: React.FormEvent) => {
@@ -32,7 +34,7 @@ export function LoginPage() {
           display_name: displayName || handle,
         });
       }
-      navigate("/");
+      navigate(returnTo.startsWith("/") ? returnTo : "/");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Authentication failed");
     } finally {

@@ -11,6 +11,7 @@ import (
 
 	"github.com/gachify/gachify/internal/domain"
 	"github.com/gachify/gachify/internal/modules/catalog"
+	"github.com/gachify/gachify/internal/modules/social"
 	"github.com/gachify/gachify/internal/platform/metrics"
 	"github.com/gachify/gachify/internal/platform/observability"
 	"github.com/gachify/gachify/internal/platform/queue"
@@ -20,7 +21,7 @@ import (
 	"github.com/google/uuid"
 )
 
-func RunTranscode(ctx context.Context, cat *catalog.Repository, st *storage.Client, q *queue.RedisQueue, trackID, jobID uuid.UUID, moderationEnabled bool) error {
+func RunTranscode(ctx context.Context, cat *catalog.Repository, st *storage.Client, q *queue.RedisQueue, trackID, jobID uuid.UUID, moderationEnabled bool, notify *social.PublishNotifier) error {
 	start := time.Now()
 	if err := cat.MarkJobRunning(ctx, jobID); err != nil {
 		return err
@@ -115,15 +116,20 @@ func RunTranscode(ctx context.Context, cat *catalog.Repository, st *storage.Clie
 	if err := cat.UpdateStatus(ctx, trackID, publishStatus, nil); err != nil {
 		return err
 	}
+	if publishStatus == domain.TrackPublished && notify != nil {
+		if t, err := cat.GetByID(ctx, trackID); err == nil {
+			notify.NotifyPublished(ctx, t.CreatorID, trackID, t.Title)
+		}
+	}
 	metrics.ObserveTranscode(time.Since(start))
 	return cat.MarkJobCompleted(ctx, jobID)
 }
 
-func RunTranscodeJob(ctx context.Context, log *slog.Logger, cat *catalog.Repository, st *storage.Client, q *queue.RedisQueue, job queue.TranscodeJob, moderationEnabled bool) error {
+func RunTranscodeJob(ctx context.Context, log *slog.Logger, cat *catalog.Repository, st *storage.Client, q *queue.RedisQueue, job queue.TranscodeJob, moderationEnabled bool, notify *social.PublishNotifier) error {
 	ctx = trace.WithRequestID(ctx, job.RequestID)
 	log = log.With("track_id", job.TrackID, "job_id", job.JobID, "request_id", trace.RequestIDFromContext(ctx))
 	log.Info("transcode started")
-	err := RunTranscode(ctx, cat, st, q, job.TrackID, job.JobID, moderationEnabled)
+	err := RunTranscode(ctx, cat, st, q, job.TrackID, job.JobID, moderationEnabled, notify)
 	if err != nil {
 		log.Error("transcode failed", "error", err)
 		return err

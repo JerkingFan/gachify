@@ -1,3 +1,5 @@
+import { detectPlaySource } from "@/lib/playSource";
+
 export function recordPlayOnce(trackId: string): void {
   const key = "gachify:played";
   let seen: string[] = [];
@@ -9,7 +11,8 @@ export function recordPlayOnce(trackId: string): void {
   if (seen.includes(trackId)) return;
   seen.push(trackId);
   sessionStorage.setItem(key, JSON.stringify(seen.slice(-100)));
+  const source = detectPlaySource();
   void import("@/api/client").then(({ api }) => {
-    void api.recordPlay(trackId).catch(() => {});
+    void api.recordPlay(trackId, source).catch(() => {});
   });
 }

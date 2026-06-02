@@ -34,6 +34,42 @@ func TestSearchWhereUsesTrgm(t *testing.T) {
 	}
 }
 
+func TestBuildListWhereMetadataFilters(t *testing.T) {
+	minPower := 80
+	minBPM := float32(120)
+	maxBPM := float32(140)
+	where, args := buildListWhere(domain.ListTracksFilter{
+		Status:   ptrStatus(domain.TrackPublished),
+		MoodTag:  "dungeon",
+		MinPower: &minPower,
+		MinBPM:   &minBPM,
+		MaxBPM:   &maxBPM,
+	}, "t.")
+	if !strings.Contains(where, "mood_tags") {
+		t.Fatalf("expected mood_tags filter: %s", where)
+	}
+	if !strings.Contains(where, "gachi_power_level") {
+		t.Fatalf("expected power filter: %s", where)
+	}
+	if len(args) != 5 {
+		t.Fatalf("expected 5 args, got %v", args)
+	}
+}
+
+func TestBuildListWhereHasLyrics(t *testing.T) {
+	hasLyrics := true
+	where, args := buildListWhere(domain.ListTracksFilter{
+		Status:    ptrStatus(domain.TrackPublished),
+		HasLyrics: &hasLyrics,
+	}, "t.")
+	if !strings.Contains(where, "lyrics") {
+		t.Fatalf("expected lyrics filter: %s", where)
+	}
+	if len(args) != 1 {
+		t.Fatalf("expected 1 arg, got %v", args)
+	}
+}
+
 func TestSearchRankSQL(t *testing.T) {
 	rank := searchRankSQL(1)
 	if !strings.Contains(rank, "similarity(t.title") {

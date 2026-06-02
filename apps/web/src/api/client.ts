@@ -1,7 +1,10 @@
 import type {
+  AccountUser,
   ArtistsSearchResponse,
   LikedResponse,
   PlaylistsResponse,
+  PublicProfile,
+  PublicUserSummary,
   ServerPlaylist,
   TokenResponse,
   Track,
@@ -141,8 +144,127 @@ export const api = {
     );
   },
 
-  me(): Promise<User> {
-    return request<User>("/auth/me", {}, true);
+  me(): Promise<AccountUser> {
+    return request<AccountUser>("/auth/me", {}, true);
+  },
+
+  updateProfile(body: {
+    display_name?: string;
+    handle?: string;
+    avatar_url?: string;
+    profile_bio?: string;
+    liked_tracks_public?: boolean;
+    push_notifications?: "off" | "following";
+  }): Promise<AccountUser> {
+    return request<AccountUser>(
+      "/auth/me",
+      { method: "PATCH", body: JSON.stringify(body) },
+      true,
+    );
+  },
+
+  changePassword(body: {
+    current_password: string;
+    new_password: string;
+  }): Promise<void> {
+    return request<void>(
+      "/auth/change-password",
+      { method: "POST", body: JSON.stringify(body) },
+      true,
+    );
+  },
+
+  resendVerification(): Promise<void> {
+    return request<void>("/auth/resend-verification", { method: "POST" }, true);
+  },
+
+  getUserByHandle(handle: string): Promise<User> {
+    return request<User>(`/users/by-handle/${encodeURIComponent(handle)}`);
+  },
+
+  getPublicProfile(userId: string): Promise<PublicProfile> {
+    return request<PublicProfile>(`/users/${userId}/profile`);
+  },
+
+  getUserPublicPlaylists(userId: string): Promise<PlaylistsResponse> {
+    return request<PlaylistsResponse>(`/users/${userId}/playlists`);
+  },
+
+  getUserFollowing(userId: string): Promise<{ items: PublicUserSummary[] }> {
+    return request<{ items: PublicUserSummary[] }>(`/users/${userId}/following`);
+  },
+
+  getUserPublicLiked(userId: string): Promise<TracksResponse> {
+    return request<TracksResponse>(`/users/${userId}/liked`);
+  },
+
+  getNotifications(): Promise<{ items: import("@/types").Notification[]; unread: number }> {
+    return request("/notifications", {}, true);
+  },
+
+  getPushVapidPublicKey(): Promise<{ enabled: boolean; public_key: string }> {
+    return request("/push/vapid-public-key");
+  },
+
+  subscribePush(body: {
+    endpoint: string;
+    keys: { p256dh: string; auth: string };
+  }): Promise<void> {
+    return request<void>("/me/push/subscribe", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }, true);
+  },
+
+  unsubscribePush(body: { endpoint: string }): Promise<void> {
+    return request<void>("/me/push/subscribe", {
+      method: "DELETE",
+      body: JSON.stringify(body),
+    }, true);
+  },
+
+  markNotificationsRead(): Promise<void> {
+    return request<void>("/notifications/read-all", { method: "POST" }, true);
+  },
+
+  getTrackReactions(trackId: string): Promise<import("@/types").TrackReactionsSummary> {
+    return request(`/tracks/${trackId}/reactions`);
+  },
+
+  setTrackReaction(trackId: string, reaction: string): Promise<import("@/types").TrackReactionsSummary> {
+    return request(`/tracks/${trackId}/reactions`, {
+      method: "POST",
+      body: JSON.stringify({ reaction }),
+    }, true);
+  },
+
+  clearTrackReaction(trackId: string): Promise<import("@/types").TrackReactionsSummary> {
+    return request(`/tracks/${trackId}/reactions`, { method: "DELETE" }, true);
+  },
+
+  getTrackComments(trackId: string): Promise<{ items: import("@/types").TrackComment[] }> {
+    return request(`/tracks/${trackId}/comments`);
+  },
+
+  addTrackComment(trackId: string, body: string, parentId?: string): Promise<import("@/types").TrackComment> {
+    return request(`/tracks/${trackId}/comments`, {
+      method: "POST",
+      body: JSON.stringify({ body, parent_id: parentId ?? null }),
+    }, true);
+  },
+
+  reportTrack(trackId: string, reason: string, detail = ""): Promise<void> {
+    return request<void>(`/tracks/${trackId}/report`, {
+      method: "POST",
+      body: JSON.stringify({ reason, detail }),
+    }, true);
+  },
+
+  clonePlaylist(playlistId: string): Promise<ServerPlaylist> {
+    return request<ServerPlaylist>("/me/playlists/clone", {
+      method: "POST",
+      body: JSON.stringify({ playlist_id: playlistId }),
+    }, true);
   },
 
   getTracks(params?: {
@@ -152,6 +274,15 @@ export const api = {
     creator_id?: string;
     q?: string;
     sort?: string;
+    mood?: string;
+    sample?: string;
+    min_power?: number;
+    max_power?: number;
+    min_deepness?: number;
+    max_deepness?: number;
+    min_bpm?: number;
+    max_bpm?: number;
+    has_lyrics?: boolean;
   }): Promise<TracksResponse> {
     const q = new URLSearchParams();
     if (params?.limit != null) q.set("limit", String(params.limit));
@@ -160,12 +291,36 @@ export const api = {
     if (params?.creator_id) q.set("creator_id", params.creator_id);
     if (params?.q?.trim()) q.set("q", params.q.trim());
     if (params?.sort) q.set("sort", params.sort);
+    if (params?.mood) q.set("mood", params.mood);
+    if (params?.sample) q.set("sample", params.sample);
+    if (params?.min_power != null) q.set("min_power", String(params.min_power));
+    if (params?.max_power != null) q.set("max_power", String(params.max_power));
+    if (params?.min_deepness != null) q.set("min_deepness", String(params.min_deepness));
+    if (params?.max_deepness != null) q.set("max_deepness", String(params.max_deepness));
+    if (params?.min_bpm != null) q.set("min_bpm", String(params.min_bpm));
+    if (params?.max_bpm != null) q.set("max_bpm", String(params.max_bpm));
+    if (params?.has_lyrics) q.set("has_lyrics", "true");
     const qs = q.toString();
     return request<TracksResponse>(`/tracks${qs ? `?${qs}` : ""}`);
   },
 
-  recordPlay(trackId: string): Promise<void> {
-    return request<void>(`/tracks/${trackId}/play`, { method: "POST" });
+  recordPlay(trackId: string, source?: string): Promise<void> {
+    return request<void>(`/tracks/${trackId}/play`, {
+      method: "POST",
+      body: JSON.stringify(source ? { source } : {}),
+    });
+  },
+
+  getPlayerState(): Promise<{ track_ids: string[]; queue_index: number; progress_ms: number }> {
+    return request("/me/player/state", {}, true);
+  },
+
+  putPlayerState(body: {
+    track_ids: string[];
+    queue_index: number;
+    progress_ms: number;
+  }): Promise<void> {
+    return request<void>("/me/player/state", { method: "PUT", body: JSON.stringify(body) }, true);
   },
 
   forgotPassword(email: string): Promise<void> {
@@ -201,6 +356,43 @@ export const api = {
     return request<ArtistsSearchResponse>(`/search/artists?${q.toString()}`);
   },
 
+  getWeeklyCharts(limit = 50, offset = 0): Promise<{ items: import("@/types").ChartTrack[]; period: string }> {
+    return request(`/charts/weekly?limit=${limit}&offset=${offset}`);
+  },
+
+  getMoodTags(): Promise<{ items: string[] }> {
+    return request("/charts/moods");
+  },
+
+  getTracksByMood(mood: string, limit = 40): Promise<{ items: Track[]; mood: string }> {
+    return request(`/tags/${encodeURIComponent(mood)}?limit=${limit}`);
+  },
+
+  createListeningParty(): Promise<{ code: string; host_token: string; state: import("@/types").PartyState }> {
+    return request("/parties", { method: "POST" });
+  },
+
+  getListeningParty(code: string): Promise<{ code: string; state: import("@/types").PartyState }> {
+    return request(`/parties/${encodeURIComponent(code)}`);
+  },
+
+  updateListeningParty(
+    code: string,
+    body: { host_token: string } & import("@/types").PartyState,
+  ): Promise<{ state: import("@/types").PartyState }> {
+    return request(`/parties/${encodeURIComponent(code)}`, {
+      method: "PUT",
+      body: JSON.stringify(body),
+    });
+  },
+
+  exportPlaylistUrl(playlistId: string, format: "m3u" | "json", authed: boolean): string {
+    const base = authed
+      ? `/api/v1/me/playlists/${playlistId}/export?format=${format}`
+      : `/api/v1/playlists/${playlistId}/export?format=${format}`;
+    return base;
+  },
+
   getTrack(id: string): Promise<Track> {
     return request<Track>(`/tracks/${id}`);
   },
@@ -223,8 +415,43 @@ export const api = {
     return request<TracksResponse>(`/me/feed?limit=${limit}&offset=${offset}`, {}, true);
   },
 
-  getFollowing(): Promise<{ user_ids: string[] }> {
-    return request<{ user_ids: string[] }>("/me/following", {}, true);
+  getForYou(): Promise<TracksResponse> {
+    return request<TracksResponse>("/me/for-you", {}, true);
+  },
+
+  getFilterPresets(): Promise<{ items: import("@/types").FilterPreset[] }> {
+    return request("/me/filter-presets", {}, true);
+  },
+
+  createFilterPreset(name: string, filters: Record<string, unknown>): Promise<import("@/types").FilterPreset> {
+    return request("/me/filter-presets", {
+      method: "POST",
+      body: JSON.stringify({ name, filters }),
+    }, true);
+  },
+
+  deleteFilterPreset(id: string): Promise<void> {
+    return request<void>(`/me/filter-presets/${id}`, { method: "DELETE" }, true);
+  },
+
+  getOfflineDownloads(): Promise<{ track_ids: string[]; limit: number }> {
+    return request("/me/offline", {}, true);
+  },
+
+  getOfflinePackage(trackId: string): Promise<import("@/types").OfflinePackage> {
+    return request(`/me/offline/tracks/${trackId}`, { method: "POST" }, true);
+  },
+
+  removeOfflineTrack(trackId: string): Promise<void> {
+    return request<void>(`/me/offline/tracks/${trackId}`, { method: "DELETE" }, true);
+  },
+
+  getFollowing(): Promise<{ user_ids: string[]; items?: PublicUserSummary[] }> {
+    return request<{ user_ids: string[]; items?: PublicUserSummary[] }>(
+      "/me/following",
+      {},
+      true,
+    );
   },
 
   followUser(userId: string): Promise<void> {
@@ -239,9 +466,65 @@ export const api = {
     total_plays: number;
     published_tracks: number;
     total_tracks: number;
+    follower_count: number;
     items: Array<{ id: string; title: string; status: string; play_count: number }>;
   }> {
     return request("/creator/analytics", {}, true);
+  },
+
+  createCreatorDraft(body: {
+    title: string;
+    description?: string;
+    gachi_metadata?: Record<string, unknown>;
+  }): Promise<Track> {
+    return request<Track>("/creator/drafts", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }, true);
+  },
+
+  updateCreatorDraft(
+    trackId: string,
+    body: {
+      title?: string;
+      description?: string;
+      gachi_metadata?: Record<string, unknown>;
+    },
+  ): Promise<Track> {
+    return request<Track>(`/creator/tracks/${trackId}/draft`, {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    }, true);
+  },
+
+  presignCreatorDraft(
+    trackId: string,
+    body: { filename: string; content_type: string },
+  ): Promise<{
+    track_id: string;
+    upload_url: string;
+    object_key: string;
+    expires_in_sec: number;
+  }> {
+    return request(`/creator/tracks/${trackId}/presign`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }, true);
+  },
+
+  getCreatorTrackStats(trackId: string, days = 30): Promise<import("@/types").TrackCreatorStats> {
+    return request(`/creator/tracks/${trackId}/stats?days=${days}`, {}, true);
+  },
+
+  scheduleTrackPublish(trackId: string, scheduledPublishAt: string): Promise<Track> {
+    return request<Track>(`/creator/tracks/${trackId}/schedule`, {
+      method: "PATCH",
+      body: JSON.stringify({ scheduled_publish_at: scheduledPublishAt }),
+    }, true);
+  },
+
+  publishTrackNow(trackId: string): Promise<Track> {
+    return request<Track>(`/creator/tracks/${trackId}/publish`, { method: "POST" }, true);
   },
 
   getUser(id: string): Promise<User> {
@@ -280,6 +563,7 @@ export const api = {
     title: string;
     description?: string;
     is_public?: boolean;
+    is_collaborative?: boolean;
   }): Promise<ServerPlaylist> {
     return request<ServerPlaylist>("/me/playlists", {
       method: "POST",
@@ -289,7 +573,12 @@ export const api = {
 
   updatePlaylist(
     id: string,
-    body: { title?: string; description?: string; is_public?: boolean },
+    body: {
+      title?: string;
+      description?: string;
+      is_public?: boolean;
+      is_collaborative?: boolean;
+    },
   ): Promise<ServerPlaylist> {
     return request<ServerPlaylist>(`/me/playlists/${id}`, {
       method: "PATCH",
@@ -327,6 +616,21 @@ export const api = {
     return request<ServerPlaylist>(`/me/playlists/${id}`, {}, true);
   },
 
+  joinPlaylistByInvite(inviteToken: string): Promise<ServerPlaylist> {
+    return request<ServerPlaylist>("/me/playlists/join", {
+      method: "POST",
+      body: JSON.stringify({ invite_token: inviteToken }),
+    }, true);
+  },
+
+  enablePlaylistCollaboration(id: string): Promise<ServerPlaylist> {
+    return request<ServerPlaylist>(`/me/playlists/${id}/collaborate`, { method: "POST" }, true);
+  },
+
+  leavePlaylistCollaboration(id: string): Promise<void> {
+    return request<void>(`/me/playlists/${id}/collaborators/me`, { method: "DELETE" }, true);
+  },
+
   getPublicPlaylists(limit = 20, offset = 0): Promise<PlaylistsResponse> {
     return request<PlaylistsResponse>(
       `/playlists?limit=${limit}&offset=${offset}`,
@@ -341,6 +645,49 @@ export const api = {
     return request<import("@/types").LyricsDocument>(`/tracks/${id}/lyrics`);
   },
 
+  getPlaylistImportCapabilities(): Promise<{
+    spotify_url: boolean;
+    youtube_url: boolean;
+    paste_lines: boolean;
+  }> {
+    return request("/me/playlists/import/capabilities", {}, true);
+  },
+
+  previewPlaylistImport(body: {
+    url?: string;
+    lines?: string;
+    title_hint?: string;
+  }): Promise<{
+    source: string;
+    playlist_title: string;
+    items: Array<{
+      position: number;
+      source_title: string;
+      source_artist: string;
+      matched_track?: { id: string; title: string; artist: string; duration_ms: number };
+    }>;
+    matched_count: number;
+    total_count: number;
+    warnings?: string[];
+  }> {
+    return request("/me/playlists/import/preview", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }, true);
+  },
+
+  confirmPlaylistImport(body: {
+    title: string;
+    description?: string;
+    track_ids: string[];
+    is_public?: boolean;
+  }): Promise<import("@/types").ServerPlaylist> {
+    return request<import("@/types").ServerPlaylist>("/me/playlists/import/confirm", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }, true);
+  },
+
   importLibrary(body: {
     liked_track_ids: string[];
     playlists: { name: string; description: string; track_ids: string[] }[];
@@ -353,9 +700,11 @@ export const api = {
 
   initUpload(body: {
     title: string;
+    description?: string;
     filename: string;
     content_type: string;
     duration_ms?: number;
+    track_id?: string;
     gachi_metadata?: Record<string, unknown>;
   }): Promise<{
     track_id: string;
@@ -391,6 +740,14 @@ export const api = {
 
   getCreatorTracks(): Promise<{ items: Track[] }> {
     return request<{ items: Track[] }>("/creator/tracks?limit=50", {}, true);
+  },
+
+  updateCreatorTrackLyrics(trackId: string, lyricsLrc: string): Promise<Track> {
+    return request<Track>(
+      `/creator/tracks/${trackId}/lyrics`,
+      { method: "PATCH", body: JSON.stringify({ lyrics_lrc: lyricsLrc }) },
+      true,
+    );
   },
 
   getPlayback(trackId: string): Promise<{

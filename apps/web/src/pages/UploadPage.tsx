@@ -1,15 +1,30 @@
 import { AlertCircle, CheckCircle2, Loader2, RotateCcw, Upload } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
-import { Navigate } from "react-router-dom";
+import { Link, Navigate } from "react-router-dom";
 import { api } from "@/api/client";
+import { TrackMetadataForm } from "@/components/creator/TrackMetadataForm";
 import { TopBar } from "@/components/layout/TopBar";
-import { useAuthStore } from "@/store/authStore";
 import { readLrcFile } from "@/lib/lyrics";
+import {
+  buildGachiMetadataFromDraft,
+  COVER_PRESETS,
+  type DraftMetadataFields,
+} from "@/lib/creatorMetadata";
+import { useAuthStore } from "@/store/authStore";
 import type { Track } from "@/types";
 
-type Step = "form" | "uploading" | "processing" | "done" | "error";
+type Step = "metadata" | "audio" | "uploading" | "processing" | "done" | "error";
 
 const ACCEPT = ".flac,.wav,.mp3,audio/flac,audio/wav,audio/mpeg";
+
+const defaultFields: DraftMetadataFields = {
+  gachiPower: 50,
+  deepness: 5,
+  moodTags: "",
+  coverGradient: COVER_PRESETS[0],
+  coverUrl: "",
+  lyricsLrc: "",
+};
 
 function isFailedTrack(t: Track): boolean {
   return t.status === "draft" && Boolean(t.processing_error);
@@ -17,18 +32,18 @@ function isFailedTrack(t: Track): boolean {
 
 function trackStatusLabel(t: Track): string {
   if (isFailedTrack(t)) return "failed";
-  return t.status;
+  return t.status.replace(/_/g, " ");
 }
 
 export function UploadPage() {
   const { isAuthenticated } = useAuthStore();
-  const [step, setStep] = useState<Step>("form");
+  const [step, setStep] = useState<Step>("metadata");
   const [title, setTitle] = useState("");
-  const [file, setFile] = useState<File | null>(null);
-  const [gachiPower, setGachiPower] = useState(50);
-  const [deepness, setDeepness] = useState(5);
-  const [lrcText, setLrcText] = useState("");
+  const [description, setDescription] = useState("");
+  const [fields, setFields] = useState<DraftMetadataFields>(defaultFields);
   const [lrcFile, setLrcFile] = useState<File | null>(null);
+  const [draftId, setDraftId] = useState<string | null>(null);
+  const [file, setFile] = useState<File | null>(null);
   const [track, setTrack] = useState<Track | null>(null);
   const [message, setMessage] = useState("");
   const [myTracks, setMyTracks] = useState<Track[]>([]);
@@ -36,6 +51,7 @@ export function UploadPage() {
   const [analytics, setAnalytics] = useState<{
     total_plays: number;
     published_tracks: number;
+    follower_count: number;
   } | null>(null);
 
   const loadMyTracks = useCallback(async () => {
@@ -46,7 +62,11 @@ export function UploadPage() {
       ]);
       setMyTracks(res.items);
       if (stats) {
-        setAnalytics({ total_plays: stats.total_plays, published_tracks: stats.published_tracks });
+        setAnalytics({
+          total_plays: stats.total_plays,
+          published_tracks: stats.published_tracks,
+          follower_count: stats.follower_count ?? 0,
+        });
       }
     } catch {
       /* ignore */
@@ -61,6 +81,14 @@ export function UploadPage() {
     return <Navigate to="/login" replace />;
   }
 
+  const buildMeta = async () => {
+    let lyricsLrc = fields.lyricsLrc.trim();
+    if (!lyricsLrc && lrcFile) {
+      lyricsLrc = await readLrcFile(lrcFile);
+    }
+    return buildGachiMetadataFromDraft({ ...fields, lyricsLrc });
+  };
+
   const pollStatus = async (trackId: string) => {
     const maxAttempts = 40;
     for (let i = 0; i < maxAttempts; i++) {
@@ -68,13 +96,23 @@ export function UploadPage() {
       try {
         const t = await api.getUploadStatus(trackId);
         setTrack(t);
-        if (t.status === "published" || t.status === "pending_review") {
+        if (t.status === "published") {
+          setStep("done");
+          setMessage("Your remix is live in the catalog.");
+          void loadMyTracks();
+          return;
+        }
+        if (t.status === "approved") {
           setStep("done");
           setMessage(
-            t.status === "published"
-              ? "Your remix is live in the catalog."
-              : "Transcode complete — your track is awaiting moderator approval.",
+            "Moderation passed — open the track page to schedule your release or publish now.",
           );
+          void loadMyTracks();
+          return;
+        }
+        if (t.status === "pending_review") {
+          setStep("done");
+          setMessage("Transcode complete — awaiting moderator approval.");
           void loadMyTracks();
           return;
         }
@@ -84,7 +122,7 @@ export function UploadPage() {
           void loadMyTracks();
           return;
         }
-        setMessage(`Status: ${t.status}… (waiting for transcode worker)`);
+        setMessage(`Status: ${trackStatusLabel(t)}… (waiting for transcode worker)`);
       } catch {
         /* retry */
       }
@@ -109,33 +147,41 @@ export function UploadPage() {
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!file || !title.trim()) return;
-
-    setStep("uploading");
-    setMessage("Creating upload session…");
-
+  const saveMetadata = async () => {
+    if (!title.trim()) return;
+    setMessage("Saving draft…");
     try {
-      let lyricsLrc = lrcText.trim();
-      if (!lyricsLrc && lrcFile) {
-        lyricsLrc = await readLrcFile(lrcFile);
-      }
+      const gachi_metadata = await buildMeta();
+      const draft = draftId
+        ? await api.updateCreatorDraft(draftId, {
+            title: title.trim(),
+            description: description.trim(),
+            gachi_metadata,
+          })
+        : await api.createCreatorDraft({
+            title: title.trim(),
+            description: description.trim(),
+            gachi_metadata,
+          });
+      setDraftId(draft.id);
+      setStep("audio");
+      setMessage("");
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : "Could not save draft");
+    }
+  };
 
-      const init = await api.initUpload({
-        title: title.trim(),
+  const uploadAudio = async () => {
+    if (!file || !draftId) return;
+    setStep("uploading");
+    setMessage("Preparing upload…");
+    try {
+      const presign = await api.presignCreatorDraft(draftId, {
         filename: file.name,
         content_type: file.type || "application/octet-stream",
-        duration_ms: 0,
-        gachi_metadata: {
-          gachi_power_level: gachiPower,
-          deepness_score: deepness,
-          ...(lyricsLrc ? { lyrics_lrc: lyricsLrc } : {}),
-        },
       });
-
       setMessage("Uploading master to storage…");
-      const putRes = await fetch(init.upload_url, {
+      const putRes = await fetch(presign.upload_url, {
         method: "PUT",
         body: file,
         headers: { "Content-Type": file.type || "application/octet-stream" },
@@ -143,16 +189,26 @@ export function UploadPage() {
       if (!putRes.ok) {
         throw new Error(`Storage upload failed (${putRes.status})`);
       }
-
       setMessage("Finalizing — starting transcode…");
-      const completed = await api.completeUpload(init.track_id, { duration_ms: 0 });
+      const completed = await api.completeUpload(draftId, { duration_ms: 0 });
       setTrack(completed);
       setStep("processing");
-      void pollStatus(init.track_id);
+      void pollStatus(draftId);
     } catch (err) {
       setStep("error");
       setMessage(err instanceof Error ? err.message : "Upload failed");
     }
+  };
+
+  const resetFlow = () => {
+    setStep("metadata");
+    setDraftId(null);
+    setTrack(null);
+    setFile(null);
+    setTitle("");
+    setDescription("");
+    setFields(defaultFields);
+    setMessage("");
   };
 
   const failedTrackId = track && isFailedTrack(track) ? track.id : null;
@@ -169,37 +225,67 @@ export function UploadPage() {
             <div>
               <h1 className="text-2xl font-bold">Upload remix</h1>
               <p className="text-sm text-spotify-muted">
-                FLAC / WAV / MP3 → MinIO → transcode queue → published
+                1. Metadata draft → 2. Audio → transcode → moderation → schedule
               </p>
             </div>
           </div>
 
           {analytics && (
-            <div className="mb-6 grid grid-cols-2 gap-3 rounded-lg bg-spotify-elevated p-4 text-sm">
+            <div className="mb-6 grid grid-cols-3 gap-3 rounded-lg bg-spotify-elevated p-4 text-sm">
               <div>
                 <p className="text-spotify-muted">Total plays</p>
-                <p className="text-2xl font-bold tabular-nums">{analytics.total_plays.toLocaleString()}</p>
+                <p className="text-2xl font-bold tabular-nums">
+                  {analytics.total_plays.toLocaleString()}
+                </p>
               </div>
               <div>
-                <p className="text-spotify-muted">Published tracks</p>
+                <p className="text-spotify-muted">Published</p>
                 <p className="text-2xl font-bold tabular-nums">{analytics.published_tracks}</p>
+              </div>
+              <div>
+                <p className="text-spotify-muted">Followers</p>
+                <p className="text-2xl font-bold tabular-nums">
+                  {analytics.follower_count.toLocaleString()}
+                </p>
+                <p className="text-xs text-spotify-subtle">dungeon masters</p>
               </div>
             </div>
           )}
 
-          {step === "form" && (
-            <form onSubmit={handleSubmit} className="space-y-6 rounded-xl bg-spotify-elevated p-6">
-              <label className="block text-sm">
-                <span className="text-spotify-muted">Title</span>
-                <input
-                  required
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  className="mt-1 w-full rounded-md bg-spotify-highlight px-3 py-2 text-white outline-none focus:ring-2 focus:ring-spotify-green"
-                  placeholder="Deep Dark Fantasy (Your Mix)"
-                />
-              </label>
+          {step === "metadata" && (
+            <div className="rounded-xl bg-spotify-elevated p-6">
+              <p className="mb-4 text-sm text-spotify-muted">
+                Save tags, cover, and description before uploading audio — you can edit while the
+                track is still a draft.
+              </p>
+              <TrackMetadataForm
+                title={title}
+                description={description}
+                fields={fields}
+                lrcFile={lrcFile}
+                onTitle={setTitle}
+                onDescription={setDescription}
+                onFields={setFields}
+                onLrcFile={setLrcFile}
+                onLrcText={(v) => setFields((f) => ({ ...f, lyricsLrc: v }))}
+              />
+              <button
+                type="button"
+                disabled={!title.trim()}
+                onClick={() => void saveMetadata()}
+                className="mt-6 w-full rounded-full bg-spotify-green py-3 font-bold text-black hover:bg-spotify-green-hover disabled:opacity-50"
+              >
+                Continue to audio
+              </button>
+              {message && <p className="mt-3 text-sm text-amber-300">{message}</p>}
+            </div>
+          )}
 
+          {step === "audio" && (
+            <div className="space-y-4 rounded-xl bg-spotify-elevated p-6">
+              <p className="text-sm text-spotify-muted">
+                Draft saved. Upload FLAC / WAV / MP3 — transcode starts after upload.
+              </p>
               <label className="block text-sm">
                 <span className="text-spotify-muted">Audio file</span>
                 <input
@@ -210,64 +296,27 @@ export function UploadPage() {
                   className="mt-1 w-full text-sm text-spotify-muted file:mr-4 file:rounded-full file:border-0 file:bg-spotify-green file:px-4 file:py-2 file:text-sm file:font-semibold file:text-black"
                 />
               </label>
-
-              <div className="grid grid-cols-2 gap-4">
-                <label className="text-sm">
-                  <span className="text-spotify-muted">♂️ Power level ({gachiPower})</span>
-                  <input
-                    type="range"
-                    min={1}
-                    max={100}
-                    value={gachiPower}
-                    onChange={(e) => setGachiPower(Number(e.target.value))}
-                    className="mt-2 w-full accent-spotify-green"
-                  />
-                </label>
-                <label className="text-sm">
-                  <span className="text-spotify-muted">Deepness ({deepness})</span>
-                  <input
-                    type="range"
-                    min={1}
-                    max={10}
-                    step={0.1}
-                    value={deepness}
-                    onChange={(e) => setDeepness(Number(e.target.value))}
-                    className="mt-2 w-full accent-spotify-green"
-                  />
-                </label>
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => setStep("metadata")}
+                  className="rounded-full border border-white/30 px-4 py-2 text-sm font-semibold"
+                >
+                  Back
+                </button>
+                <button
+                  type="button"
+                  disabled={!file}
+                  onClick={() => void uploadAudio()}
+                  className="flex-1 rounded-full bg-spotify-green py-3 font-bold text-black disabled:opacity-50"
+                >
+                  Upload & transcode
+                </button>
               </div>
-
-              <div className="space-y-3 rounded-lg border border-white/10 p-4">
-                <p className="text-sm font-semibold">Karaoke lyrics (optional)</p>
-                <p className="text-xs text-spotify-muted">
-                  Paste LRC or upload .lrc — worker also reads embedded ID3 lyrics from MP3.
-                </p>
-                <textarea
-                  value={lrcText}
-                  onChange={(e) => setLrcText(e.target.value)}
-                  rows={4}
-                  placeholder="[00:12.50]Hello ♂️ world"
-                  className="w-full rounded-md bg-spotify-highlight px-3 py-2 font-mono text-xs"
-                />
-                <input
-                  type="file"
-                  accept=".lrc,text/plain"
-                  onChange={(e) => setLrcFile(e.target.files?.[0] ?? null)}
-                  className="w-full text-sm text-spotify-muted"
-                />
-              </div>
-
-              <button
-                type="submit"
-                disabled={!file}
-                className="w-full rounded-full bg-spotify-green py-3 font-bold text-black hover:bg-spotify-green-hover disabled:opacity-50"
-              >
-                Upload & publish
-              </button>
-            </form>
+            </div>
           )}
 
-          {step !== "form" && (
+          {step !== "metadata" && step !== "audio" && (
             <div className="rounded-xl bg-spotify-elevated p-6">
               <div className="flex items-start gap-3">
                 {step === "processing" || step === "uploading" ? (
@@ -283,6 +332,15 @@ export function UploadPage() {
                   {track && (
                     <p className="mt-2 text-xs text-spotify-subtle">
                       Track ID: {track.id} · status: {trackStatusLabel(track)}
+                      {track.status === "approved" && (
+                        <>
+                          {" "}
+                          ·{" "}
+                          <Link to={`/track/${track.id}`} className="text-spotify-green underline">
+                            Schedule release
+                          </Link>
+                        </>
+                      )}
                     </p>
                   )}
                 </div>
@@ -293,7 +351,7 @@ export function UploadPage() {
                     type="button"
                     disabled={retryingId === failedTrackId}
                     onClick={() => void handleRetry(failedTrackId)}
-                    className="inline-flex items-center gap-2 rounded-full bg-spotify-green px-4 py-2 text-sm font-semibold text-black hover:bg-spotify-green-hover disabled:opacity-50"
+                    className="inline-flex items-center gap-2 rounded-full bg-spotify-green px-4 py-2 text-sm font-semibold text-black disabled:opacity-50"
                   >
                     <RotateCcw className="h-4 w-4" />
                     Retry transcode
@@ -303,12 +361,7 @@ export function UploadPage() {
                   <button
                     type="button"
                     className="text-sm text-spotify-green underline"
-                    onClick={() => {
-                      setStep("form");
-                      setTrack(null);
-                      setFile(null);
-                      setMessage("");
-                    }}
+                    onClick={resetFlow}
                   >
                     Upload another
                   </button>
@@ -339,27 +392,29 @@ export function UploadPage() {
                       key={t.id}
                       className="flex items-center justify-between gap-2 rounded-md bg-spotify-highlight px-4 py-2 text-sm"
                     >
-                      <span className="truncate font-medium">{t.title}</span>
+                      <Link to={`/track/${t.id}`} className="min-w-0 truncate font-medium hover:underline">
+                        {t.title}
+                      </Link>
                       <div className="flex shrink-0 items-center gap-2">
                         {failed && (
                           <button
                             type="button"
                             disabled={retryingId === t.id}
                             onClick={() => void handleRetry(t.id)}
-                            className="inline-flex items-center gap-1 rounded-full bg-spotify-green/20 px-2 py-0.5 text-xs font-medium text-spotify-green hover:bg-spotify-green/30 disabled:opacity-50"
+                            className="inline-flex items-center gap-1 rounded-full bg-spotify-green/20 px-2 py-0.5 text-xs font-medium text-spotify-green"
                           >
                             <RotateCcw className="h-3 w-3" />
                             Retry
                           </button>
                         )}
                         <span
-                          className={`rounded-full px-2 py-0.5 text-xs ${
+                          className={`rounded-full px-2 py-0.5 text-xs capitalize ${
                             t.status === "published"
                               ? "bg-spotify-green/20 text-spotify-green"
-                              : failed
-                                ? "bg-red-500/20 text-red-300"
-                                : t.status === "processing"
-                                  ? "bg-amber-500/20 text-amber-300"
+                              : t.status === "approved"
+                                ? "bg-blue-500/20 text-blue-300"
+                                : failed
+                                  ? "bg-red-500/20 text-red-300"
                                   : "bg-white/10 text-spotify-muted"
                           }`}
                         >

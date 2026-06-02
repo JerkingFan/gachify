@@ -1,6 +1,7 @@
 package creator
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -17,23 +18,35 @@ import (
 	"github.com/google/uuid"
 )
 
+type PublishNotifier interface {
+	NotifyPublished(ctx context.Context, creatorID, trackID uuid.UUID, title string)
+}
+
 type Handler struct {
 	svc         *Service
 	rl          *ratelimit.Limiter
 	uploadLimit int
+	notify      PublishNotifier
 }
 
-func NewHandler(svc *Service, rl *ratelimit.Limiter, uploadLimit int) *Handler {
-	return &Handler{svc: svc, rl: rl, uploadLimit: uploadLimit}
+func NewHandler(svc *Service, rl *ratelimit.Limiter, uploadLimit int, notify PublishNotifier) *Handler {
+	return &Handler{svc: svc, rl: rl, uploadLimit: uploadLimit, notify: notify}
 }
 
 func (h *Handler) Routes() chi.Router {
 	r := chi.NewRouter()
+	r.Post("/drafts", h.createDraft)
+	r.Patch("/tracks/{trackID}/draft", h.updateDraft)
+	r.Post("/tracks/{trackID}/presign", h.presignDraft)
 	r.With(h.rl.Middleware("creator:upload_init", h.uploadLimit, time.Hour, ratelimit.ByUser)).Post("/uploads/init", h.initUpload)
 	r.Post("/uploads/{trackID}/complete", h.completeUpload)
 	r.Post("/uploads/{trackID}/retry", h.retryUpload)
 	r.Get("/uploads/{trackID}/status", h.uploadStatus)
 	r.Get("/tracks", h.listMyTracks)
+	r.Get("/tracks/{trackID}/stats", h.trackStats)
+	r.Patch("/tracks/{trackID}/lyrics", h.updateTrackLyrics)
+	r.Patch("/tracks/{trackID}/schedule", h.schedulePublish)
+	r.Post("/tracks/{trackID}/publish", h.publishNow)
 	r.Get("/analytics", h.analytics)
 	return r
 }
@@ -174,4 +187,32 @@ func (h *Handler) listMyTracks(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	httpserver.JSON(w, http.StatusOK, map[string]any{"items": tracks})
+}
+
+func (h *Handler) updateTrackLyrics(w http.ResponseWriter, r *http.Request) {
+	uid, ok := platformauth.UserIDFromContext(r.Context())
+	if !ok {
+		httpserver.Error(w, http.StatusUnauthorized, "unauthorized", "login required")
+		return
+	}
+	trackID, err := uuid.Parse(chi.URLParam(r, "trackID"))
+	if err != nil {
+		httpserver.Error(w, http.StatusBadRequest, "invalid_id", "invalid track id")
+		return
+	}
+	var in domain.UpdateTrackLyricsInput
+	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
+		httpserver.Error(w, http.StatusBadRequest, "invalid_json", "invalid body")
+		return
+	}
+	track, err := h.svc.UpdateTrackLyrics(r.Context(), uid, trackID, in.LyricsLRC)
+	if errors.Is(err, catalog.ErrNotFound) {
+		httpserver.Error(w, http.StatusNotFound, "not_found", "track not found or cannot edit lyrics")
+		return
+	}
+	if err != nil {
+		httpserver.Error(w, http.StatusInternalServerError, "internal_error", "failed to update lyrics")
+		return
+	}
+	httpserver.JSON(w, http.StatusOK, track)
 }

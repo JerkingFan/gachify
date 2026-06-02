@@ -2,7 +2,6 @@ import {
   Heart,
   Laptop2,
   ListMusic,
-  Mic2,
   Pause,
   Play,
   Radio,
@@ -15,6 +14,7 @@ import {
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import { KaraokeButton } from "@/components/karaoke/KaraokeButton";
 import { formatDuration, getSubtitle } from "@/lib/tracks";
 import { useAuthStore } from "@/store/authStore";
 import { useLibraryStore } from "@/store/libraryStore";
@@ -46,8 +46,7 @@ export function PlayerBar({ hasLyrics = false }: PlayerBarProps) {
   const radioMode = usePlayerStore((s) => s.radioMode);
   const toggleRadioMode = usePlayerStore((s) => s.toggleRadioMode);
   const toggleQueuePanel = useUIStore((s) => s.toggleQueuePanel);
-  const toggleKaraoke = useUIStore((s) => s.toggleKaraoke);
-  const karaokeOpen = useUIStore((s) => s.karaokeOpen);
+  const openNowPlaying = useUIStore((s) => s.openNowPlaying);
   const queuePanelOpen = useUIStore((s) => s.queuePanelOpen);
   const queueLen = usePlayerStore((s) => s.queue.length);
 
@@ -113,18 +112,22 @@ export function PlayerBar({ hasLyrics = false }: PlayerBarProps) {
         <div className="flex items-center gap-3">
           {track ? (
             <>
-              <Link to={`/track/${track.id}`} className="shrink-0">
-                <CoverArt track={track} size="sm" />
-              </Link>
-              <div className="min-w-0 flex-1">
-                <Link
-                  to={`/track/${track.id}`}
-                  className="block truncate text-sm font-medium text-white"
-                >
-                  {track.title}
-                </Link>
-                <p className="truncate text-xs text-spotify-muted">{getSubtitle(track)}</p>
-              </div>
+              <button
+                type="button"
+                onClick={openNowPlaying}
+                className="flex min-w-0 flex-1 items-center gap-3 text-left"
+                aria-label="Open now playing"
+              >
+                <CoverArt track={track} size="sm" className="shrink-0" />
+                <div className="min-w-0 flex-1">
+                  <span className="block truncate text-sm font-medium text-white">
+                    {track.title}
+                  </span>
+                  <span className="block truncate text-xs text-spotify-muted">
+                    {getSubtitle(track)}
+                  </span>
+                </div>
+              </button>
               {isAuthenticated ? (
                 <button
                   type="button"
@@ -136,6 +139,7 @@ export function PlayerBar({ hasLyrics = false }: PlayerBarProps) {
                   <Heart className="h-5 w-5" fill={liked ? "currentColor" : "none"} />
                 </button>
               ) : null}
+              <KaraokeButton hasLyrics={hasLyrics} size="lg" />
               <button
                 type="button"
                 onClick={togglePlay}
@@ -172,18 +176,22 @@ export function PlayerBar({ hasLyrics = false }: PlayerBarProps) {
       <div className="hidden min-w-0 items-center gap-3 md:flex">
         {track ? (
           <>
-            <Link to={`/track/${track.id}`} className="shrink-0">
-              <CoverArt track={track} size="sm" />
-            </Link>
-            <div className="min-w-0">
-              <Link
-                to={`/track/${track.id}`}
-                className="truncate text-sm font-medium text-white hover:underline"
-              >
-                {track.title}
-              </Link>
-              <p className="truncate text-xs text-spotify-muted">{getSubtitle(track)}</p>
-            </div>
+            <button
+              type="button"
+              onClick={openNowPlaying}
+              className="flex min-w-0 items-center gap-3 text-left hover:opacity-90"
+              aria-label="Open now playing"
+            >
+              <CoverArt track={track} size="sm" className="shrink-0" />
+              <div className="min-w-0">
+                <span className="block truncate text-sm font-medium text-white">
+                  {track.title}
+                </span>
+                <span className="block truncate text-xs text-spotify-muted">
+                  {getSubtitle(track)}
+                </span>
+              </div>
+            </button>
             {isAuthenticated ? (
               <button
                 type="button"
@@ -199,16 +207,7 @@ export function PlayerBar({ hasLyrics = false }: PlayerBarProps) {
                 <Heart className="h-4 w-4" />
               </Link>
             )}
-            {hasLyrics && (
-              <button
-                type="button"
-                className={`btn-icon flex ${karaokeOpen ? "text-spotify-green" : ""}`}
-                title="Karaoke lyrics"
-                onClick={toggleKaraoke}
-              >
-                <Mic2 className="h-4 w-4" />
-              </button>
-            )}
+            <KaraokeButton hasLyrics={hasLyrics} />
           </>
         ) : (
           <p className="text-sm text-spotify-muted">Select a track to play</p>
