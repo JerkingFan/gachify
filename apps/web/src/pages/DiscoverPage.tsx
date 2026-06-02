@@ -3,7 +3,6 @@ import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useState } from "react";
 import { TopBar } from "@/components/layout/TopBar";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { RadioStartButton } from "@/components/ui/RadioStartButton";
 import { Section } from "@/components/ui/Section";
 import { TrackCard } from "@/components/ui/TrackCard";
 import { TrackGridSkeleton } from "@/components/ui/Skeleton";
@@ -52,10 +51,6 @@ export function DiscoverPage() {
 
   const openStation = (id: string) => {
     navigate(`/discover?station=${id}`);
-  };
-
-  const openMood = (mood: string) => {
-    applyFilters({ mood });
   };
 
   const clearFilters = () => {

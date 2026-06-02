@@ -132,6 +132,9 @@ export function TrackMetadataForm({
           onChange={(e) => onLrcFile(e.target.files?.[0] ?? null)}
           className="w-full text-sm text-spotify-muted"
         />
+        {lrcFile && (
+          <p className="text-xs text-spotify-green">Attached: {lrcFile.name}</p>
+        )}
       </div>
     </div>
   );

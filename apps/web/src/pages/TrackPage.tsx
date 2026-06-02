@@ -3,7 +3,7 @@ import { CreatorTrackStatsPanel } from "@/components/creator/CreatorTrackStatsPa
 import { SchedulePublishPanel } from "@/components/creator/SchedulePublishPanel";
 import { TrackSocialSection } from "@/components/social/TrackSocialSection";
 import { RadioStartButton } from "@/components/ui/RadioStartButton";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import { api } from "@/api/client";
 import { KaraokeButton } from "@/components/karaoke/KaraokeButton";

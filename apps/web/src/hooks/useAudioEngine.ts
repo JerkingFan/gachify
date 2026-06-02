@@ -20,8 +20,6 @@ function configureAudioElement(audio: HTMLAudioElement) {
   }
 }
 
-type PlaybackInfo = Awaited<ReturnType<typeof api.getPlayback>>;
-
 async function attachPlayback(
   audio: HTMLAudioElement,
   track: Track,

@@ -10,6 +10,7 @@ import { RadioStartButton } from "@/components/ui/RadioStartButton";
 import { ShareButton } from "@/components/ui/ShareButton";
 import { TrackRow } from "@/components/ui/TrackRow";
 import { downloadPlaylistExport } from "@/lib/playlistExport";
+import { coverSeedFromPlaylist, playlistTrackIds } from "@/lib/playlists";
 import { formatDuration } from "@/lib/tracks";
 import { useTracks } from "@/hooks/useTracks";
 import { useAuthStore } from "@/store/authStore";
@@ -69,7 +70,7 @@ export function PlaylistPage() {
   const playlistTracks = useMemo(
     () =>
       trackIds
-        .map((tid) => tracks.find((t) => t.id === tid))
+        .map((tid: string) => tracks.find((t) => t.id === tid))
         .filter(Boolean) as typeof tracks,
     [trackIds, tracks],
   );
