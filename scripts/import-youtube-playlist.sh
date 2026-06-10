@@ -25,6 +25,7 @@
 #   DRY_RUN=1                    # only download, no upload
 #   LIMIT=5                      # first N successfully downloaded tracks
 #   YTDLP_COOKIES=/path/cookies.txt  # Netscape cookies (export from browser) if YouTube blocks VPS
+#   LOCAL_MP3_DIR=/path/to/mp3       # skip YouTube — upload existing .mp3 files (VPS blocked by YT)
 
 set -euo pipefail
 
@@ -38,15 +39,21 @@ WORK_DIR="${WORK_DIR:-/tmp/gachify-import-$$}"
 DRY_RUN="${DRY_RUN:-0}"
 LIMIT="${LIMIT:-0}"
 COOKIES="${YTDLP_COOKIES:-}"
+LOCAL_MP3_DIR="${LOCAL_MP3_DIR:-}"
 
 die() { echo "error: $*" >&2; exit 1; }
 
 command -v curl >/dev/null || die "curl required"
 command -v jq >/dev/null || die "jq required"
-command -v yt-dlp >/dev/null || die "yt-dlp required (pip install yt-dlp or see https://github.com/yt-dlp/yt-dlp)"
 command -v ffprobe >/dev/null || die "ffprobe required (ffmpeg package)"
 
-[[ -n "$PLAYLIST_URL" ]] || die "usage: $0 <youtube-playlist-url>"
+if [[ -n "$LOCAL_MP3_DIR" ]]; then
+  [[ -d "$LOCAL_MP3_DIR" ]] || die "LOCAL_MP3_DIR not found: $LOCAL_MP3_DIR"
+elif [[ -n "$PLAYLIST_URL" ]]; then
+  command -v yt-dlp >/dev/null || die "yt-dlp required"
+else
+  die "usage: $0 <youtube-playlist-url>   OR   LOCAL_MP3_DIR=/path/to/mp3 $0"
+fi
 
 api() {
   local method="$1" path="$2" body="${3:-}"
@@ -124,6 +131,32 @@ wait_published() {
 }
 
 login
+
+shopt -s nullglob
+
+if [[ -n "$LOCAL_MP3_DIR" ]]; then
+  echo "upload-only mode: $LOCAL_MP3_DIR"
+  files=("$LOCAL_MP3_DIR"/*.mp3)
+  (( ${#files[@]} > 0 )) || die "no .mp3 in LOCAL_MP3_DIR"
+  if [[ "$DRY_RUN" == "1" ]]; then
+    echo "DRY_RUN=1 — would upload ${#files[@]} file(s):"
+    printf '  %s\n' "${files[@]}"
+    exit 0
+  fi
+  ok=0 fail=0
+  for f in "${files[@]}"; do
+    title=$(basename "$f" .mp3)
+    echo "upload: $title"
+    if track_id=$(upload_mp3 "$f" "$title"); then
+      wait_published "$track_id" || ((fail++)) || true
+      ((ok++)) || true
+    else
+      ((fail++)) || true
+    fi
+  done
+  echo "done: $ok uploaded, $fail failed"
+  exit 0
+fi
 
 mkdir -p "$WORK_DIR"
 trap 'rm -rf "$WORK_DIR"' EXIT
