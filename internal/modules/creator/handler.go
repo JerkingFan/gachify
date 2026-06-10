@@ -45,6 +45,8 @@ func (h *Handler) Routes() chi.Router {
 	r.Get("/tracks", h.listMyTracks)
 	r.Get("/tracks/{trackID}/stats", h.trackStats)
 	r.Patch("/tracks/{trackID}/lyrics", h.updateTrackLyrics)
+	r.Post("/tracks/{trackID}/cover/init", h.initCoverUpload)
+	r.Post("/tracks/{trackID}/cover/complete", h.completeCoverUpload)
 	r.Patch("/tracks/{trackID}/schedule", h.schedulePublish)
 	r.Post("/tracks/{trackID}/publish", h.publishNow)
 	r.Get("/analytics", h.analytics)

@@ -622,6 +622,43 @@ paths:
               schema:
                 $ref: "#/components/schemas/TracksResponse"
 
+  /api/v1/creator/tracks/{trackID}/cover/init:
+    post:
+      tags: [creator]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: trackID
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PresignUploadInput"
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UploadInitResponse"
+
+  /api/v1/creator/tracks/{trackID}/cover/complete:
+    post:
+      tags: [creator]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: trackID
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Track"
+
   /api/v1/stream/tracks/{id}/playback:
     get:
       tags: [stream]

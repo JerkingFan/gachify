@@ -17,12 +17,12 @@ import (
 var ErrNotFound = errors.New("track not found")
 
 const trackColumns = `id, creator_id, title, description, duration_ms, status, gachi_metadata,
-	master_object_key, source_content_type, source_filename, processing_error, play_count,
+	master_object_key, cover_object_key, source_content_type, source_filename, processing_error, play_count,
 	scheduled_publish_at, approved_at, created_at, updated_at`
 
 // trackColumnsAliased is for SELECTs that JOIN users (both tables have id).
 const trackColumnsAliased = `t.id, t.creator_id, t.title, t.description, t.duration_ms, t.status, t.gachi_metadata,
-	t.master_object_key, t.source_content_type, t.source_filename, t.processing_error, t.play_count,
+	t.master_object_key, t.cover_object_key, t.source_content_type, t.source_filename, t.processing_error, t.play_count,
 	t.scheduled_publish_at, t.approved_at, t.created_at, t.updated_at`
 
 type Repository struct {
@@ -37,10 +37,25 @@ func scanTrack(row pgx.Row) (domain.Track, error) {
 	var t domain.Track
 	err := row.Scan(
 		&t.ID, &t.CreatorID, &t.Title, &t.Description, &t.DurationMs, &t.Status, &t.GachiMetadata,
-		&t.MasterObjectKey, &t.SourceContentType, &t.SourceFilename, &t.ProcessingError,
+		&t.MasterObjectKey, &t.CoverObjectKey, &t.SourceContentType, &t.SourceFilename, &t.ProcessingError,
 		&t.PlayCount, &t.ScheduledPublishAt, &t.ApprovedAt, &t.CreatedAt, &t.UpdatedAt,
 	)
 	return t, err
+}
+
+func (r *Repository) SetCoverObjectKey(ctx context.Context, trackID, creatorID uuid.UUID, objectKey string) error {
+	tag, err := r.pool.Exec(ctx, `
+		UPDATE tracks SET cover_object_key = $3, updated_at = now()
+		WHERE id = $1 AND creator_id = $2
+			AND status IN ('draft', 'processing', 'pending_review', 'approved', 'published')
+	`, trackID, creatorID, objectKey)
+	if err != nil {
+		return fmt.Errorf("set cover object key: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return nil
 }
 
 func (r *Repository) Create(ctx context.Context, in domain.CreateTrackInput) (domain.Track, error) {
@@ -433,7 +448,7 @@ func scanTrackWithCreator(row pgx.Row) (domain.TrackWithCreator, error) {
 	var handle, displayName string
 	err := row.Scan(
 		&t.ID, &t.CreatorID, &t.Title, &t.Description, &t.DurationMs, &t.Status, &t.GachiMetadata,
-		&t.MasterObjectKey, &t.SourceContentType, &t.SourceFilename, &t.ProcessingError,
+		&t.MasterObjectKey, &t.CoverObjectKey, &t.SourceContentType, &t.SourceFilename, &t.ProcessingError,
 		&t.PlayCount, &t.ScheduledPublishAt, &t.ApprovedAt, &t.CreatedAt, &t.UpdatedAt,
 		&handle, &displayName,
 	)

@@ -20,7 +20,11 @@ func (s *Service) CreateDraft(ctx context.Context, creatorID uuid.UUID, in domai
 	if len(meta) == 0 {
 		meta = json.RawMessage(`{}`)
 	}
-	return s.catalog.CreateMetadataDraft(ctx, creatorID, title, strings.TrimSpace(in.Description), meta)
+	track, err := s.catalog.CreateMetadataDraft(ctx, creatorID, title, strings.TrimSpace(in.Description), meta)
+	if err != nil {
+		return domain.Track{}, err
+	}
+	return s.withCover(ctx, track), nil
 }
 
 func (s *Service) UpdateDraft(ctx context.Context, creatorID, trackID uuid.UUID, in domain.UpdateDraftInput) (domain.Track, error) {
@@ -49,7 +53,11 @@ func (s *Service) UpdateDraft(ctx context.Context, creatorID, trackID uuid.UUID,
 	if len(meta) == 0 {
 		meta = json.RawMessage(`{}`)
 	}
-	return s.catalog.UpdateDraftMetadata(ctx, trackID, creatorID, title, desc, meta)
+	track, err = s.catalog.UpdateDraftMetadata(ctx, trackID, creatorID, title, desc, meta)
+	if err != nil {
+		return domain.Track{}, err
+	}
+	return s.withCover(ctx, track), nil
 }
 
 func (s *Service) PresignDraftUpload(ctx context.Context, creatorID, trackID uuid.UUID, in domain.PresignUploadInput) (domain.UploadInitResponse, error) {
@@ -92,14 +100,22 @@ func (s *Service) SchedulePublish(ctx context.Context, creatorID, trackID uuid.U
 	if err := s.catalog.SetScheduledPublish(ctx, trackID, creatorID, at.UTC()); err != nil {
 		return domain.Track{}, err
 	}
-	return s.catalog.GetOwned(ctx, trackID, creatorID)
+	track, err := s.catalog.GetOwned(ctx, trackID, creatorID)
+	if err != nil {
+		return domain.Track{}, err
+	}
+	return s.withCover(ctx, track), nil
 }
 
 func (s *Service) PublishNow(ctx context.Context, creatorID, trackID uuid.UUID) (domain.Track, error) {
 	if err := s.catalog.CreatorPublishNow(ctx, trackID, creatorID); err != nil {
 		return domain.Track{}, err
 	}
-	return s.catalog.GetByID(ctx, trackID)
+	track, err := s.catalog.GetByID(ctx, trackID)
+	if err != nil {
+		return domain.Track{}, err
+	}
+	return s.withCover(ctx, track), nil
 }
 
 func (s *Service) TrackStats(ctx context.Context, creatorID, trackID uuid.UUID, days int) (domain.TrackCreatorStats, error) {

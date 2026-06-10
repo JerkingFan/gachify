@@ -238,6 +238,12 @@ func contentTypeForExt(ext string) string {
 		return "audio/flac"
 	case ".wav":
 		return "audio/wav"
+	case ".jpg", ".jpeg":
+		return "image/jpeg"
+	case ".png":
+		return "image/png"
+	case ".webp":
+		return "image/webp"
 	default:
 		return "application/octet-stream"
 	}

@@ -1,15 +1,19 @@
+import { useEffect, useState } from "react";
 import { COVER_PRESETS, type DraftMetadataFields } from "@/lib/creatorMetadata";
+import { COVER_ACCEPT } from "@/lib/coverUpload";
 
 type Props = {
   title: string;
   description: string;
   fields: DraftMetadataFields;
   lrcFile: File | null;
+  coverFile: File | null;
   onTitle: (v: string) => void;
   onDescription: (v: string) => void;
   onFields: (f: DraftMetadataFields) => void;
   onLrcFile: (f: File | null) => void;
   onLrcText: (v: string) => void;
+  onCoverFile: (f: File | null) => void;
 };
 
 export function TrackMetadataForm({
@@ -17,12 +21,26 @@ export function TrackMetadataForm({
   description,
   fields,
   lrcFile,
+  coverFile,
   onTitle,
   onDescription,
   onFields,
   onLrcFile,
   onLrcText,
+  onCoverFile,
 }: Props) {
+  const [coverPreview, setCoverPreview] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!coverFile) {
+      setCoverPreview(null);
+      return;
+    }
+    const url = URL.createObjectURL(coverFile);
+    setCoverPreview(url);
+    return () => URL.revokeObjectURL(url);
+  }, [coverFile]);
+
   const set = (patch: Partial<DraftMetadataFields>) =>
     onFields({ ...fields, ...patch });
 
@@ -68,15 +86,54 @@ export function TrackMetadataForm({
         </div>
       </div>
 
-      <label className="block text-sm">
-        <span className="text-spotify-muted">Cover image URL (optional)</span>
-        <input
-          value={fields.coverUrl}
-          onChange={(e) => set({ coverUrl: e.target.value })}
-          className="mt-1 w-full rounded-md bg-spotify-highlight px-3 py-2 text-sm"
-          placeholder="https://…"
-        />
-      </label>
+      <div className="space-y-2">
+        <p className="text-sm text-spotify-muted">Cover image (optional)</p>
+        <div className="flex items-start gap-4">
+          <div
+            className="flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-md border border-white/10 bg-spotify-highlight"
+            style={
+              !coverPreview && fields.coverGradient
+                ? { background: fields.coverGradient }
+                : undefined
+            }
+          >
+            {coverPreview ? (
+              <img src={coverPreview} alt="" className="h-full w-full object-cover" />
+            ) : fields.coverUrl.trim() ? (
+              <img
+                src={fields.coverUrl.trim()}
+                alt=""
+                className="h-full w-full object-cover"
+                onError={(e) => {
+                  (e.target as HTMLImageElement).style.display = "none";
+                }}
+              />
+            ) : (
+              <span className="text-xs text-spotify-subtle">No image</span>
+            )}
+          </div>
+          <div className="min-w-0 flex-1 space-y-2">
+            <input
+              type="file"
+              accept={COVER_ACCEPT}
+              onChange={(e) => onCoverFile(e.target.files?.[0] ?? null)}
+              className="w-full text-sm text-spotify-muted file:mr-3 file:rounded-full file:border-0 file:bg-white/10 file:px-3 file:py-1.5 file:text-xs file:text-white"
+            />
+            {coverFile && (
+              <p className="text-xs text-spotify-green">Selected: {coverFile.name}</p>
+            )}
+            <label className="block text-xs">
+              <span className="text-spotify-muted">Or external image URL</span>
+              <input
+                value={fields.coverUrl}
+                onChange={(e) => set({ coverUrl: e.target.value })}
+                className="mt-1 w-full rounded-md bg-spotify-highlight px-3 py-2 text-sm"
+                placeholder="https://…"
+              />
+            </label>
+          </div>
+        </div>
+      </div>
 
       <label className="block text-sm">
         <span className="text-spotify-muted">Mood tags (comma-separated)</span>

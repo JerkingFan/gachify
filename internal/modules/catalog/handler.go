@@ -14,6 +14,8 @@ import (
 	"github.com/gachify/gachify/internal/platform/cache"
 	"github.com/gachify/gachify/internal/platform/httpserver"
 	"github.com/gachify/gachify/internal/platform/ratelimit"
+	"github.com/gachify/gachify/internal/platform/storage"
+	"github.com/gachify/gachify/internal/platform/trackcover"
 	"github.com/gachify/gachify/internal/platform/validate"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
@@ -21,13 +23,14 @@ import (
 
 type Handler struct {
 	repo        *Repository
+	storage     *storage.Client
 	rl          *ratelimit.Limiter
 	searchLimit int
 	cache       *cache.Store
 }
 
-func NewHandler(repo *Repository, rl *ratelimit.Limiter, searchLimit int, cacheStore *cache.Store) *Handler {
-	return &Handler{repo: repo, rl: rl, searchLimit: searchLimit, cache: cacheStore}
+func NewHandler(repo *Repository, st *storage.Client, rl *ratelimit.Limiter, searchLimit int, cacheStore *cache.Store) *Handler {
+	return &Handler{repo: repo, storage: st, rl: rl, searchLimit: searchLimit, cache: cacheStore}
 }
 
 func (h *Handler) Routes() chi.Router {
@@ -83,6 +86,7 @@ func (h *Handler) getByID(w http.ResponseWriter, r *http.Request) {
 		httpserver.Error(w, http.StatusInternalServerError, "internal_error", "failed to load track")
 		return
 	}
+	trackcover.Enrich(r.Context(), h.storage, &t)
 	httpserver.JSON(w, http.StatusOK, t)
 }
 
@@ -187,6 +191,7 @@ func (h *Handler) list(w http.ResponseWriter, r *http.Request) {
 		httpserver.Error(w, http.StatusInternalServerError, "internal_error", "failed to list tracks")
 		return
 	}
+	trackcover.EnrichWithCreatorSlice(r.Context(), h.storage, tracks)
 	response := map[string]any{
 		"items":    tracks,
 		"total":    total,
@@ -265,6 +270,7 @@ func (h *Handler) similar(w http.ResponseWriter, r *http.Request) {
 		httpserver.Error(w, http.StatusInternalServerError, "internal_error", "failed to list similar tracks")
 		return
 	}
+	trackcover.EnrichWithCreatorSlice(r.Context(), h.storage, tracks)
 	httpserver.JSON(w, http.StatusOK, map[string]any{"items": tracks})
 }
 
@@ -282,6 +288,7 @@ func (h *Handler) recommendNext(w http.ResponseWriter, r *http.Request) {
 		httpserver.Error(w, http.StatusInternalServerError, "internal_error", "failed to recommend next tracks")
 		return
 	}
+	trackcover.EnrichWithCreatorSlice(r.Context(), h.storage, tracks)
 	httpserver.JSON(w, http.StatusOK, map[string]any{"items": tracks})
 }
 

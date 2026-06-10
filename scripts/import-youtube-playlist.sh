@@ -99,11 +99,14 @@ upload_mp3() {
   put_url=$(echo "$init" | jq -r '.upload_url // empty')
   [[ -n "$track_id" && -n "$put_url" ]] || die "init failed for $title: $init"
 
-  curl -sS -X PUT -H "Content-Type: audio/mpeg" --data-binary @"$file" "$put_url" >/dev/null
+  if ! curl -sS -f -X PUT -H "Content-Type: audio/mpeg" --data-binary @"$file" "$put_url" >/dev/null; then
+    echo "  PUT to storage failed for $title (check GACHIFY_S3_PUBLIC_ENDPOINT)" >&2
+    return 1
+  fi
 
   api POST "/api/v1/creator/uploads/$track_id/complete" "{\"duration_ms\":$dur}" >/dev/null
 
-  echo "  enqueued track_id=$track_id (processing → published)"
+  echo "  enqueued track_id=$track_id (processing → published)" >&2
   echo "$track_id"
 }
 
@@ -177,11 +180,14 @@ yt_args=(
   --extractor-args "youtube:player_client=web"
   --remote-components ejs:github
 )
-if command -v node >/dev/null; then
-  yt_args+=(--js-runtimes node)
-elif command -v deno >/dev/null; then
-  yt_args+=(--js-runtimes deno)
+if [[ -z "${YTDLP_JS_RUNTIME:-}" ]]; then
+  if command -v node >/dev/null; then
+    YTDLP_JS_RUNTIME="node:$(command -v node)"
+  elif command -v deno >/dev/null; then
+    YTDLP_JS_RUNTIME="deno:$(command -v deno)"
+  fi
 fi
+[[ -n "${YTDLP_JS_RUNTIME:-}" ]] && yt_args+=(--js-runtimes "$YTDLP_JS_RUNTIME")
 [[ -n "$COOKIES" && -f "$COOKIES" ]] && yt_args+=(--cookies "$COOKIES")
 (( LIMIT > 0 )) && yt_args+=(--max-downloads "$LIMIT")
 yt-dlp "${yt_args[@]}" -P "$WORK_DIR" "$PLAYLIST_URL" || true

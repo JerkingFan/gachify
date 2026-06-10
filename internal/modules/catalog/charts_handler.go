@@ -5,6 +5,7 @@ import (
 	"strconv"
 
 	"github.com/gachify/gachify/internal/platform/httpserver"
+	"github.com/gachify/gachify/internal/platform/trackcover"
 	"github.com/go-chi/chi/v5"
 )
 
@@ -23,6 +24,7 @@ func (h *Handler) topWeekly(w http.ResponseWriter, r *http.Request) {
 		httpserver.Error(w, http.StatusInternalServerError, "internal_error", "failed to load charts")
 		return
 	}
+	trackcover.EnrichChartSlice(r.Context(), h.storage, items)
 	httpserver.JSON(w, http.StatusOK, map[string]any{
 		"items":    items,
 		"period":   "7d",
@@ -60,6 +62,7 @@ func (h *Handler) listByMood(w http.ResponseWriter, r *http.Request) {
 		httpserver.Error(w, http.StatusInternalServerError, "internal_error", "failed to list tracks")
 		return
 	}
+	trackcover.EnrichWithCreatorSlice(r.Context(), h.storage, items)
 	httpserver.JSON(w, http.StatusOK, map[string]any{
 		"mood":     mood,
 		"items":    items,

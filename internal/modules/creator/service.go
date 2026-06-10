@@ -137,11 +137,19 @@ func (s *Service) CompleteUpload(ctx context.Context, creatorID, trackID uuid.UU
 		return domain.Track{}, err
 	}
 
-	return s.catalog.GetByID(ctx, trackID)
+	track, err = s.catalog.GetByID(ctx, trackID)
+	if err != nil {
+		return domain.Track{}, err
+	}
+	return s.withCover(ctx, track), nil
 }
 
 func (s *Service) GetUploadStatus(ctx context.Context, creatorID, trackID uuid.UUID) (domain.Track, error) {
-	return s.catalog.GetOwned(ctx, trackID, creatorID)
+	track, err := s.catalog.GetOwned(ctx, trackID, creatorID)
+	if err != nil {
+		return domain.Track{}, err
+	}
+	return s.withCover(ctx, track), nil
 }
 
 func (s *Service) RetryTranscode(ctx context.Context, creatorID, trackID uuid.UUID) (domain.Track, error) {
@@ -177,7 +185,11 @@ func (s *Service) RetryTranscode(ctx context.Context, creatorID, trackID uuid.UU
 		_ = s.catalog.UpdateStatus(ctx, trackID, domain.TrackDraft, &msg)
 		return domain.Track{}, err
 	}
-	return s.catalog.GetByID(ctx, trackID)
+	track, err = s.catalog.GetByID(ctx, trackID)
+	if err != nil {
+		return domain.Track{}, err
+	}
+	return s.withCover(ctx, track), nil
 }
 
 func (s *Service) ListMyTracks(ctx context.Context, creatorID uuid.UUID, limit, offset int) ([]domain.Track, error) {
@@ -193,11 +205,15 @@ func (s *Service) ListMyTracks(ctx context.Context, creatorID uuid.UUID, limit, 
 	for i := range items {
 		out[i] = items[i].Track
 	}
-	return out, nil
+	return s.withCoverSlice(ctx, out), nil
 }
 
 func (s *Service) UpdateTrackLyrics(ctx context.Context, creatorID, trackID uuid.UUID, lrc string) (domain.Track, error) {
-	return s.catalog.UpdateOwnedLyricsLRC(ctx, trackID, creatorID, lrc)
+	track, err := s.catalog.UpdateOwnedLyricsLRC(ctx, trackID, creatorID, lrc)
+	if err != nil {
+		return domain.Track{}, err
+	}
+	return s.withCover(ctx, track), nil
 }
 
 func sanitizeFilename(name string) string {

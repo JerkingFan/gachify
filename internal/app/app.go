@@ -101,7 +101,7 @@ func New(ctx context.Context) (*App, error) {
 	socialNotify := social.NewPublishNotifier(socialRepo, userRepo, pushSvc)
 	socialH := social.NewHandler(socialRepo, catalogRepo)
 	userH := users.NewHandler(userRepo, libRepo, catalogRepo)
-	catalogH := catalog.NewHandler(catalogRepo, rateLimiter, cfg.RateLimit.Search, cacheStore)
+	catalogH := catalog.NewHandler(catalogRepo, s3, rateLimiter, cfg.RateLimit.Search, cacheStore)
 	searchH := searchmod.NewHandler(userRepo, rateLimiter, cfg.RateLimit.Search)
 
 	mailer, err := email.NewMailer(cfg.Env, cfg.SMTP, log)
@@ -117,7 +117,7 @@ func New(ctx context.Context) (*App, error) {
 	playbackSigner := streamtoken.NewTokenSigner(cfg.JWTSecret, cfg.PlaybackTokenTTL)
 	streamSvc := streaming.NewService(catalogRepo, s3, playbackSigner, redisQ.Client(), cfg.PlaybackSegmentTTL)
 	streamH := streaming.NewHandler(streamSvc, catalogRepo, playbackSigner, cfg.PublicAPIBaseURL)
-	adminH := admin.NewHandler(catalogRepo, userRepo, redisQ, streamSvc, playbackSigner, socialNotify, socialRepo)
+	adminH := admin.NewHandler(catalogRepo, userRepo, redisQ, streamSvc, s3, playbackSigner, socialNotify, socialRepo)
 
 	importSvc := imports.NewService(imports.Config{
 		SpotifyClientID:     cfg.SpotifyClientID,

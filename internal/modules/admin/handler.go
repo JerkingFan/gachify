@@ -12,6 +12,8 @@ import (
 	"github.com/gachify/gachify/internal/modules/users"
 	"github.com/gachify/gachify/internal/platform/httpserver"
 	"github.com/gachify/gachify/internal/platform/queue"
+	"github.com/gachify/gachify/internal/platform/storage"
+	"github.com/gachify/gachify/internal/platform/trackcover"
 	streamtoken "github.com/gachify/gachify/internal/platform/streaming"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
@@ -22,13 +24,14 @@ type Handler struct {
 	users    *users.Repository
 	queue    *queue.RedisQueue
 	stream   *streaming.Service
+	storage  *storage.Client
 	signer   *streamtoken.TokenSigner
 	notify   *social.PublishNotifier
 	social   *social.Repository
 }
 
-func NewHandler(cat *catalog.Repository, userRepo *users.Repository, q *queue.RedisQueue, stream *streaming.Service, signer *streamtoken.TokenSigner, notify *social.PublishNotifier, socialRepo *social.Repository) *Handler {
-	return &Handler{catalog: cat, users: userRepo, queue: q, stream: stream, signer: signer, notify: notify, social: socialRepo}
+func NewHandler(cat *catalog.Repository, userRepo *users.Repository, q *queue.RedisQueue, stream *streaming.Service, st *storage.Client, signer *streamtoken.TokenSigner, notify *social.PublishNotifier, socialRepo *social.Repository) *Handler {
+	return &Handler{catalog: cat, users: userRepo, queue: q, stream: stream, storage: st, signer: signer, notify: notify, social: socialRepo}
 }
 
 func (h *Handler) Routes() chi.Router {
@@ -79,6 +82,7 @@ func (h *Handler) listTracks(w http.ResponseWriter, r *http.Request) {
 		httpserver.Error(w, http.StatusInternalServerError, "internal_error", "list failed")
 		return
 	}
+	trackcover.EnrichWithCreatorSlice(r.Context(), h.storage, tracks)
 	httpserver.JSON(w, http.StatusOK, map[string]any{"items": tracks, "total": total})
 }
 

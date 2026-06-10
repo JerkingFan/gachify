@@ -4,6 +4,7 @@ import { Link, Navigate } from "react-router-dom";
 import { api } from "@/api/client";
 import { TrackMetadataForm } from "@/components/creator/TrackMetadataForm";
 import { TopBar } from "@/components/layout/TopBar";
+import { uploadTrackCover } from "@/lib/coverUpload";
 import { readLrcFile } from "@/lib/lyrics";
 import {
   buildGachiMetadataFromDraft,
@@ -42,6 +43,7 @@ export function UploadPage() {
   const [description, setDescription] = useState("");
   const [fields, setFields] = useState<DraftMetadataFields>(defaultFields);
   const [lrcFile, setLrcFile] = useState<File | null>(null);
+  const [coverFile, setCoverFile] = useState<File | null>(null);
   const [draftId, setDraftId] = useState<string | null>(null);
   const [file, setFile] = useState<File | null>(null);
   const [track, setTrack] = useState<Track | null>(null);
@@ -164,6 +166,10 @@ export function UploadPage() {
             gachi_metadata,
           });
       setDraftId(draft.id);
+      if (coverFile) {
+        setMessage("Uploading cover…");
+        await uploadTrackCover(draft.id, coverFile);
+      }
       setStep("audio");
       setMessage("");
     } catch (err) {
@@ -208,7 +214,17 @@ export function UploadPage() {
     setTitle("");
     setDescription("");
     setFields(defaultFields);
+    setCoverFile(null);
     setMessage("");
+  };
+
+  const changeTrackCover = async (trackId: string, file: File) => {
+    try {
+      await uploadTrackCover(trackId, file);
+      void loadMyTracks();
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : "Cover upload failed");
+    }
   };
 
   const failedTrackId = track && isFailedTrack(track) ? track.id : null;
@@ -263,10 +279,12 @@ export function UploadPage() {
                 description={description}
                 fields={fields}
                 lrcFile={lrcFile}
+                coverFile={coverFile}
                 onTitle={setTitle}
                 onDescription={setDescription}
                 onFields={setFields}
                 onLrcFile={setLrcFile}
+                onCoverFile={setCoverFile}
                 onLrcText={(v) => setFields((f) => ({ ...f, lyricsLrc: v }))}
               />
               <button
@@ -396,6 +414,19 @@ export function UploadPage() {
                         {t.title}
                       </Link>
                       <div className="flex shrink-0 items-center gap-2">
+                        <label className="cursor-pointer text-xs text-spotify-muted hover:text-white">
+                          Cover
+                          <input
+                            type="file"
+                            accept="image/jpeg,image/png,image/webp"
+                            className="hidden"
+                            onChange={(e) => {
+                              const f = e.target.files?.[0];
+                              e.target.value = "";
+                              if (f) void changeTrackCover(t.id, f);
+                            }}
+                          />
+                        </label>
                         {failed && (
                           <button
                             type="button"

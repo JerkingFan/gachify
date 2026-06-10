@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { getArtistName } from "@/lib/tracks";
+import { getArtistName, getCoverImageUrl } from "@/lib/tracks";
 import { usePlayerStore } from "@/store/playerStore";
 
 const DEFAULT_ART = "/pwa-512.svg";
@@ -48,10 +48,16 @@ export function useMediaSession() {
     if (!("mediaSession" in navigator) || !track) return;
 
     const origin = typeof window !== "undefined" ? window.location.origin : "";
-    const artwork = [
-      { src: `${origin}${DEFAULT_ART}`, sizes: "512x512", type: "image/svg+xml" },
-      { src: `${origin}/pwa-192.svg`, sizes: "192x192", type: "image/svg+xml" },
-    ];
+    const cover = getCoverImageUrl(track);
+    const artwork = cover
+      ? [
+          { src: cover, sizes: "512x512", type: "image/jpeg" },
+          { src: cover, sizes: "192x192", type: "image/jpeg" },
+        ]
+      : [
+          { src: `${origin}${DEFAULT_ART}`, sizes: "512x512", type: "image/svg+xml" },
+          { src: `${origin}/pwa-192.svg`, sizes: "192x192", type: "image/svg+xml" },
+        ];
 
     navigator.mediaSession.metadata = new MediaMetadata({
       title: track.title,

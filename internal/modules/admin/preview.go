@@ -12,6 +12,7 @@ import (
 	"github.com/gachify/gachify/internal/modules/streaming"
 	"github.com/gachify/gachify/internal/platform/httpserver"
 	streamtoken "github.com/gachify/gachify/internal/platform/streaming"
+	"github.com/gachify/gachify/internal/platform/trackcover"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
@@ -32,6 +33,7 @@ func (h *Handler) getTrack(w http.ResponseWriter, r *http.Request) {
 		httpserver.Error(w, http.StatusInternalServerError, "internal_error", "load failed")
 		return
 	}
+	trackcover.Enrich(r.Context(), h.storage, &track)
 	httpserver.JSON(w, http.StatusOK, track)
 }
 

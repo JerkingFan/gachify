@@ -41,6 +41,7 @@ type Track struct {
 	Status            TrackStatus     `json:"status"`
 	GachiMetadata     json.RawMessage `json:"gachi_metadata"`
 	MasterObjectKey   *string         `json:"master_object_key,omitempty"`
+	CoverObjectKey    *string         `json:"-"`
 	SourceContentType *string         `json:"source_content_type,omitempty"`
 	SourceFilename    *string         `json:"source_filename,omitempty"`
 	ProcessingError   *string         `json:"processing_error,omitempty"`

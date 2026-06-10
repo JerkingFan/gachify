@@ -43,7 +43,7 @@ func (r *Repository) ListTopWeekly(ctx context.Context, limit, offset int) ([]do
 		var weekly int64
 		if err := rows.Scan(
 			&t.ID, &t.CreatorID, &t.Title, &t.Description, &t.DurationMs, &t.Status, &t.GachiMetadata,
-			&t.MasterObjectKey, &t.SourceContentType, &t.SourceFilename, &t.ProcessingError,
+			&t.MasterObjectKey, &t.CoverObjectKey, &t.SourceContentType, &t.SourceFilename, &t.ProcessingError,
 			&t.PlayCount, &t.ScheduledPublishAt, &t.ApprovedAt, &t.CreatedAt, &t.UpdatedAt,
 			&handle, &displayName, &weekly,
 		); err != nil {

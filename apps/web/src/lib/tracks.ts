@@ -31,6 +31,16 @@ export function formatDuration(ms: number): string {
   return `${m}:${s.toString().padStart(2, "0")}`;
 }
 
+export function getCoverImageUrl(track: Track | null | undefined): string | null {
+  if (!track) return null;
+  const meta = parseGachiMeta(track);
+  if (meta.cover_url && typeof meta.cover_url === "string") {
+    const url = meta.cover_url.trim();
+    if (url) return url;
+  }
+  return null;
+}
+
 export function getPreviewUrl(track: Track): string | null {
   const meta = parseGachiMeta(track);
   if (meta.preview_url && typeof meta.preview_url === "string") {

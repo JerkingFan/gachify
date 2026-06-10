@@ -105,9 +105,9 @@ func scanTrackWithCreatorAndScore(row interface {
 	var handle, displayName string
 	var score float64
 	err := row.Scan(
-		&t.ID, &t.CreatorID, &t.Title, &t.DurationMs, &t.Status, &t.GachiMetadata,
-		&t.MasterObjectKey, &t.SourceContentType, &t.SourceFilename, &t.ProcessingError,
-		&t.PlayCount, &t.CreatedAt, &t.UpdatedAt,
+		&t.ID, &t.CreatorID, &t.Title, &t.Description, &t.DurationMs, &t.Status, &t.GachiMetadata,
+		&t.MasterObjectKey, &t.CoverObjectKey, &t.SourceContentType, &t.SourceFilename, &t.ProcessingError,
+		&t.PlayCount, &t.ScheduledPublishAt, &t.ApprovedAt, &t.CreatedAt, &t.UpdatedAt,
 		&handle, &displayName,
 		&score,
 	)

@@ -750,6 +750,27 @@ export const api = {
     );
   },
 
+  initCoverUpload(
+    trackId: string,
+    body: { filename: string; content_type: string },
+  ): Promise<{
+    track_id: string;
+    upload_url: string;
+    object_key: string;
+    expires_in_sec: number;
+  }> {
+    return request(`/creator/tracks/${trackId}/cover/init`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }, true);
+  },
+
+  completeCoverUpload(trackId: string): Promise<Track> {
+    return request<Track>(`/creator/tracks/${trackId}/cover/complete`, {
+      method: "POST",
+    }, true);
+  },
+
   getPlayback(trackId: string): Promise<{
     format: "hls" | "mp3";
     playlist_url?: string;
