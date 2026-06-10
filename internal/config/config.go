@@ -2,7 +2,9 @@ package config
 
 import (
 	"fmt"
+	"net/url"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/gachify/gachify/internal/platform/email"
@@ -171,7 +173,28 @@ func Load() (Config, error) {
 	if len(cfg.JWTSecret) < 32 {
 		return Config{}, fmt.Errorf("GACHIFY_JWT_SECRET must be at least 32 characters")
 	}
+	normalizeStoragePublicURL(&cfg)
 	return cfg, nil
+}
+
+// When MinIO is proxied on the same host as the site (Caddy :80), presigned HLS URLs must not use :9000.
+func normalizeStoragePublicURL(cfg *Config) {
+	if cfg.CDNBaseURL != "" {
+		return
+	}
+	site := strings.TrimRight(cfg.PublicAPIBaseURL, "/")
+	pub := strings.TrimRight(cfg.S3PublicEndpoint, "/")
+	if site == "" || pub == "" || !strings.Contains(pub, ":9000") {
+		return
+	}
+	siteURL, err1 := url.Parse(site)
+	pubURL, err2 := url.Parse(pub)
+	if err1 != nil || err2 != nil {
+		return
+	}
+	if siteURL.Hostname() != "" && siteURL.Hostname() == pubURL.Hostname() {
+		cfg.S3PublicEndpoint = site
+	}
 }
 
 func getEnv(key, fallback string) string {

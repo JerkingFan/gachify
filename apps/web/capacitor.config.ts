@@ -5,7 +5,8 @@ const config: CapacitorConfig = {
   appName: "Gachify",
   webDir: "dist",
   server: {
-    androidScheme: "https",
+    // http avoids https://localhost -> http://API mixed-content blocks on Android
+    androidScheme: "http",
     // Live reload: set CAP_SERVER_URL=http://192.168.x.x:5173 before `npx cap sync`
     ...(process.env.CAP_SERVER_URL
       ? { url: process.env.CAP_SERVER_URL, cleartext: true }
@@ -15,6 +16,10 @@ const config: CapacitorConfig = {
     allowMixedContent: true,
   },
   plugins: {
+    // Native fetch — no browser CORS (Capacitor WebView origin != your API host)
+    CapacitorHttp: {
+      enabled: true,
+    },
     SplashScreen: {
       launchAutoHide: true,
       backgroundColor: "#121212",

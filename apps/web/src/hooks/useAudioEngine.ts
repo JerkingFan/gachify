@@ -2,24 +2,13 @@ import Hls from "hls.js";
 import { type RefObject, useEffect, useRef } from "react";
 import { api } from "@/api/client";
 import { apiUrl } from "@/lib/apiOrigin";
+import { configureAudioForPlatform, createHls } from "@/lib/mobileMedia";
 import { crossfadeAudio } from "@/lib/crossfade";
 import { useAudioEffects } from "@/hooks/useAudioEffects";
 import { getOfflinePlayback } from "@/lib/offlineTracks";
 import { getPreviewUrl } from "@/lib/tracks";
 import { usePlayerStore } from "@/store/playerStore";
 import type { Track } from "@/types";
-
-function configureAudioElement(audio: HTMLAudioElement) {
-  audio.preload = "auto";
-  audio.setAttribute("playsinline", "true");
-  audio.setAttribute("webkit-playsinline", "true");
-  audio.setAttribute("x-webkit-airplay", "allow");
-  audio.setAttribute("airplay", "allow");
-  audio.crossOrigin = "anonymous";
-  if ("disableRemotePlayback" in audio) {
-    (audio as HTMLAudioElement & { disableRemotePlayback?: boolean }).disableRemotePlayback = false;
-  }
-}
 
 async function attachPlayback(
   audio: HTMLAudioElement,
@@ -32,11 +21,10 @@ async function attachPlayback(
   const offline = await getOfflinePlayback(track.id);
   if (offline) {
     if (offline.format === "hls" && Hls.isSupported()) {
-      const hls = new Hls({ enableWorker: true, lowLatencyMode: false });
+      const hls = createHls(audio);
       hlsRef.current = hls;
       await new Promise<void>((resolve, reject) => {
         hls.loadSource(offline.url);
-        hls.attachMedia(audio);
         hls.on(Hls.Events.MANIFEST_PARSED, () => resolve());
         hls.on(Hls.Events.ERROR, (_, data) => {
           if (data.fatal) reject(data);
@@ -53,11 +41,10 @@ async function attachPlayback(
   const fallbackUrl = playback.fallback_url ? apiUrl(playback.fallback_url) : null;
 
   if (playback.format === "hls" && playlistUrl && Hls.isSupported()) {
-    const hls = new Hls({ enableWorker: true, lowLatencyMode: false });
+    const hls = createHls(audio);
     hlsRef.current = hls;
     await new Promise<void>((resolve, reject) => {
       hls.loadSource(playlistUrl);
-      hls.attachMedia(audio);
       hls.on(Hls.Events.MANIFEST_PARSED, () => resolve());
       hls.on(Hls.Events.ERROR, (_, data) => {
         if (data.fatal && fallbackUrl) {
@@ -93,7 +80,7 @@ export function useAudioEngine(audioRef: RefObject<HTMLAudioElement | null>) {
     const audio = audioRef.current;
     if (!audio) return;
 
-    configureAudioElement(audio);
+    configureAudioForPlatform(audio);
     bindAudio(audio);
 
     const onTime = () => tick(audio.currentTime * 1000);

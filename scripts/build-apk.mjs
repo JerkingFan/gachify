@@ -1,14 +1,16 @@
 #!/usr/bin/env node
 /**
  * One-command debug APK: npm run apk
- * Optional: npm run apk -- --run   (install on emulator/device)
- *           npm run apk -- --api http://192.168.1.5:8080
+ *   npm run apk:local     emulator / dev PC (10.0.2.2:8080)
+ *   npm run apk -- --run  install on device/emulator
+ *   npm run apk -- --api http://your-server.com
  */
 import { spawnSync } from "node:child_process";
-import { copyFileSync, cpSync, existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { copyFileSync, cpSync, existsSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { resolveMobileApiOrigin, writeMobileEnv } from "./resolve-mobile-api.mjs";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const web = join(root, "apps", "web");
@@ -18,8 +20,9 @@ const apkCopy = join(root, "gachify-debug.apk");
 
 const args = process.argv.slice(2);
 const runOnDevice = args.includes("--run");
+const useLocal = args.includes("--local");
 const apiFlag = args.findIndex((a) => a === "--api");
-const apiOrigin = apiFlag >= 0 ? args[apiFlag + 1] : null;
+const cliApi = apiFlag >= 0 ? args[apiFlag + 1] : null;
 
 function run(cwd, command, args = []) {
   const result = spawnSync(command, args, {
@@ -69,20 +72,35 @@ function ensureWebDeps() {
 }
 
 function ensureMobileEnv() {
-  const envPath = join(web, ".env.mobile");
-  if (apiOrigin) {
-    writeFileSync(
-      envPath,
-      `VITE_MOBILE=true\nVITE_API_ORIGIN=${apiOrigin}\n`,
-      "utf8",
-    );
-    console.log(`API for APK: ${apiOrigin}`);
+  if (useLocal) {
+    writeMobileEnv(web, "http://10.0.2.2:8080");
+    console.log("API for APK: http://10.0.2.2:8080 (emulator / local dev)");
     return;
   }
-  if (!existsSync(envPath)) {
-    copyFileSync(join(web, ".env.mobile.example"), envPath);
-    console.log("Created .env.mobile (emulator API: http://10.0.2.2:8080)");
+
+  const origin =
+    resolveMobileApiOrigin({ root, web, cliApi }) ??
+    (cliApi ? cliApi.replace(/\/$/, "") : null);
+
+  if (!origin) {
+    console.error(`
+No server URL for the APK.
+
+  1. Copy apps/web/.env.mobile.production.example -> .env.mobile.production
+  2. Set VITE_API_ORIGIN=http://YOUR_SERVER  (public site URL, no /api/v1)
+  3. npm run apk
+
+  Or one-shot:
+    npm run apk -- --api http://5.83.140.179
+
+  Local emulator only:
+    npm run apk:local
+`);
+    process.exit(1);
   }
+
+  writeMobileEnv(web, origin);
+  console.log(`API for APK: ${origin}`);
 }
 
 function ensureAndroidProject() {
@@ -129,11 +147,7 @@ console.log(`
   Done!
 
   APK:  ${apkCopy}
-  Also: ${apkOut}
 
-  Install on phone: copy gachify-debug.apk or
-    adb install gachify-debug.apk
-
-  Phone on Wi-Fi? Rebuild with your PC IP:
-    npm run apk -- --api http://192.168.x.x:8080
+  Install on phone (USB debugging on):
+    npm run apk:install
 `);

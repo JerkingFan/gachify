@@ -79,19 +79,22 @@ The web app proxies `/api` to the backend (see `apps/web/vite.config.ts`).
 One command from repo root (needs [Android Studio](https://developer.android.com/studio) installed once for the SDK):
 
 ```powershell
-npm run dev          # API on :8080
-npm run apk          # -> gachify-debug.apk in repo root
+# Point APK at your server (once):
+copy apps\web\.env.mobile.production.example apps\web\.env.mobile.production
+# edit VITE_API_ORIGIN=http://YOUR_SERVER
+
+npm run apk          # -> gachify-debug.apk (connects to that server)
+adb install gachify-debug.apk
 ```
 
-Phone on Wi-Fi (replace with your PC IP):
+Local dev / emulator instead of VPS:
 
 ```powershell
-npm run apk -- --api http://192.168.1.5:8080
+npm run apk:local    # API http://10.0.2.2:8080
 ```
 
-Install: `adb install gachify-debug.apk` or copy the file to the phone.
-
-Emulator default API URL: `http://10.0.2.2:8080` (set in `apps/web/.env.mobile`).
+`VITE_API_ORIGIN` = public site URL (same as in browser), **without** `/api/v1`.
+On the server set `GACHIFY_PUBLIC_API_URL` and `GACHIFY_S3_PUBLIC_ENDPOINT` to the same origin, then redeploy API (CORS allows Capacitor).
 
 | `VITE_API_ORIGIN` | When |
 |---------------------|------|

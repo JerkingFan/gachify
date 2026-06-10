@@ -39,6 +39,7 @@ backups/
 node_modules/
 apps/web/dist/
 apps/web/.env.mobile
+apps/web/.env.mobile.production
 apps/web/android/app/build/
 apps/web/android/.gradle/
 apps/web/android/build/
