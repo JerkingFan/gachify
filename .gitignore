@@ -21,6 +21,8 @@ coverage.out
 .env
 .env.local
 *.pem
+cookies.txt
+**/cookies.txt
 
 # OS
 .DS_Store
