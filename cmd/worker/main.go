@@ -74,6 +74,7 @@ func main() {
 		"processing", queue.TranscodeProcessingKey,
 		"visibility", cfg.TranscodeVisibilityTimeout.String(),
 		"max_attempts", cfg.TranscodeMaxAttempts,
+		"concurrency", cfg.WorkerConcurrency,
 	)
 
 	var (
@@ -87,6 +88,8 @@ func main() {
 
 	go reportQueueDepth(ctx, q, log)
 	go worker.RunScheduledPublishLoop(workerCtx, log, cat, notify)
+
+	jobSlots := make(chan struct{}, cfg.WorkerConcurrency)
 
 	for {
 		select {
@@ -123,8 +126,15 @@ func main() {
 			log.Warn("reclaim stale error", "error", err)
 		}
 
+		select {
+		case jobSlots <- struct{}{}:
+		case <-workerCtx.Done():
+			continue
+		}
+
 		job, err := q.DequeueTranscode(workerCtx, 5*time.Second, cfg.TranscodeVisibilityTimeout)
 		if err != nil {
+			<-jobSlots
 			if errors.Is(err, redis.Nil) || workerCtx.Err() != nil {
 				continue
 			}
@@ -139,6 +149,7 @@ func main() {
 		wg.Add(1)
 		go func(job queue.TranscodeJob) {
 			defer wg.Done()
+			defer func() { <-jobSlots }()
 			defer func() {
 				activeJobMu.Lock()
 				activeJob = nil

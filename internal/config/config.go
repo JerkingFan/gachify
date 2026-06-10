@@ -42,6 +42,7 @@ type Config struct {
 	TranscodeMaxAttempts int
 	TranscodeRetryBase   time.Duration
 	TranscodeVisibilityTimeout time.Duration
+	WorkerConcurrency          int
 	WorkerShutdownTimeout      time.Duration
 	SentryDSN                  string
 	CacheEnabled               bool
@@ -136,6 +137,10 @@ func Load() (Config, error) {
 	cfg.TranscodeVisibilityTimeout, err = time.ParseDuration(getEnv("GACHIFY_TRANSCODE_VISIBILITY_TIMEOUT", "30m"))
 	if err != nil {
 		return Config{}, fmt.Errorf("GACHIFY_TRANSCODE_VISIBILITY_TIMEOUT: %w", err)
+	}
+	cfg.WorkerConcurrency = parseIntDefault(getEnv("GACHIFY_WORKER_CONCURRENCY", "2"), 2)
+	if cfg.WorkerConcurrency < 1 {
+		cfg.WorkerConcurrency = 1
 	}
 	cfg.WorkerShutdownTimeout, err = time.ParseDuration(getEnv("GACHIFY_WORKER_SHUTDOWN_TIMEOUT", "2m"))
 	if err != nil {

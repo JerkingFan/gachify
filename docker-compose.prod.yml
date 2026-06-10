@@ -112,6 +112,7 @@ services:
       GACHIFY_ANALYZER_ENABLED: ${GACHIFY_ANALYZER_ENABLED:-true}
       GACHIFY_ANALYZER_ROOT: /opt/gachify-analyzer
       GACHIFY_ANALYZER_PYTHON: /opt/gachify-analyzer/venv/bin/python3
+      GACHIFY_WORKER_CONCURRENCY: ${GACHIFY_WORKER_CONCURRENCY:-2}
     depends_on:
       migrate:
         condition: service_completed_successfully
