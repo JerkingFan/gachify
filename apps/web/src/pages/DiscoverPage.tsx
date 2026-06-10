@@ -40,15 +40,6 @@ export function DiscoverPage() {
   const currentTrack = usePlayerStore((s) => s.currentTrack);
   const startRadio = usePlayerStore((s) => s.startRadio);
 
-  const applyFilters = (next: Record<string, string>) => {
-    const p = new URLSearchParams();
-    for (const [k, v] of Object.entries(next)) {
-      if (v) p.set(k, v);
-    }
-    if (next.has_lyrics === "true" || next.karaoke === "1") p.set("karaoke", "1");
-    setSearchParams(p);
-  };
-
   const openStation = (id: string) => {
     navigate(`/discover?station=${id}`);
   };
