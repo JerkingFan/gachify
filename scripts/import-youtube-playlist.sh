@@ -6,6 +6,12 @@
 # Requirements on the server: bash, curl, jq, ffmpeg, ffprobe, yt-dlp
 # Gachify stack: API + worker + MinIO must be running.
 #
+# Ubuntu 24.04 (do NOT use pip install — PEP 668 blocks it):
+#   sudo apt install -y ffmpeg jq curl yt-dlp
+# Or standalone yt-dlp:
+#   sudo curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp \
+#     -o /usr/local/bin/yt-dlp && sudo chmod +x /usr/local/bin/yt-dlp
+#
 # Usage:
 #   export GACHIFY_API_URL="https://your-domain.com"
 #   export GACHIFY_EMAIL="creator@example.com"
