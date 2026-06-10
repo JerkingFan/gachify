@@ -30,6 +30,8 @@
 #   UPLOAD_DIR=/tmp/gachify-import-* # skip download — upload mp3+jpg already on disk
 #   WAIT_EACH=1                      # wait for transcode after every track (slow for big playlists)
 #   SKIP_WAIT=1                      # default for 10+ tracks — enqueue and exit
+#   SKIP_EXISTING=1                  # skip tracks whose title is already in your creator library
+#   UPLOAD_RATE_WAIT=65              # seconds to wait on API rate_limit_exceeded (default 20/hour)
 
 set -euo pipefail
 
@@ -48,6 +50,10 @@ SKIP_COVER="${SKIP_COVER:-0}"
 UPLOAD_DIR="${UPLOAD_DIR:-}"
 WAIT_EACH="${WAIT_EACH:-0}"
 SKIP_WAIT="${SKIP_WAIT:-}"
+SKIP_EXISTING="${SKIP_EXISTING:-0}"
+UPLOAD_RATE_WAIT="${UPLOAD_RATE_WAIT:-65}"
+UPLOAD_RATE_RETRIES="${UPLOAD_RATE_RETRIES:-200}"
+EXISTING_TITLES_FILE=""
 
 die() { echo "error: $*" >&2; exit 1; }
 
@@ -103,6 +109,73 @@ login() {
   login_refresh
 }
 
+# POST with retry on 429 / rate_limit_exceeded (GACHIFY_RATE_LIMIT_UPLOAD_INIT, default 20/hour).
+api_post_retry() {
+  local path="$1" body="$2"
+  local wait="$UPLOAD_RATE_WAIT" attempt=0 hdr resp code ra
+
+  while (( attempt < UPLOAD_RATE_RETRIES )); do
+    hdr=$(mktemp)
+    resp=$(curl -sS -w $'\n%{http_code}' -D "$hdr" -X POST "${API}${path}" \
+      -H "Content-Type: application/json" \
+      -H "Authorization: Bearer $TOKEN" \
+      -d "$body" || true)
+    code="${resp##*$'\n'}"
+    resp="${resp%$'\n'*}"
+    if [[ "$code" == "201" || "$code" == "200" ]]; then
+      rm -f "$hdr"
+      echo "$resp"
+      return 0
+    fi
+    if [[ "$code" == "401" || "$resp" == *'"unauthorized"'* ]]; then
+      rm -f "$hdr"
+      login_refresh
+      ((attempt++)) || true
+      continue
+    fi
+    if [[ "$code" == "429" || "$resp" == *rate_limit_exceeded* ]]; then
+      ra=$(grep -i '^retry-after:' "$hdr" 2>/dev/null | awk '{print $2}' | tr -d '\r' || true)
+      rm -f "$hdr"
+      if [[ -n "$ra" && "$ra" =~ ^[0-9]+$ ]]; then
+        wait="$ra"
+      fi
+      echo "  rate limited, waiting ${wait}s..." >&2
+      sleep "$wait"
+      wait="$UPLOAD_RATE_WAIT"
+      ((attempt++)) || true
+      continue
+    fi
+    rm -f "$hdr"
+    echo "$resp"
+    return 1
+  done
+  echo '{"error":"rate_limit_exceeded","message":"too many retries"}' >&2
+  return 1
+}
+
+load_existing_titles() {
+  local offset=0 limit=100 resp n
+  EXISTING_TITLES_FILE=$(mktemp)
+  : > "$EXISTING_TITLES_FILE"
+  echo "loading existing track titles (SKIP_EXISTING=1)..." >&2
+  while true; do
+    resp=$(api GET "/api/v1/creator/tracks?limit=$limit&offset=$offset")
+    echo "$resp" | jq -r '.items[]?.title // empty' >> "$EXISTING_TITLES_FILE"
+    n=$(echo "$resp" | jq -r '.items | length')
+    (( n < limit )) && break
+    offset=$((offset + limit))
+  done
+  local cnt
+  cnt=$(grep -c . "$EXISTING_TITLES_FILE" 2>/dev/null || echo 0)
+  echo "  found $cnt existing title(s)" >&2
+}
+
+title_exists() {
+  local title="$1"
+  [[ -n "$EXISTING_TITLES_FILE" && -f "$EXISTING_TITLES_FILE" ]] || return 1
+  grep -Fxq "$title" "$EXISTING_TITLES_FILE"
+}
+
 duration_ms() {
   local f="$1"
   local sec
@@ -122,8 +195,8 @@ upload_mp3() {
   jtitle=$(jq -Rn --arg t "$title" '$t')
   jfile=$(jq -Rn --arg f "$(basename "$file")" '$f')
 
-  init=$(api POST "/api/v1/creator/uploads/init" \
-    "{\"title\":$jtitle,\"filename\":$jfile,\"content_type\":\"audio/mpeg\",\"duration_ms\":$dur,\"gachi_metadata\":{}}")
+  init=$(api_post_retry "/api/v1/creator/uploads/init" \
+    "{\"title\":$jtitle,\"filename\":$jfile,\"content_type\":\"audio/mpeg\",\"duration_ms\":$dur,\"gachi_metadata\":{}}") || init=""
 
   track_id=$(echo "$init" | jq -r '.track_id // empty')
   put_url=$(echo "$init" | jq -r '.upload_url // empty')
@@ -218,9 +291,19 @@ upload_files() {
 
   login_refresh
 
+  if [[ "$SKIP_EXISTING" == "1" ]]; then
+    load_existing_titles
+  fi
+
+  local skipped=0
   for f in "${files[@]}"; do
     base=$(basename "$f" .mp3)
     title=$(echo "$base" | sed -E 's/^[0-9]+ - //')
+    if [[ "$SKIP_EXISTING" == "1" ]] && title_exists "$title"; then
+      echo "skip (exists): $title"
+      ((skipped++)) || true
+      continue
+    fi
     cover=""
     [[ "$SKIP_COVER" != "1" ]] && cover=$(find_cover_for_mp3 "$f" || true)
     echo "upload: $title${cover:+ (+ cover)}"
@@ -237,7 +320,8 @@ upload_files() {
       login_refresh
     fi
   done
-  echo "done: $ok uploaded, $fail failed"
+  [[ -n "$EXISTING_TITLES_FILE" ]] && rm -f "$EXISTING_TITLES_FILE"
+  echo "done: $ok uploaded, $fail failed, $skipped skipped"
 }
 
 wait_published() {
