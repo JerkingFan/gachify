@@ -174,8 +174,14 @@ yt_args=(
   --ignore-errors
   --retries 5
   --fragment-retries 5
-  --extractor-args "youtube:player_client=android,web"
+  --extractor-args "youtube:player_client=web"
+  --remote-components ejs:github
 )
+if command -v node >/dev/null; then
+  yt_args+=(--js-runtimes node)
+elif command -v deno >/dev/null; then
+  yt_args+=(--js-runtimes deno)
+fi
 [[ -n "$COOKIES" && -f "$COOKIES" ]] && yt_args+=(--cookies "$COOKIES")
 (( LIMIT > 0 )) && yt_args+=(--max-downloads "$LIMIT")
 yt-dlp "${yt_args[@]}" -P "$WORK_DIR" "$PLAYLIST_URL" || true
