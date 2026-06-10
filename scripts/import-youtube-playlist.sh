@@ -128,8 +128,11 @@ login
 mkdir -p "$WORK_DIR"
 trap 'rm -rf "$WORK_DIR"' EXIT
 
-echo "downloading playlist to $WORK_DIR (mp3 ${BITRATE}k)..."
+echo "downloading playlist to $WORK_DIR (video/audio → mp3 ${BITRATE}k, temp files removed)..."
 yt_args=(
+  --yes-playlist
+  # Prefer muxed mp4; fallback audio-only; yt-dlp -x then ffmpeg → mp3 and drops source
+  -f "bv*+ba/b/ba/best"
   -x --audio-format mp3
   --postprocessor-args "ffmpeg:-b:a ${BITRATE}k"
   -o "%(playlist_index)03d - %(title).200B.%(ext)s"
@@ -138,20 +141,30 @@ yt_args=(
   --ignore-errors
   --retries 5
   --fragment-retries 5
-  # Helps on datacenter IPs where YouTube returns empty playlists
   --extractor-args "youtube:player_client=android,web"
 )
 [[ -n "$COOKIES" && -f "$COOKIES" ]] && yt_args+=(--cookies "$COOKIES")
 (( LIMIT > 0 )) && yt_args+=(--max-downloads "$LIMIT")
 yt-dlp "${yt_args[@]}" -P "$WORK_DIR" "$PLAYLIST_URL" || true
 
+# If -x did not run, convert leftover video/audio containers to mp3 and delete them
 shopt -s nullglob
+for src in "$WORK_DIR"/*.{mp4,mkv,webm,m4a,opus}; do
+  [[ -f "$src" ]] || continue
+  out="${src%.*}.mp3"
+  [[ -f "$out" ]] && continue
+  echo "converting $(basename "$src") → mp3..."
+  ffmpeg -y -hide_banner -loglevel error -i "$src" -vn -codec:a libmp3lame -b:a "${BITRATE}k" "$out"
+  rm -f "$src"
+done
+
 files=("$WORK_DIR"/*.mp3)
 if (( ${#files[@]} == 0 )); then
-  echo "hint: run 'sudo yt-dlp -U' and retry." >&2
-  echo "hint: if playlist shows 0 items, export browser cookies to cookies.txt and:" >&2
+  echo "hint: sudo yt-dlp -U" >&2
+  echo "hint: YouTube often blocks VPS — export cookies.txt from browser:" >&2
   echo "      export YTDLP_COOKIES=~/cookies.txt" >&2
-  echo "hint: test one video: yt-dlp -x --audio-format mp3 -o test.mp3 'https://www.youtube.com/watch?v=VIDEO_ID'" >&2
+  echo "hint: test ONE video (no playlist in URL!):" >&2
+  echo "      yt-dlp --no-playlist -f 'bv*+ba/b' -x --audio-format mp3 -o test.%(ext)s 'https://www.youtube.com/watch?v=AnbTd2WKYdY'" >&2
   die "no mp3 files downloaded (YouTube may block this server or all videos are unavailable)"
 fi
 
