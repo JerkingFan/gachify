@@ -1,3 +1,4 @@
+import { apiUrl } from "@/lib/apiOrigin";
 import type { GachiMetadata, Track } from "@/types";
 
 export function parseGachiMeta(track: Track): GachiMetadata {
@@ -47,7 +48,7 @@ export function getCoverImageUrl(track: Track | null | undefined): string | null
     const url = meta.cover_url.trim();
     if (!url) return null;
     if (isStoredCoverURL(url)) {
-      return `/api/v1/tracks/${track.id}/cover`;
+      return apiUrl(`/api/v1/tracks/${track.id}/cover`);
     }
     return url;
   }

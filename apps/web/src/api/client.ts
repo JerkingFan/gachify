@@ -11,8 +11,9 @@ import type {
   TracksResponse,
   User,
 } from "@/types";
+import { apiUrl } from "@/lib/apiOrigin";
 
-const BASE = "/api/v1";
+const BASE = apiUrl("/api/v1");
 
 const ACCESS_KEY = "gachify:access_token";
 const REFRESH_KEY = "gachify:refresh_token";
@@ -387,10 +388,10 @@ export const api = {
   },
 
   exportPlaylistUrl(playlistId: string, format: "m3u" | "json", authed: boolean): string {
-    const base = authed
+    const path = authed
       ? `/api/v1/me/playlists/${playlistId}/export?format=${format}`
       : `/api/v1/playlists/${playlistId}/export?format=${format}`;
-    return base;
+    return apiUrl(path);
   },
 
   getTrack(id: string): Promise<Track> {

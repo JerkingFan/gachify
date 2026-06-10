@@ -1,4 +1,5 @@
 import { getStoredTokens } from "@/api/client";
+import { apiUrl } from "@/lib/apiOrigin";
 
 /** Download playlist as M3U or JSON (public or owned). */
 export async function downloadPlaylistExport(
@@ -7,9 +8,11 @@ export async function downloadPlaylistExport(
   authed: boolean,
   filename: string,
 ): Promise<void> {
-  const base = authed
-    ? `/api/v1/me/playlists/${playlistId}/export?format=${format}`
-    : `/api/v1/playlists/${playlistId}/export?format=${format}`;
+  const base = apiUrl(
+    authed
+      ? `/api/v1/me/playlists/${playlistId}/export?format=${format}`
+      : `/api/v1/playlists/${playlistId}/export?format=${format}`,
+  );
   const headers: HeadersInit = {};
   if (authed) {
     const { access } = getStoredTokens();

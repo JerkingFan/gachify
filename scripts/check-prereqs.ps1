@@ -1,4 +1,8 @@
 # Verifies tools required for local development.
+param(
+    [switch]$NoDocker
+)
+
 . "$PSScriptRoot\lib\dev-common.ps1"
 
 $ok = $true
@@ -28,15 +32,20 @@ Check "Node.js 18+" {
 
 Check "npm" { Test-CommandExists "npm" }
 
-Check "Docker CLI" { Test-CommandExists "docker" }
+if (-not $NoDocker) {
+    Check "Docker CLI" { Test-CommandExists "docker" }
 
-Check "Docker daemon running" {
-    Test-DockerDaemon -TimeoutMs 8000
-}
+    Check "Docker daemon running" {
+        if (Test-DockerDaemon) { return $true }
+        Ensure-DockerRunning
+    }
 
-Check "docker compose" {
-    docker compose version 2>&1 | Out-Null
-    return $LASTEXITCODE -eq 0
+    Check "docker compose" {
+        docker compose version 2>&1 | Out-Null
+        return $LASTEXITCODE -eq 0
+    }
+} else {
+    Write-DevWarn "Skipping Docker checks (-NoDocker)"
 }
 
 if (-not $ok) {

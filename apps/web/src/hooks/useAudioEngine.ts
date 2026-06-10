@@ -1,6 +1,7 @@
 import Hls from "hls.js";
 import { type RefObject, useEffect, useRef } from "react";
 import { api } from "@/api/client";
+import { apiUrl } from "@/lib/apiOrigin";
 import { crossfadeAudio } from "@/lib/crossfade";
 import { useAudioEffects } from "@/hooks/useAudioEffects";
 import { getOfflinePlayback } from "@/lib/offlineTracks";
@@ -48,19 +49,21 @@ async function attachPlayback(
   }
 
   const playback = await api.getPlayback(track.id);
+  const playlistUrl = playback.playlist_url ? apiUrl(playback.playlist_url) : null;
+  const fallbackUrl = playback.fallback_url ? apiUrl(playback.fallback_url) : null;
 
-  if (playback.format === "hls" && playback.playlist_url && Hls.isSupported()) {
+  if (playback.format === "hls" && playlistUrl && Hls.isSupported()) {
     const hls = new Hls({ enableWorker: true, lowLatencyMode: false });
     hlsRef.current = hls;
     await new Promise<void>((resolve, reject) => {
-      hls.loadSource(playback.playlist_url!);
+      hls.loadSource(playlistUrl);
       hls.attachMedia(audio);
       hls.on(Hls.Events.MANIFEST_PARSED, () => resolve());
       hls.on(Hls.Events.ERROR, (_, data) => {
-        if (data.fatal && playback.fallback_url) {
+        if (data.fatal && fallbackUrl) {
           hls.destroy();
           hlsRef.current = null;
-          audio.src = playback.fallback_url;
+          audio.src = fallbackUrl;
           resolve();
         } else if (data.fatal) {
           reject(data);
@@ -70,7 +73,8 @@ async function attachPlayback(
     return;
   }
 
-  const url = playback.fallback_url ?? getPreviewUrl(track);
+  const preview = getPreviewUrl(track);
+  const url = fallbackUrl ?? (preview ? apiUrl(preview) : null);
   if (url) audio.src = url;
 }
 

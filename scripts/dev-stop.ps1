@@ -18,5 +18,7 @@ if (-not $pids) {
     Remove-Item (Get-DevPidsPath) -Force -ErrorAction SilentlyContinue
 }
 
+& "$PSScriptRoot\infra-local.ps1" -Stop 2>$null
+
 Write-DevStep "Optional: stop Docker stack"
 Write-Host "  docker compose down"

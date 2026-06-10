@@ -6,6 +6,12 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
+    "build:mobile": "tsc --noEmit && vite build --mode mobile",
+    "cap:sync": "npm run build:mobile && npx cap sync android",
+    "android": "npm run android:run",
+    "apk": "npm run cap:sync && cd android && gradlew.bat assembleDebug",
+    "android:open": "npx cap open android",
+    "android:run": "npm run cap:sync && npx cap run android",
     "preview": "vite preview",
     "gen:api-types": "openapi-typescript ../../api/openapi.yaml -o src/api/generated/schema.ts",
     "lint": "eslint .",
@@ -13,6 +19,11 @@
     "test:e2e": "playwright test"
   },
   "dependencies": {
+    "@capacitor/android": "^6.2.0",
+    "@capacitor/app": "^6.0.2",
+    "@capacitor/core": "^6.2.0",
+    "@capacitor/splash-screen": "^6.0.2",
+    "@capacitor/status-bar": "^6.0.2",
     "@tanstack/react-query": "^5.100.14",
     "hls.js": "^1.5.17",
     "lucide-react": "^0.460.0",
@@ -22,6 +33,7 @@
     "zustand": "^5.0.1"
   },
   "devDependencies": {
+    "@capacitor/cli": "^6.2.0",
     "@eslint/js": "^9.16.0",
     "@playwright/test": "^1.60.0",
     "@testing-library/jest-dom": "^6.9.1",

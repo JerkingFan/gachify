@@ -27,6 +27,9 @@
 #   YTDLP_COOKIES=/path/cookies.txt  # Netscape cookies (export from browser) if YouTube blocks VPS
 #   LOCAL_MP3_DIR=/path/to/mp3       # skip YouTube — upload existing .mp3 files (VPS blocked by YT)
 #   SKIP_COVER=1                     # do not upload thumbnails / sidecar images as track covers
+#   UPLOAD_DIR=/tmp/gachify-import-* # skip download — upload mp3+jpg already on disk
+#   WAIT_EACH=1                      # wait for transcode after every track (slow for big playlists)
+#   SKIP_WAIT=1                      # default for 10+ tracks — enqueue and exit
 
 set -euo pipefail
 
@@ -42,6 +45,9 @@ LIMIT="${LIMIT:-0}"
 COOKIES="${YTDLP_COOKIES:-}"
 LOCAL_MP3_DIR="${LOCAL_MP3_DIR:-}"
 SKIP_COVER="${SKIP_COVER:-0}"
+UPLOAD_DIR="${UPLOAD_DIR:-}"
+WAIT_EACH="${WAIT_EACH:-0}"
+SKIP_WAIT="${SKIP_WAIT:-}"
 
 die() { echo "error: $*" >&2; exit 1; }
 
@@ -59,20 +65,40 @@ fi
 
 api() {
   local method="$1" path="$2" body="${3:-}"
-  local args=(-sS -X "$method" "${API}${path}" -H "Content-Type: application/json")
+  local args resp
+  args=(-sS -X "$method" "${API}${path}" -H "Content-Type: application/json")
   [[ -n "$TOKEN" ]] && args+=(-H "Authorization: Bearer $TOKEN")
   [[ -n "$body" ]] && args+=(-d "$body")
-  curl "${args[@]}"
+  resp=$(curl "${args[@]}")
+  if [[ "$resp" == *'"unauthorized"'* || "$resp" == *'"authentication required"'* ]]; then
+    login_refresh
+    args=(-sS -X "$method" "${API}${path}" -H "Content-Type: application/json")
+    [[ -n "$TOKEN" ]] && args+=(-H "Authorization: Bearer $TOKEN")
+    [[ -n "$body" ]] && args+=(-d "$body")
+    resp=$(curl "${args[@]}")
+  fi
+  echo "$resp"
+}
+
+login_refresh() {
+  if [[ -n "${GACHIFY_ACCESS_TOKEN:-}" ]]; then
+    TOKEN="$GACHIFY_ACCESS_TOKEN"
+    return 0
+  fi
+  [[ -n "$EMAIL" && -n "$PASSWORD" ]] || die "set GACHIFY_ACCESS_TOKEN or GACHIFY_EMAIL + GACHIFY_PASSWORD"
+  local resp
+  TOKEN=""
+  resp=$(curl -sS -X POST "${API}/api/v1/auth/login" \
+    -H "Content-Type: application/json" \
+    -d "{\"email\":\"$EMAIL\",\"password\":\"$PASSWORD\"}")
+  TOKEN=$(echo "$resp" | jq -r '.access_token // empty')
+  [[ -n "$TOKEN" ]] || die "login failed: $resp"
+  echo "logged in (token refreshed)" >&2
 }
 
 login() {
   [[ -n "$TOKEN" ]] && return 0
-  [[ -n "$EMAIL" && -n "$PASSWORD" ]] || die "set GACHIFY_ACCESS_TOKEN or GACHIFY_EMAIL + GACHIFY_PASSWORD"
-  local resp
-  resp=$(api POST "/api/v1/auth/login" "{\"email\":\"$EMAIL\",\"password\":\"$PASSWORD\"}")
-  TOKEN=$(echo "$resp" | jq -r '.access_token // empty')
-  [[ -n "$TOKEN" ]] || die "login failed: $resp"
-  echo "logged in"
+  login_refresh
 }
 
 duration_ms() {
@@ -99,7 +125,10 @@ upload_mp3() {
 
   track_id=$(echo "$init" | jq -r '.track_id // empty')
   put_url=$(echo "$init" | jq -r '.upload_url // empty')
-  [[ -n "$track_id" && -n "$put_url" ]] || die "init failed for $title: $init"
+  if [[ -z "$track_id" || -z "$put_url" ]]; then
+    echo "  init failed for $title: $init" >&2
+    return 1
+  fi
 
   if ! curl -sS -f -X PUT -H "Content-Type: audio/mpeg" --data-binary @"$file" "$put_url" >/dev/null; then
     echo "  PUT to storage failed for $title (check GACHIFY_S3_PUBLIC_ENDPOINT)" >&2
@@ -174,6 +203,41 @@ upload_track() {
   echo "$track_id"
 }
 
+upload_files() {
+  local files=("$@")
+  local ok=0 fail=0 n=${#files[@]}
+
+  if [[ -z "$SKIP_WAIT" && "$n" -ge 10 ]]; then
+    SKIP_WAIT=1
+  fi
+  if [[ "$SKIP_WAIT" == "1" ]]; then
+    echo "SKIP_WAIT=1 — uploads enqueued, worker transcodes in background ($n tracks)" >&2
+  fi
+
+  login_refresh
+
+  for f in "${files[@]}"; do
+    base=$(basename "$f" .mp3)
+    title=$(echo "$base" | sed -E 's/^[0-9]+ - //')
+    cover=""
+    [[ "$SKIP_COVER" != "1" ]] && cover=$(find_cover_for_mp3 "$f" || true)
+    echo "upload: $title${cover:+ (+ cover)}"
+    if track_id=$(upload_track "$f" "$title" "$cover"); then
+      if [[ "$WAIT_EACH" == "1" && "$SKIP_WAIT" != "1" ]]; then
+        wait_published "$track_id" || ((fail++)) || true
+      fi
+      ((ok++)) || true
+    else
+      ((fail++)) || true
+    fi
+    # Proactive refresh every 50 tracks (~12 min with 15m JWT TTL)
+    if (( ok > 0 && ok % 50 == 0 )); then
+      login_refresh
+    fi
+  done
+  echo "done: $ok uploaded, $fail failed"
+}
+
 wait_published() {
   local track_id="$1" max="${2:-600}"
   local i=0 status
@@ -197,9 +261,21 @@ wait_published() {
   return 1
 }
 
-login
-
 shopt -s nullglob
+
+if [[ -n "$UPLOAD_DIR" ]]; then
+  [[ -d "$UPLOAD_DIR" ]] || die "UPLOAD_DIR not found: $UPLOAD_DIR"
+  echo "upload-only from: $UPLOAD_DIR"
+  files=("$UPLOAD_DIR"/*.mp3)
+  (( ${#files[@]} > 0 )) || die "no .mp3 in UPLOAD_DIR"
+  if [[ "$DRY_RUN" == "1" ]]; then
+    echo "DRY_RUN=1 — would upload ${#files[@]} file(s)"
+    exit 0
+  fi
+  upload_files "${files[@]}"
+  echo "open ${API%/}/ or your web UI — tracks appear after worker transcode."
+  exit 0
+fi
 
 if [[ -n "$LOCAL_MP3_DIR" ]]; then
   echo "upload-only mode: $LOCAL_MP3_DIR"
@@ -210,25 +286,16 @@ if [[ -n "$LOCAL_MP3_DIR" ]]; then
     printf '  %s\n' "${files[@]}"
     exit 0
   fi
-  ok=0 fail=0
-  for f in "${files[@]}"; do
-    title=$(basename "$f" .mp3)
-    cover=""
-    [[ "$SKIP_COVER" != "1" ]] && cover=$(find_cover_for_mp3 "$f" || true)
-    echo "upload: $title${cover:+ (+ cover)}"
-    if track_id=$(upload_track "$f" "$title" "$cover"); then
-      wait_published "$track_id" || ((fail++)) || true
-      ((ok++)) || true
-    else
-      ((fail++)) || true
-    fi
-  done
-  echo "done: $ok uploaded, $fail failed"
+  upload_files "${files[@]}"
   exit 0
 fi
 
 mkdir -p "$WORK_DIR"
-trap 'rm -rf "$WORK_DIR"' EXIT
+if [[ "${KEEP_WORK_DIR:-0}" != "1" ]]; then
+  trap 'rm -rf "$WORK_DIR"' EXIT
+else
+  echo "KEEP_WORK_DIR=1 — files kept in $WORK_DIR" >&2
+fi
 
 echo "downloading playlist to $WORK_DIR (audio → mp3 ${BITRATE}k + thumbnails, temp video removed)..."
 yt_args=(
@@ -302,21 +369,8 @@ if [[ "$DRY_RUN" == "1" ]]; then
   exit 0
 fi
 
-ok=0 fail=0
-for f in "${files[@]}"; do
-  base=$(basename "$f" .mp3)
-  # strip leading "001 - " index if present
-  title=$(echo "$base" | sed -E 's/^[0-9]+ - //')
-  cover=""
-  [[ "$SKIP_COVER" != "1" ]] && cover=$(find_cover_for_mp3 "$f" || true)
-  echo "upload: $title${cover:+ (+ cover)}"
-  if track_id=$(upload_track "$f" "$title" "$cover"); then
-    wait_published "$track_id" || ((fail++)) || true
-    ((ok++)) || true
-  else
-    ((fail++)) || true
-  fi
-done
-
-echo "done: $ok uploaded, $fail failed"
+upload_files "${files[@]}"
 echo "open ${API%/}/ or your web UI — tracks appear after worker transcode."
+if [[ "${KEEP_WORK_DIR:-0}" != "1" ]]; then
+  trap - EXIT
+fi

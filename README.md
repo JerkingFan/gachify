@@ -34,8 +34,12 @@ cmd/migrate/          Apply migrations (`go run ./cmd/migrate`)
 **Requirements:** [Docker Desktop](https://www.docker.com/products/docker-desktop/) (running), Go 1.22+, Node 18+.
 
 ```powershell
-# One command: Docker + API + Web + demo data
-.\scripts\dev.ps1
+# No Docker (default): portable Redis + MinIO, Postgres installed once on Windows
+npm run setup    # first time: download .tools/redis + minio
+npm run dev
+
+# With Docker instead:
+npm run dev:docker
 ```
 
 | Service | URL |
@@ -70,12 +74,41 @@ cd apps/web && npm install && npm run dev
 
 The web app proxies `/api` to the backend (see `apps/web/vite.config.ts`).
 
+### Android APK
+
+One command from repo root (needs [Android Studio](https://developer.android.com/studio) installed once for the SDK):
+
+```powershell
+npm run dev          # API on :8080
+npm run apk          # -> gachify-debug.apk in repo root
+```
+
+Phone on Wi-Fi (replace with your PC IP):
+
+```powershell
+npm run apk -- --api http://192.168.1.5:8080
+```
+
+Install: `adb install gachify-debug.apk` or copy the file to the phone.
+
+Emulator default API URL: `http://10.0.2.2:8080` (set in `apps/web/.env.mobile`).
+
+| `VITE_API_ORIGIN` | When |
+|---------------------|------|
+| `http://10.0.2.2:8080` | Android emulator → localhost API |
+| `http://192.168.x.x:8080` | Phone on same Wi‑Fi as dev machine |
+| `https://api.yourdomain.com` | Production release build |
+
+Email/password login works out of the box. Google OAuth needs `GACHIFY_FRONTEND_URL` aligned with a custom URL scheme (future).
+
 ### Troubleshooting
 
 | Problem | Fix |
 |---------|-----|
-| `Docker daemon is not running` | Start Docker Desktop, wait until green, re-run `dev.ps1` |
-| `connectex ... 5432 refused` | `docker compose up -d --wait` |
+| PowerShell «выполнение сценариев отключено» | Use `npm run dev` from repo root (bypasses policy). Or: `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned` |
+| `Postgres is not running on localhost:5432` | `winget install PostgreSQL.PostgreSQL.16`, create user/db `gachify` (see `npm run setup`) |
+| `Docker daemon is not running` | Use `npm run dev` (no Docker). Or Docker Desktop + `npm run dev:docker` |
+| `connectex ... 5432 refused` | Install/start Postgres, or `npm run dev:docker` |
 | Empty home feed | `.\scripts\seed.ps1` |
 | Schema out of date | `.\scripts\apply-migrations.ps1` or `.\scripts\reset-db.ps1` |
 | DB already has tables but migrate fails | Baseline once: `go run ./cmd/migrate -cmd force -version 4` |

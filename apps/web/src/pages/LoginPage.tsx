@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Link, Navigate, useNavigate, useSearchParams } from "react-router-dom";
+import { apiUrl } from "@/lib/apiOrigin";
 import { useAuthStore } from "@/store/authStore";
 
 export function LoginPage() {
@@ -147,7 +148,7 @@ export function LoginPage() {
           </button>
 
           <a
-            href="/api/v1/auth/oidc/google/start"
+            href={apiUrl("/api/v1/auth/oidc/google/start")}
             className="mt-2 flex items-center justify-center gap-2 rounded-full border border-spotify-highlight py-3 text-sm font-semibold hover:bg-spotify-highlight"
           >
             Continue with Google

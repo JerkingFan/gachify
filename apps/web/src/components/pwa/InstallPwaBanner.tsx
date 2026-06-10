@@ -1,5 +1,6 @@
 import { Download, Share, X } from "lucide-react";
 import { useEffect, useState } from "react";
+import { isNativeApp } from "@/lib/native";
 import { isIOS, isStandalonePwa } from "@/lib/pwa";
 
 type BeforeInstallPromptEvent = Event & {
@@ -33,7 +34,7 @@ export function InstallPwaBanner() {
     return () => window.removeEventListener("beforeinstallprompt", onInstall);
   }, []);
 
-  if (hidden || dismissed) return null;
+  if (isNativeApp() || hidden || dismissed) return null;
 
   const dismiss = () => {
     setDismissed(true);

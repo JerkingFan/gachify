@@ -1,0 +1,19 @@
+{
+  "name": "gachify",
+  "private": true,
+  "description": "Gachify monorepo — npm run android / npm run dev from repo root",
+  "scripts": {
+    "dev": "node scripts/run.mjs dev",
+    "dev:docker": "node scripts/run.mjs dev -- -Docker",
+    "setup": "node scripts/run.mjs setup",
+    "start": "node scripts/run.mjs dev",
+    "apk": "node scripts/build-apk.mjs",
+    "main": "node scripts/build-apk.mjs --run",
+    "android": "node scripts/build-apk.mjs --run",
+    "android:apk": "node scripts/build-apk.mjs",
+    "android:studio": "node scripts/run.mjs android:studio",
+    "android:sync": "npm run cap:sync --prefix apps/web",
+    "web": "npm run dev --prefix apps/web",
+    "web:build": "npm run build --prefix apps/web"
+  }
+}

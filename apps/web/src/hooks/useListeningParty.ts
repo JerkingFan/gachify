@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import { api } from "@/api/client";
+import { apiUrl } from "@/lib/apiOrigin";
 import { usePlayerStore } from "@/store/playerStore";
 import type { PartyState, Track } from "@/types";
 
@@ -63,7 +64,7 @@ export function useListeningParty(code: string | null, hostToken: string | null)
   useEffect(() => {
     if (!code || hostToken) return;
 
-    const es = new EventSource(`/api/v1/parties/${encodeURIComponent(code)}/events`);
+    const es = new EventSource(apiUrl(`/api/v1/parties/${encodeURIComponent(code)}/events`));
     const apply = async (state: PartyState) => {
       if (applying.current) return;
       applying.current = true;

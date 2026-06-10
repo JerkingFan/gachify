@@ -30,9 +30,17 @@ Thumbs.db
 
 # Data volumes (local dev)
 .data/
+.tools/
 .dev/pids.json
+.dev/infra-pids.json
 backups/
 
 # Node
 node_modules/
 apps/web/dist/
+apps/web/.env.mobile
+apps/web/android/app/build/
+apps/web/android/.gradle/
+apps/web/android/build/
+apps/web/android/local.properties
+gachify-debug.apk

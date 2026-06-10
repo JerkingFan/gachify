@@ -39,17 +39,63 @@ function Test-DockerDaemon([int]$TimeoutMs = 8000) {
     return $p.ExitCode -eq 0
 }
 
+function Start-DockerDesktopIfInstalled {
+    $candidates = @(
+        (Join-Path ${env:ProgramFiles} "Docker\Docker\Docker Desktop.exe"),
+        (Join-Path ${env:ProgramFiles(x86)} "Docker\Docker\Docker Desktop.exe"),
+        (Join-Path $env:LOCALAPPDATA "Docker\Docker Desktop.exe")
+    )
+    foreach ($exe in $candidates) {
+        if (-not (Test-Path $exe)) { continue }
+        $running = Get-Process -Name "Docker Desktop" -ErrorAction SilentlyContinue
+        if (-not $running) {
+            Write-DevWarn "Docker Desktop is not running - starting it..."
+            Start-Process -FilePath $exe | Out-Null
+        }
+        return $true
+    }
+    return $false
+}
+
+function Wait-DockerDaemon([int]$TimeoutSec = 120) {
+    $deadline = (Get-Date).AddSeconds($TimeoutSec)
+    while ((Get-Date) -lt $deadline) {
+        if (Test-DockerDaemon -TimeoutMs 15000) { return $true }
+        Start-Sleep -Seconds 3
+    }
+    return $false
+}
+
+function Ensure-DockerRunning {
+    if (Test-DockerDaemon) { return $true }
+
+    if (Start-DockerDesktopIfInstalled) {
+        Write-DevStep "Waiting for Docker Desktop (up to 2 min)..."
+        if (Wait-DockerDaemon -TimeoutSec 120) { return $true }
+    }
+
+    return $false
+}
+
 function Assert-DockerRunning {
     if (-not (Test-CommandExists "docker")) {
-        throw "Docker CLI not found. Install Docker Desktop: https://www.docker.com/products/docker-desktop/"
-    }
-    if (-not (Test-DockerDaemon)) {
         throw @"
-Docker daemon is not running (or not responding within 8s).
-  1. Start Docker Desktop and wait until it shows 'Running'
-  2. Re-run: .\scripts\dev.ps1
+Docker CLI not found. Install Docker Desktop:
+  https://www.docker.com/products/docker-desktop/
 "@
     }
+    if (Ensure-DockerRunning) { return }
+
+    throw @"
+Docker daemon is not running.
+
+  1. Open Docker Desktop from the Start menu (whale icon)
+  2. Wait until it says Engine running / Running
+  3. Run again: npm run dev
+
+  Or skip Docker if Postgres+Redis are already up on localhost:
+    npm run dev -- -NoDocker
+"@
 }
 
 function Wait-TcpPort([string]$HostName, [int]$Port, [int]$TimeoutSec = 90) {
