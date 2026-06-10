@@ -43,10 +43,30 @@ export function patchMobileStreamUrls(): void {
   xhrPatched = true;
 }
 
+/** Keep user-gesture unlock on Android before async HLS load. */
+export function prepareNativePlayback(audio: HTMLAudioElement | null): void {
+  if (!audio || !isNativeApp()) return;
+  const prev = audio.volume;
+  audio.volume = 0;
+  void audio
+    .play()
+    .then(() => {
+      audio.pause();
+      audio.currentTime = 0;
+      audio.volume = prev;
+    })
+    .catch(() => {
+      audio.volume = prev;
+    });
+}
+
 export function createHls(audio: HTMLAudioElement): Hls {
   const config: Partial<HlsConfig> = {
     lowLatencyMode: false,
     enableWorker: !isNativeApp(),
+    xhrSetup: (xhr) => {
+      xhr.responseType = "arraybuffer";
+    },
   };
   const hls = new Hls(config);
   hls.attachMedia(audio);

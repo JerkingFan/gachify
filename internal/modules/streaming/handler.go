@@ -3,6 +3,7 @@ package streaming
 import (
 	"errors"
 	"net/http"
+	"strings"
 
 	"github.com/gachify/gachify/internal/domain"
 	"github.com/gachify/gachify/internal/modules/catalog"
@@ -30,6 +31,7 @@ func (h *Handler) Routes() chi.Router {
 	r.Get("/tracks/{id}/playback", h.playback)
 	r.Get("/playlist.m3u8", h.playlist)
 	r.Get("/hls.key", h.hlsKey)
+	r.Get("/segment", h.segment)
 	return r
 }
 
@@ -160,4 +162,34 @@ func (h *Handler) hlsKey(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write(key)
+}
+
+func (h *Handler) segment(w http.ResponseWriter, r *http.Request) {
+	_, trackID, ok := h.verifyPlaybackToken(w, r)
+	if !ok {
+		return
+	}
+	track, ok := h.loadPublishedTrack(w, r, trackID)
+	if !ok {
+		return
+	}
+	objectKey := r.URL.Query().Get("object")
+	if objectKey == "" {
+		httpserver.Error(w, http.StatusBadRequest, "missing_object", "object key required")
+		return
+	}
+	prefix := hlsPrefix(track.GachiMetadata)
+	if prefix == "" || !strings.HasPrefix(objectKey, prefix) {
+		httpserver.Error(w, http.StatusForbidden, "invalid_object", "object not allowed for this track")
+		return
+	}
+	data, err := h.svc.GetObjectBytes(r.Context(), objectKey)
+	if err != nil {
+		httpserver.Error(w, http.StatusNotFound, "not_found", "segment not found")
+		return
+	}
+	w.Header().Set("Content-Type", "video/mp2t")
+	w.Header().Set("Cache-Control", "private, max-age=120")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(data)
 }

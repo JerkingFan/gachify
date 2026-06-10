@@ -16,9 +16,10 @@ func TestRewritePlaylistMasterAndVariant(t *testing.T) {
 		ObjectPrefix:  "hls/" + trackID.String() + "/",
 	}
 	master := []byte("#EXTM3U\n#EXT-X-VERSION:6\n#EXT-X-STREAM-INF:BANDWIDTH=128000\n128k/playlist.m3u8\n")
-	out, err := rewritePlaylist(context.Background(), master, opts, func(_ context.Context, key string) (string, error) {
-		return "https://signed.example/" + key, nil
-	}, func(trackID, token, relPath string) string {
+	segURL := func(trackID, token, objectKey string) string {
+		return "/api/v1/stream/segment?track_id=" + trackID + "&pt=" + token + "&object=" + objectKey
+	}
+	out, err := rewritePlaylist(context.Background(), master, opts, segURL, func(trackID, token, relPath string) string {
 		return "/api/v1/stream/playlist.m3u8?track_id=" + trackID + "&pt=" + token + "&path=" + relPath
 	}, func(trackID, token string) string {
 		return "/api/v1/stream/hls.key?track_id=" + trackID + "&pt=" + token
@@ -33,9 +34,7 @@ func TestRewritePlaylistMasterAndVariant(t *testing.T) {
 
 	variant := []byte("#EXTM3U\n#EXT-X-KEY:METHOD=AES-128,URI=\"" + transcode.HLSKeyURIPlaceholder + "\"\nseg_000.ts\n")
 	opts.ObjectPrefix = "hls/" + trackID.String() + "/128k/"
-	out, err = rewritePlaylist(context.Background(), variant, opts, func(_ context.Context, key string) (string, error) {
-		return "https://signed.example/" + key, nil
-	}, func(trackID, token, relPath string) string {
+	out, err = rewritePlaylist(context.Background(), variant, opts, segURL, func(trackID, token, relPath string) string {
 		return "/playlist?path=" + relPath
 	}, func(trackID, token string) string {
 		return "/key?track_id=" + trackID
@@ -47,8 +46,8 @@ func TestRewritePlaylistMasterAndVariant(t *testing.T) {
 	if contains(body, transcode.HLSKeyURIPlaceholder) {
 		t.Fatalf("key placeholder should be rewritten: %q", body)
 	}
-	if !contains(body, "https://signed.example/hls/") {
-		t.Fatalf("expected presigned segment: %q", body)
+	if !contains(body, "/api/v1/stream/segment?") || !contains(body, "seg_000.ts") {
+		t.Fatalf("expected proxied segment url: %q", body)
 	}
 }
 

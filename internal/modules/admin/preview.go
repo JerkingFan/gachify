@@ -174,6 +174,45 @@ func (h *Handler) adminHLSKey(w http.ResponseWriter, r *http.Request) {
 	_, _ = w.Write(key)
 }
 
+func (h *Handler) adminSegment(w http.ResponseWriter, r *http.Request) {
+	if h.stream == nil || h.signer == nil {
+		httpserver.Error(w, http.StatusServiceUnavailable, "unavailable", "streaming not configured")
+		return
+	}
+	_, trackID, ok := h.verifyPlaybackToken(w, r)
+	if !ok {
+		return
+	}
+	track, ok := h.loadPendingReviewTrack(w, r, trackID)
+	if !ok {
+		return
+	}
+	objectKey := r.URL.Query().Get("object")
+	if objectKey == "" {
+		httpserver.Error(w, http.StatusBadRequest, "missing_object", "object key required")
+		return
+	}
+	manifestKey, _ := streaming.HLSManifestKey(track.GachiMetadata)
+	if manifestKey == "" {
+		httpserver.Error(w, http.StatusForbidden, "invalid_object", "track has no hls package")
+		return
+	}
+	prefix := manifestKey[:strings.LastIndex(manifestKey, "/")+1]
+	if !strings.HasPrefix(objectKey, prefix) {
+		httpserver.Error(w, http.StatusForbidden, "invalid_object", "object not allowed for this track")
+		return
+	}
+	data, err := h.stream.GetObjectBytes(r.Context(), objectKey)
+	if err != nil {
+		httpserver.Error(w, http.StatusNotFound, "not_found", "segment not found")
+		return
+	}
+	w.Header().Set("Content-Type", "video/mp2t")
+	w.Header().Set("Cache-Control", "private, max-age=120")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(data)
+}
+
 func (h *Handler) loadPendingReviewTrack(w http.ResponseWriter, r *http.Request, trackID uuid.UUID) (domain.Track, bool) {
 	track, err := h.catalog.GetByID(r.Context(), trackID)
 	if errors.Is(err, catalog.ErrNotFound) {

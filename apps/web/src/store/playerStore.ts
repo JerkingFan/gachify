@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { api } from "@/api/client";
 import { shouldCrossfade, shouldGapless } from "@/lib/continuousMix";
+import { prepareNativePlayback } from "@/lib/mobileMedia";
 import { addRecent } from "@/lib/storage";
 import { recordPlayOnce } from "@/lib/plays";
 import type { Track } from "@/types";
@@ -115,6 +116,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   },
 
   playTrack(track, queue) {
+    prepareNativePlayback(get().audio);
     const state = get();
     const q = queue ?? (state.queue.length ? state.queue : [track]);
     const idx = q.findIndex((t) => t.id === track.id);

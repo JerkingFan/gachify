@@ -48,6 +48,10 @@ func (s *Service) KeyURL(trackID, token string) string {
 	return KeyURL("/api/v1/stream", trackID, token)
 }
 
+func (s *Service) SegmentURL(trackID, token, objectKey string) string {
+	return segmentURL("/api/v1/stream", trackID, token, objectKey)
+}
+
 // AdminPlaylistURL is the moderation preview entry playlist (pending_review only).
 func AdminPlaylistURL(trackID, token, relPath string) string {
 	return playlistURL("/internal/admin/stream", trackID, token, relPath)
@@ -68,6 +72,15 @@ func playlistURL(basePath, trackID, token, relPath string) string {
 
 func KeyURL(basePath, trackID, token string) string {
 	return fmt.Sprintf("%s/hls.key?track_id=%s&pt=%s", basePath, trackID, url.QueryEscape(token))
+}
+
+func segmentURL(basePath, trackID, token, objectKey string) string {
+	return fmt.Sprintf("%s/segment?track_id=%s&pt=%s&object=%s", basePath, trackID, url.QueryEscape(token), url.QueryEscape(objectKey))
+}
+
+// AdminSegmentURL is the moderation preview segment proxy path.
+func AdminSegmentURL(trackID, token, objectKey string) string {
+	return segmentURL("/internal/admin/stream", trackID, token, objectKey)
 }
 
 func (s *Service) GetPlayback(_ context.Context, _ string, track domain.Track, userID *uuid.UUID) (PlaybackResponse, error) {
@@ -139,14 +152,14 @@ type rewriteOpts struct {
 }
 
 func (s *Service) ServePlaylist(ctx context.Context, track domain.Track, relPath, playbackToken string) ([]byte, error) {
-	return s.servePlaylistRewritten(ctx, track, relPath, playbackToken, s.PlaylistURL, s.KeyURL)
+	return s.servePlaylistRewritten(ctx, track, relPath, playbackToken, s.PlaylistURL, s.KeyURL, s.SegmentURL)
 }
 
 func (s *Service) ServeAdminPlaylist(ctx context.Context, track domain.Track, relPath, playbackToken string) ([]byte, error) {
-	return s.servePlaylistRewritten(ctx, track, relPath, playbackToken, AdminPlaylistURL, AdminKeyURL)
+	return s.servePlaylistRewritten(ctx, track, relPath, playbackToken, AdminPlaylistURL, AdminKeyURL, AdminSegmentURL)
 }
 
-func (s *Service) servePlaylistRewritten(ctx context.Context, track domain.Track, relPath, playbackToken string, playlistURL playlistURLFn, keyURL keyURLFn) ([]byte, error) {
+func (s *Service) servePlaylistRewritten(ctx context.Context, track domain.Track, relPath, playbackToken string, playlistURL playlistURLFn, keyURL keyURLFn, segmentURL segmentURLFn) ([]byte, error) {
 	basePrefix := hlsPrefix(track.GachiMetadata)
 	if basePrefix == "" {
 		return nil, fmt.Errorf("missing hls prefix")
@@ -171,9 +184,7 @@ func (s *Service) servePlaylistRewritten(ctx context.Context, track domain.Track
 		PlaybackToken: playbackToken,
 		ObjectPrefix:  prefix,
 	}
-	return rewritePlaylist(ctx, raw, opts, func(ctx context.Context, key string) (string, error) {
-		return s.storage.PresignGet(ctx, key, s.segTTL)
-	}, playlistURL, keyURL)
+	return rewritePlaylist(ctx, raw, opts, segmentURL, playlistURL, keyURL)
 }
 
 func (s *Service) GetHLSKey(ctx context.Context, trackID uuid.UUID) ([]byte, error) {
@@ -191,11 +202,11 @@ func (s *Service) PresignObject(ctx context.Context, objectKey string, ttl time.
 	return s.storage.PresignGet(ctx, objectKey, ttl)
 }
 
-type presignFn func(ctx context.Context, key string) (string, error)
+type segmentURLFn func(trackID, token, objectKey string) string
 type playlistURLFn func(trackID, token, relPath string) string
 type keyURLFn func(trackID, token string) string
 
-func rewritePlaylist(ctx context.Context, raw []byte, opts rewriteOpts, presign presignFn, playlistURL playlistURLFn, keyURL keyURLFn) ([]byte, error) {
+func rewritePlaylist(_ context.Context, raw []byte, opts rewriteOpts, segmentURL segmentURLFn, playlistURL playlistURLFn, keyURL keyURLFn) ([]byte, error) {
 	basePrefix := opts.ObjectPrefix
 	if i := strings.LastIndex(strings.TrimSuffix(basePrefix, "/"), "/"); i >= 0 {
 		// master prefix is hls/{id}/; variant prefix is hls/{id}/128k/
@@ -244,11 +255,7 @@ func rewritePlaylist(ctx context.Context, raw []byte, opts rewriteOpts, presign 
 			continue
 		}
 		segKey := opts.ObjectPrefix + trim
-		signed, err := presign(ctx, segKey)
-		if err != nil {
-			return nil, err
-		}
-		out.WriteString(signed)
+		out.WriteString(segmentURL(opts.TrackID.String(), opts.PlaybackToken, segKey))
 		out.WriteByte('\n')
 	}
 	if err := sc.Err(); err != nil {

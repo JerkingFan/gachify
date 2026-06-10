@@ -55,12 +55,14 @@ command -v curl >/dev/null || die "curl required"
 command -v jq >/dev/null || die "jq required"
 command -v ffprobe >/dev/null || die "ffprobe required (ffmpeg package)"
 
-if [[ -n "$LOCAL_MP3_DIR" ]]; then
+if [[ -n "$UPLOAD_DIR" ]]; then
+  [[ -d "$UPLOAD_DIR" ]] || die "UPLOAD_DIR not found: $UPLOAD_DIR"
+elif [[ -n "$LOCAL_MP3_DIR" ]]; then
   [[ -d "$LOCAL_MP3_DIR" ]] || die "LOCAL_MP3_DIR not found: $LOCAL_MP3_DIR"
 elif [[ -n "$PLAYLIST_URL" ]]; then
   command -v yt-dlp >/dev/null || die "yt-dlp required"
 else
-  die "usage: $0 <youtube-playlist-url>   OR   LOCAL_MP3_DIR=/path/to/mp3 $0"
+  die "usage: $0 <youtube-playlist-url>   OR   UPLOAD_DIR=/path/to/mp3 $0   OR   LOCAL_MP3_DIR=/path $0"
 fi
 
 api() {

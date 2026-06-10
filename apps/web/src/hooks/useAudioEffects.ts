@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { isNativeApp } from "@/lib/native";
 import { usePlayerStore, type EqPreset } from "@/store/playerStore";
 
 type EffectChain = {
@@ -22,6 +23,7 @@ function presetGains(preset: EqPreset): { bass: number; mid: number; treble: num
 }
 
 function connectChain(audio: HTMLAudioElement): EffectChain | null {
+  if (isNativeApp()) return null;
   if (chains.has(audio)) return chains.get(audio)!;
   try {
     const ctx = new AudioContext();
@@ -58,6 +60,7 @@ export function useAudioEffects(audioRef: React.RefObject<HTMLAudioElement | nul
   const connected = useRef(false);
 
   useEffect(() => {
+    if (isNativeApp()) return;
     const audio = audioRef.current;
     if (!audio || connected.current) return;
     connected.current = true;
