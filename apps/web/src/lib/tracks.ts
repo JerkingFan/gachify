@@ -31,12 +31,25 @@ export function formatDuration(ms: number): string {
   return `${m}:${s.toString().padStart(2, "0")}`;
 }
 
+function isStoredCoverURL(url: string): boolean {
+  return (
+    url.includes("/gachify-masters/") ||
+    url.includes("/covers/") ||
+    url.includes("X-Amz-Algorithm=")
+  );
+}
+
+/** Cover image URL for <img src>. S3 covers use same-origin API redirect (works with any public IP/domain). */
 export function getCoverImageUrl(track: Track | null | undefined): string | null {
   if (!track) return null;
   const meta = parseGachiMeta(track);
   if (meta.cover_url && typeof meta.cover_url === "string") {
     const url = meta.cover_url.trim();
-    if (url) return url;
+    if (!url) return null;
+    if (isStoredCoverURL(url)) {
+      return `/api/v1/tracks/${track.id}/cover`;
+    }
+    return url;
   }
   return null;
 }

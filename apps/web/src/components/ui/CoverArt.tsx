@@ -1,4 +1,5 @@
 import { Music2 } from "lucide-react";
+import { useEffect, useState } from "react";
 import { coverGradient, getCoverImageUrl } from "@/lib/tracks";
 import type { Track } from "@/types";
 
@@ -18,18 +19,31 @@ const sizes = {
 
 export function CoverArt({ track, seed, size = "md", className = "" }: CoverArtProps) {
   const coverUrl = track ? getCoverImageUrl(track) : null;
+  const [broken, setBroken] = useState(false);
   const gradient = track
     ? coverGradient(track)
     : `linear-gradient(135deg, #1ed76033, #282828)`;
 
+  useEffect(() => {
+    setBroken(false);
+  }, [coverUrl, track?.id]);
+
+  const showImage = Boolean(coverUrl) && !broken;
+
   return (
     <div
       className={`relative flex shrink-0 items-center justify-center overflow-hidden rounded shadow-lg ${sizes[size]} ${className}`}
-      style={coverUrl ? undefined : { background: gradient }}
+      style={showImage ? undefined : { background: gradient }}
       title={track?.title ?? seed}
     >
-      {coverUrl ? (
-        <img src={coverUrl} alt="" className="h-full w-full object-cover" loading="lazy" />
+      {showImage ? (
+        <img
+          src={coverUrl!}
+          alt=""
+          className="h-full w-full object-cover"
+          loading="lazy"
+          onError={() => setBroken(true)}
+        />
       ) : (
         <Music2
           className={`text-white/40 ${size === "sm" ? "h-4 w-4" : size === "xl" ? "h-16 w-16" : "h-6 w-6"}`}

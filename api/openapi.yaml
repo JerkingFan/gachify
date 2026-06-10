@@ -643,6 +643,17 @@ paths:
               schema:
                 $ref: "#/components/schemas/UploadInitResponse"
 
+  /api/v1/tracks/{id}/cover:
+    get:
+      tags: [tracks]
+      parameters:
+        - $ref: "#/components/parameters/UuidId"
+      responses:
+        "302":
+          description: Redirect to presigned cover image
+        "404":
+          description: Track or cover not found
+
   /api/v1/creator/tracks/{trackID}/cover/complete:
     post:
       tags: [creator]

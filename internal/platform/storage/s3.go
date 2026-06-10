@@ -24,6 +24,7 @@ type Client struct {
 	bucket        string
 	maxBytes      int64
 	publicBaseURL string
+	appCfg        appconfig.Config
 }
 
 func NewClient(ctx context.Context, cfg appconfig.Config) (*Client, error) {
@@ -56,8 +57,11 @@ func NewClient(ctx context.Context, cfg appconfig.Config) (*Client, error) {
 		bucket:        cfg.S3BucketMasters,
 		maxBytes:      cfg.UploadMaxBytes,
 		publicBaseURL: publicURL,
+		appCfg:        cfg,
 	}, nil
 }
+
+func (c *Client) PublicBaseURL() string { return c.publicBaseURL }
 
 func s3Options(pathStyle bool) func(*s3.Options) {
 	return func(o *s3.Options) {
@@ -122,14 +126,32 @@ func (c *Client) PresignPut(ctx context.Context, objectKey, contentType string, 
 }
 
 func (c *Client) PresignGet(ctx context.Context, objectKey string, ttl time.Duration) (string, error) {
-	out, err := c.presigner.PresignGetObject(ctx, &s3.GetObjectInput{
+	return c.PresignGetWithBase(ctx, objectKey, c.publicBaseURL, ttl)
+}
+
+// PresignGetWithBase signs a GET URL for the given public origin (e.g. request Host).
+func (c *Client) PresignGetWithBase(ctx context.Context, objectKey, publicBase string, ttl time.Duration) (string, error) {
+	publicBase = stringsTrimRightSlash(publicBase)
+	presigner := c.presigner
+	if publicBase != "" && publicBase != c.publicBaseURL {
+		presignCfg, err := loadAWSConfig(ctx, c.appCfg, publicBase)
+		if err != nil {
+			return "", fmt.Errorf("presign aws config: %w", err)
+		}
+		presigner = s3.NewPresignClient(s3.NewFromConfig(presignCfg, s3Options(c.appCfg.S3UsePathStyle)))
+	}
+	out, err := presigner.PresignGetObject(ctx, &s3.GetObjectInput{
 		Bucket: aws.String(c.bucket),
 		Key:    aws.String(objectKey),
 	}, s3.WithPresignExpires(ttl))
 	if err != nil {
 		return "", fmt.Errorf("presign get: %w", err)
 	}
-	return c.rewritePresignedURL(out.URL), nil
+	url := out.URL
+	if publicBase == c.publicBaseURL || publicBase == "" {
+		url = c.rewritePresignedURL(url)
+	}
+	return url, nil
 }
 
 type ObjectInfo struct {

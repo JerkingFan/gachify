@@ -39,6 +39,7 @@ func (h *Handler) Routes() chi.Router {
 	r.Get("/{id}/similar", h.similar)
 	r.Get("/{id}/next", h.recommendNext)
 	r.Get("/{id}/lyrics", h.lyrics)
+	r.Get("/{id}/cover", h.trackCover)
 	r.Get("/{id}", h.getByID)
 	r.Post("/{id}/play", h.recordPlay)
 	return r
