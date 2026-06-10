@@ -3,7 +3,9 @@ import { useCallback, useEffect, useState } from "react";
 import { Link, Navigate } from "react-router-dom";
 import { api } from "@/api/client";
 import { LrcEditorPanel } from "@/components/creator/LrcEditorPanel";
+import { TrackCoverButton } from "@/components/creator/TrackCoverButton";
 import { TopBar } from "@/components/layout/TopBar";
+import { CoverArt } from "@/components/ui/CoverArt";
 import { trackHasLyricsFromTrack } from "@/lib/lyrics";
 import { useAuthStore } from "@/store/authStore";
 import type { Track } from "@/types";
@@ -47,7 +49,7 @@ export function CreatorHubPage() {
 
   if (!isAuthenticated) return <Navigate to="/login" replace />;
 
-  const onLyricsSaved = (updated: Track) => {
+  const onTrackUpdated = (updated: Track) => {
     setTracks((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
   };
 
@@ -116,6 +118,7 @@ export function CreatorHubPage() {
                   return (
                     <li key={t.id} className="py-3">
                       <div className="flex items-center justify-between gap-4">
+                        <CoverArt track={t} size="sm" className="!h-12 !w-12" />
                         <div className="min-w-0 flex-1">
                           <Link
                             to={`/track/${t.id}`}
@@ -130,6 +133,7 @@ export function CreatorHubPage() {
                           </p>
                         </div>
                         <div className="flex shrink-0 items-center gap-2">
+                          <TrackCoverButton track={t} onSaved={onTrackUpdated} />
                           {t.status === "published" && (
                             <Link
                               to={`/artist/${t.creator_id}`}
@@ -153,7 +157,7 @@ export function CreatorHubPage() {
                         </div>
                       </div>
                       {open && (
-                        <LrcEditorPanel track={t} onSaved={onLyricsSaved} />
+                        <LrcEditorPanel track={t} onSaved={onTrackUpdated} />
                       )}
                     </li>
                   );
@@ -176,7 +180,7 @@ export function CreatorHubPage() {
 
           <div className="mt-8 flex items-center gap-2 rounded-lg border border-white/10 p-4 text-sm text-spotify-muted">
             <BarChart3 className="h-4 w-4 shrink-0" />
-            Tip: paste LRC at upload or edit here anytime before/after publish — fans get synced karaoke in the player.
+            Tip: use <strong className="font-semibold text-white">Cover</strong> to upload JPEG/PNG/WebP artwork; paste LRC for synced karaoke in the player.
           </div>
         </div>
       </div>

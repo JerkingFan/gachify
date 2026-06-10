@@ -1,10 +1,11 @@
 import { api } from "@/api/client";
+import type { Track } from "@/types";
 
 const COVER_ACCEPT = "image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp";
 
 export { COVER_ACCEPT };
 
-export async function uploadTrackCover(trackId: string, file: File): Promise<void> {
+export async function uploadTrackCover(trackId: string, file: File): Promise<Track> {
   const contentType =
     file.type && file.type !== "application/octet-stream"
       ? file.type
@@ -26,5 +27,5 @@ export async function uploadTrackCover(trackId: string, file: File): Promise<voi
   if (!putRes.ok) {
     throw new Error(`Cover upload failed (${putRes.status})`);
   }
-  await api.completeCoverUpload(trackId);
+  return api.completeCoverUpload(trackId);
 }

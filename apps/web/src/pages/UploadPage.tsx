@@ -2,8 +2,10 @@ import { AlertCircle, CheckCircle2, Loader2, RotateCcw, Upload } from "lucide-re
 import { useCallback, useEffect, useState } from "react";
 import { Link, Navigate } from "react-router-dom";
 import { api } from "@/api/client";
+import { TrackCoverButton } from "@/components/creator/TrackCoverButton";
 import { TrackMetadataForm } from "@/components/creator/TrackMetadataForm";
 import { TopBar } from "@/components/layout/TopBar";
+import { CoverArt } from "@/components/ui/CoverArt";
 import { uploadTrackCover } from "@/lib/coverUpload";
 import { readLrcFile } from "@/lib/lyrics";
 import {
@@ -218,13 +220,9 @@ export function UploadPage() {
     setMessage("");
   };
 
-  const changeTrackCover = async (trackId: string, file: File) => {
-    try {
-      await uploadTrackCover(trackId, file);
-      void loadMyTracks();
-    } catch (err) {
-      setMessage(err instanceof Error ? err.message : "Cover upload failed");
-    }
+  const onTrackCoverSaved = (updated: Track) => {
+    setMyTracks((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
+    setMessage(`Cover updated for «${updated.title}»`);
   };
 
   const failedTrackId = track && isFailedTrack(track) ? track.id : null;
@@ -408,25 +406,16 @@ export function UploadPage() {
                   return (
                     <li
                       key={t.id}
-                      className="flex items-center justify-between gap-2 rounded-md bg-spotify-highlight px-4 py-2 text-sm"
+                      className="flex items-center justify-between gap-3 rounded-md bg-spotify-highlight px-4 py-2 text-sm"
                     >
-                      <Link to={`/track/${t.id}`} className="min-w-0 truncate font-medium hover:underline">
-                        {t.title}
-                      </Link>
+                      <div className="flex min-w-0 items-center gap-3">
+                        <CoverArt track={t} size="sm" />
+                        <Link to={`/track/${t.id}`} className="min-w-0 truncate font-medium hover:underline">
+                          {t.title}
+                        </Link>
+                      </div>
                       <div className="flex shrink-0 items-center gap-2">
-                        <label className="cursor-pointer text-xs text-spotify-muted hover:text-white">
-                          Cover
-                          <input
-                            type="file"
-                            accept="image/jpeg,image/png,image/webp"
-                            className="hidden"
-                            onChange={(e) => {
-                              const f = e.target.files?.[0];
-                              e.target.value = "";
-                              if (f) void changeTrackCover(t.id, f);
-                            }}
-                          />
-                        </label>
+                        <TrackCoverButton track={t} onSaved={onTrackCoverSaved} />
                         {failed && (
                           <button
                             type="button"

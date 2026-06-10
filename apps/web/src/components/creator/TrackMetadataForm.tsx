@@ -87,7 +87,8 @@ export function TrackMetadataForm({
       </div>
 
       <div className="space-y-2">
-        <p className="text-sm text-spotify-muted">Cover image (optional)</p>
+        <p className="text-sm font-semibold text-white">Cover image (optional)</p>
+        <p className="text-xs text-spotify-muted">JPEG, PNG or WebP — shows on cards and in the player</p>
         <div className="flex items-start gap-4">
           <div
             className="flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-md border border-white/10 bg-spotify-highlight"
