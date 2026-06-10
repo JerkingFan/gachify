@@ -23,7 +23,8 @@
 #   MP3_BITRATE=192              # default 192 kbps
 #   WORK_DIR=/tmp/gachify-import # temp download dir
 #   DRY_RUN=1                    # only download, no upload
-#   LIMIT=5                      # first N videos only
+#   LIMIT=5                      # first N successfully downloaded tracks
+#   YTDLP_COOKIES=/path/cookies.txt  # Netscape cookies (export from browser) if YouTube blocks VPS
 
 set -euo pipefail
 
@@ -36,6 +37,7 @@ BITRATE="${MP3_BITRATE:-192}"
 WORK_DIR="${WORK_DIR:-/tmp/gachify-import-$$}"
 DRY_RUN="${DRY_RUN:-0}"
 LIMIT="${LIMIT:-0}"
+COOKIES="${YTDLP_COOKIES:-}"
 
 die() { echo "error: $*" >&2; exit 1; }
 
@@ -133,13 +135,25 @@ yt_args=(
   -o "%(playlist_index)03d - %(title).200B.%(ext)s"
   --no-overwrites
   --restrict-filenames
+  --ignore-errors
+  --retries 5
+  --fragment-retries 5
+  # Helps on datacenter IPs where YouTube returns empty playlists
+  --extractor-args "youtube:player_client=android,web"
 )
-(( LIMIT > 0 )) && yt_args+=(--playlist-end "$LIMIT")
-yt-dlp "${yt_args[@]}" -P "$WORK_DIR" "$PLAYLIST_URL"
+[[ -n "$COOKIES" && -f "$COOKIES" ]] && yt_args+=(--cookies "$COOKIES")
+(( LIMIT > 0 )) && yt_args+=(--max-downloads "$LIMIT")
+yt-dlp "${yt_args[@]}" -P "$WORK_DIR" "$PLAYLIST_URL" || true
 
 shopt -s nullglob
 files=("$WORK_DIR"/*.mp3)
-(( ${#files[@]} > 0 )) || die "no mp3 files downloaded"
+if (( ${#files[@]} == 0 )); then
+  echo "hint: run 'sudo yt-dlp -U' and retry." >&2
+  echo "hint: if playlist shows 0 items, export browser cookies to cookies.txt and:" >&2
+  echo "      export YTDLP_COOKIES=~/cookies.txt" >&2
+  echo "hint: test one video: yt-dlp -x --audio-format mp3 -o test.mp3 'https://www.youtube.com/watch?v=VIDEO_ID'" >&2
+  die "no mp3 files downloaded (YouTube may block this server or all videos are unavailable)"
+fi
 
 echo "found ${#files[@]} file(s)"
 if [[ "$DRY_RUN" == "1" ]]; then
