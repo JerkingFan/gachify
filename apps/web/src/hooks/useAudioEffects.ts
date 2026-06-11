@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect } from "react";
 import { isNativeApp } from "@/lib/native";
 import { usePlayerStore, type EqPreset } from "@/store/playerStore";
 
@@ -23,7 +23,6 @@ function presetGains(preset: EqPreset): { bass: number; mid: number; treble: num
 }
 
 function connectChain(audio: HTMLAudioElement): EffectChain | null {
-  if (isNativeApp()) return null;
   if (chains.has(audio)) return chains.get(audio)!;
   try {
     const ctx = new AudioContext();
@@ -54,27 +53,37 @@ function applyPreset(chain: EffectChain, preset: EqPreset) {
   chain.treble.gain.value = g.treble;
 }
 
-/** Web Audio EQ / bass boost on the shared <audio> element. */
+function resumeChain(audio: HTMLAudioElement) {
+  const chain = chains.get(audio);
+  if (chain?.ctx.state === "suspended") void chain.ctx.resume();
+}
+
+/** Web Audio EQ — only when preset is not "off" (avoids silent playback on suspended context). */
 export function useAudioEffects(audioRef: React.RefObject<HTMLAudioElement | null>) {
   const eqPreset = usePlayerStore((s) => s.eqPreset);
-  const connected = useRef(false);
 
   useEffect(() => {
     if (isNativeApp()) return;
     const audio = audioRef.current;
-    if (!audio || connected.current) return;
-    connected.current = true;
-    const chain = connectChain(audio);
-    if (chain) applyPreset(chain, eqPreset);
-  }, [audioRef, eqPreset]);
+    if (!audio) return;
+
+    const onPlay = () => resumeChain(audio);
+    audio.addEventListener("play", onPlay);
+    return () => audio.removeEventListener("play", onPlay);
+  }, [audioRef]);
 
   useEffect(() => {
+    if (isNativeApp()) return;
     const audio = audioRef.current;
     if (!audio) return;
-    const chain = chains.get(audio);
+
+    if (eqPreset === "off") return;
+
+    const existing = chains.get(audio);
+    const chain = existing ?? connectChain(audio);
     if (chain) {
       applyPreset(chain, eqPreset);
-      if (chain.ctx.state === "suspended") void chain.ctx.resume();
+      resumeChain(audio);
     }
   }, [audioRef, eqPreset]);
 }

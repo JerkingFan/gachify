@@ -18,8 +18,11 @@ export function createHls(audio: HTMLAudioElement): Hls {
   const config: Partial<HlsConfig> = {
     lowLatencyMode: false,
     enableWorker: !isNativeApp(),
-    xhrSetup: (xhr) => {
-      xhr.responseType = "arraybuffer";
+    // arraybuffer only for segments — applying it to .m3u8 breaks manifest parsing on web
+    xhrSetup: (xhr, url) => {
+      if (url.includes("/segment?") || url.endsWith(".ts")) {
+        xhr.responseType = "arraybuffer";
+      }
     },
   };
   const hls = new Hls(config);

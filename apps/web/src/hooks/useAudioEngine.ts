@@ -3,7 +3,6 @@ import { type RefObject, useEffect, useRef } from "react";
 import { api } from "@/api/client";
 import { apiUrl } from "@/lib/apiOrigin";
 import { configureAudioForPlatform, createHls, ensureAudible } from "@/lib/mobileMedia";
-import { isNativeApp } from "@/lib/native";
 import { crossfadeAudio } from "@/lib/crossfade";
 import { useAudioEffects } from "@/hooks/useAudioEffects";
 import { getOfflinePlayback } from "@/lib/offlineTracks";
@@ -42,14 +41,14 @@ async function attachPlayback(
   const playlistUrl = playback.playlist_url ? apiUrl(playback.playlist_url) : null;
   const fallbackUrl = playback.fallback_url ? apiUrl(playback.fallback_url) : null;
 
-  // Native WebView: progressive MP3 via API is far more reliable than MSE/HLS.
-  if (isNativeApp() && directUrl) {
+  // Same-origin MP3 proxy — reliable on web and mobile (no MSE / WebAudio HLS quirks).
+  if (directUrl) {
     audio.src = directUrl;
     return;
   }
 
-  if (playback.format === "mp3" && directUrl) {
-    audio.src = directUrl;
+  if (playback.format === "mp3" && fallbackUrl) {
+    audio.src = fallbackUrl;
     return;
   }
 
@@ -60,14 +59,15 @@ async function attachPlayback(
       hls.loadSource(playlistUrl);
       hls.on(Hls.Events.MANIFEST_PARSED, () => resolve());
       hls.on(Hls.Events.ERROR, (_, data) => {
-        if (data.fatal && fallbackUrl) {
-          hls.destroy();
-          hlsRef.current = null;
+        if (!data.fatal) return;
+        hls.destroy();
+        hlsRef.current = null;
+        if (fallbackUrl) {
           audio.src = fallbackUrl;
           resolve();
-        } else if (data.fatal) {
-          reject(data);
+          return;
         }
+        reject(data);
       });
     });
     return;
@@ -101,7 +101,6 @@ export function useAudioEngine(audioRef: RefObject<HTMLAudioElement | null>) {
     const onPlay = () => usePlayerStore.setState({ isPlaying: true });
     const onPause = () => usePlayerStore.setState({ isPlaying: false });
     const onPlaying = () => {
-      if (!isNativeApp()) return;
       ensureAudible(audio, usePlayerStore.getState().volume);
     };
 
