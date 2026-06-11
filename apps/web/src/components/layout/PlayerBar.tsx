@@ -1,5 +1,4 @@
 import {
-  Gauge,
   Heart,
   Laptop2,
   ListMusic,
@@ -23,6 +22,7 @@ import { useAuthStore } from "@/store/authStore";
 import { useLibraryStore } from "@/store/libraryStore";
 import { usePlayerStore } from "@/store/playerStore";
 import { useUIStore } from "@/store/uiStore";
+import { PlayerComfortMenu } from "@/components/player/PlayerComfortMenu";
 import { CoverArt } from "@/components/ui/CoverArt";
 
 type PlayerBarProps = {
@@ -148,18 +148,16 @@ export function PlayerBar({ hasLyrics = false }: PlayerBarProps) {
                 </button>
               ) : null}
               <KaraokeButton hasLyrics={hasLyrics} size="lg" />
+              {track && <PlayerComfortMenu />}
               {track && (
                 <button
                   type="button"
                   onClick={openNowPlaying}
                   className="btn-icon touch-target shrink-0 relative"
-                  title={`${expandedPlayerTitle} — EQ, timer, speed`}
+                  title={`${expandedPlayerTitle} — waveform, EQ`}
                   aria-label={expandedPlayerTitle}
                 >
-                  <Gauge className="h-5 w-5" />
-                  {(incognito || rateLabel) && (
-                    <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-spotify-green" />
-                  )}
+                  <Maximize2 className="h-5 w-5" />
                 </button>
               )}
               <button
@@ -270,14 +268,15 @@ export function PlayerBar({ hasLyrics = false }: PlayerBarProps) {
       </div>
 
       <div className="hidden items-center justify-end gap-2 md:flex">
+        {track && <PlayerComfortMenu />}
         {track && (
           <button
             type="button"
             onClick={openNowPlaying}
-            className="btn-icon text-spotify-green"
-            title={`${expandedPlayerTitle} — EQ, sleep timer, ${playbackRate}×`}
+            className="btn-icon text-white/70 hover:text-white"
+            title={expandedPlayerTitle}
           >
-            <Gauge className="h-4 w-4" />
+            <Maximize2 className="h-4 w-4" />
           </button>
         )}
         <button

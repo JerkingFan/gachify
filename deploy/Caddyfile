@@ -1,7 +1,24 @@
-# MinIO buckets are proxied on :80 so browsers never need host port 9000 open.
-# Set GACHIFY_S3_PUBLIC_ENDPOINT to the same origin (e.g. http://5.83.140.179).
+# Automatic HTTPS via Let's Encrypt when GACHIFY_DOMAIN is a real public hostname.
+# Set in .env: GACHIFY_DOMAIN=your.domain  ACME_EMAIL=you@example.com
+# DNS A-record must point to this server; ports 80 and 443 open in firewall.
+#
+# MinIO buckets are proxied on the same origin — browsers never need host port 9000.
+# Set GACHIFY_S3_PUBLIC_ENDPOINT to https://your.domain (same as GACHIFY_PUBLIC_API_URL).
 
-:80 {
+{
+	email {$ACME_EMAIL}
+}
+
+{$GACHIFY_DOMAIN:localhost} {
+	encode gzip
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		-Server
+	}
+
 	# Presigned PUT/GET (upload + HLS segments) — do not gzip binary bodies
 	handle /gachify-masters/* {
 		reverse_proxy minio:9000
@@ -11,32 +28,6 @@
 	}
 
 	handle {
-		encode gzip
 		reverse_proxy web:80
 	}
 }
-
-# Production HTTPS template — replace :80 block when GACHIFY_DOMAIN is set:
-#
-# {$GACHIFY_DOMAIN} {
-#     encode gzip
-#     header {
-#         Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
-#         X-Content-Type-Options "nosniff"
-#         X-Frame-Options "DENY"
-#         Referrer-Policy "strict-origin-when-cross-origin"
-#         -Server
-#     }
-#     handle /gachify-masters/* {
-#         reverse_proxy minio:9000
-#     }
-#     handle /gachify-public/* {
-#         reverse_proxy minio:9000
-#     }
-#     handle {
-#         encode gzip
-#         reverse_proxy web:80
-#     }
-# }
-#
-# Set ACME_EMAIL in .env and expose :443 on the caddy service.
