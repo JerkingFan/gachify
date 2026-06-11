@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { api } from "@/api/client";
 import { shouldCrossfade, shouldGapless } from "@/lib/continuousMix";
-import { prepareNativePlayback } from "@/lib/mobileMedia";
+import { unlockNativeAudio } from "@/lib/mobileMedia";
 import { addRecent } from "@/lib/storage";
 import { recordPlayOnce } from "@/lib/plays";
 import type { Track } from "@/types";
@@ -108,6 +108,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
 
   bindAudio(el) {
     set({ audio: el });
+    el.muted = false;
     el.volume = get().volume;
   },
 
@@ -116,7 +117,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   },
 
   playTrack(track, queue) {
-    prepareNativePlayback(get().audio);
+    unlockNativeAudio(get().audio);
     const state = get();
     const q = queue ?? (state.queue.length ? state.queue : [track]);
     const idx = q.findIndex((t) => t.id === track.id);
@@ -151,6 +152,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
       audio.pause();
       set({ isPlaying: false });
     } else {
+      audio.muted = false;
       void audio.play().then(() => set({ isPlaying: true }));
     }
   },

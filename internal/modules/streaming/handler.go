@@ -2,6 +2,7 @@ package streaming
 
 import (
 	"errors"
+	"io"
 	"net/http"
 	"strings"
 
@@ -32,6 +33,7 @@ func (h *Handler) Routes() chi.Router {
 	r.Get("/playlist.m3u8", h.playlist)
 	r.Get("/hls.key", h.hlsKey)
 	r.Get("/segment", h.segment)
+	r.Get("/audio", h.audio)
 	return r
 }
 
@@ -192,4 +194,35 @@ func (h *Handler) segment(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "private, max-age=120")
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write(data)
+}
+
+func (h *Handler) audio(w http.ResponseWriter, r *http.Request) {
+	_, trackID, ok := h.verifyPlaybackToken(w, r)
+	if !ok {
+		return
+	}
+	track, ok := h.loadPublishedTrack(w, r, trackID)
+	if !ok {
+		return
+	}
+	if track.MasterObjectKey == nil || strings.TrimSpace(*track.MasterObjectKey) == "" {
+		httpserver.Error(w, http.StatusNotFound, "no_audio", "source file not found")
+		return
+	}
+	stream, err := h.svc.OpenObject(r.Context(), strings.TrimSpace(*track.MasterObjectKey))
+	if err != nil {
+		httpserver.Error(w, http.StatusNotFound, "not_found", "audio not found")
+		return
+	}
+	defer stream.Body.Close()
+
+	ct := stream.ContentType
+	if track.SourceContentType != nil && strings.TrimSpace(*track.SourceContentType) != "" {
+		ct = strings.TrimSpace(*track.SourceContentType)
+	}
+	w.Header().Set("Content-Type", ct)
+	w.Header().Set("Accept-Ranges", "bytes")
+	w.Header().Set("Cache-Control", "private, max-age=120")
+	w.WriteHeader(http.StatusOK)
+	_, _ = io.Copy(w, stream.Body)
 }

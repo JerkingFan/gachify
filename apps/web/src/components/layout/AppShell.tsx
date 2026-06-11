@@ -44,7 +44,15 @@ export function AppShell() {
   return (
     <div className="flex h-[100dvh] flex-col bg-spotify-black">
       {/* Persistent media element — must stay in DOM for iOS / PWA background audio */}
-      <audio ref={audioRef} id="gachify-player" className="sr-only" aria-hidden tabIndex={-1} />
+      <audio
+        ref={audioRef}
+        id="gachify-player"
+        className="sr-only"
+        preload="auto"
+        playsInline
+        aria-hidden
+        tabIndex={-1}
+      />
 
       <div className="flex min-h-0 flex-1">
         <Sidebar />

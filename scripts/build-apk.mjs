@@ -6,7 +6,7 @@
  *   npm run apk -- --api http://your-server.com
  */
 import { spawnSync } from "node:child_process";
-import { copyFileSync, cpSync, existsSync, writeFileSync } from "node:fs";
+import { copyFileSync, cpSync, existsSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -117,8 +117,35 @@ ensureMobileEnv();
 ensureAndroidSdk();
 ensureAndroidProject();
 
+function verifyApiOriginInBundle(apiOrigin) {
+  const dist = join(web, "dist", "assets");
+  if (!existsSync(dist)) {
+    console.error("dist/assets missing after mobile build");
+    process.exit(1);
+  }
+  const needle = apiOrigin.replace(/\/$/, "");
+  const hit = readdirSync(dist)
+    .filter((f) => f.endsWith(".js"))
+    .some((f) => readFileSync(join(dist, f), "utf8").includes(needle));
+  if (!hit) {
+    console.error(`
+API URL was not baked into the APK bundle (${needle}).
+
+  Re-run: npm run apk -- --api ${needle}
+`);
+    process.exit(1);
+  }
+}
+
+const resolvedOrigin =
+  useLocal
+    ? "http://10.0.2.2:8080"
+    : resolveMobileApiOrigin({ root, web, cliApi }) ??
+      (cliApi ? cliApi.replace(/\/$/, "") : null);
+
 console.log("\n==> Building web app (mobile)...");
 run(web, "npm", ["run", "build:mobile"]);
+if (resolvedOrigin) verifyApiOriginInBundle(resolvedOrigin);
 
 console.log("\n==> Syncing Capacitor...");
 run(web, "npx", ["cap", "sync", "android"]);

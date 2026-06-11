@@ -1,7 +1,19 @@
+import { isNativeApp } from "@/lib/native";
+
 /** Backend origin for native builds (Capacitor). Empty = same-origin (web). */
 export function getApiOrigin(): string {
   const raw = import.meta.env.VITE_API_ORIGIN?.trim() ?? "";
   return raw.replace(/\/$/, "");
+}
+
+/** Fail fast in APK if the server URL was not baked in at build time. */
+export function assertMobileApiConfigured(): void {
+  if (!isNativeApp()) return;
+  const origin = getApiOrigin();
+  if (origin) return;
+  throw new Error(
+    "VITE_API_ORIGIN is missing in this APK. Rebuild with: npm run apk -- --api http://YOUR_SERVER",
+  );
 }
 
 /** Resolve API/media path or passthrough absolute URL. */

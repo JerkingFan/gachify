@@ -178,6 +178,31 @@ func (c *Client) HeadObject(ctx context.Context, objectKey string) (ObjectInfo, 
 	return ObjectInfo{Size: size, ContentType: ct}, nil
 }
 
+type ObjectStream struct {
+	Body        io.ReadCloser
+	Size        int64
+	ContentType string
+}
+
+func (c *Client) OpenObject(ctx context.Context, objectKey string) (ObjectStream, error) {
+	out, err := c.s3.GetObject(ctx, &s3.GetObjectInput{
+		Bucket: aws.String(c.bucket),
+		Key:    aws.String(objectKey),
+	})
+	if err != nil {
+		return ObjectStream{}, fmt.Errorf("get object: %w", err)
+	}
+	var size int64
+	if out.ContentLength != nil {
+		size = *out.ContentLength
+	}
+	ct := "application/octet-stream"
+	if out.ContentType != nil && *out.ContentType != "" {
+		ct = *out.ContentType
+	}
+	return ObjectStream{Body: out.Body, Size: size, ContentType: ct}, nil
+}
+
 func (c *Client) GetObjectBytes(ctx context.Context, objectKey string) ([]byte, error) {
 	out, err := c.s3.GetObject(ctx, &s3.GetObjectInput{
 		Bucket: aws.String(c.bucket),

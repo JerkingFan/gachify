@@ -11,7 +11,8 @@ import type {
   TracksResponse,
   User,
 } from "@/types";
-import { apiUrl } from "@/lib/apiOrigin";
+import { apiUrl, getApiOrigin } from "@/lib/apiOrigin";
+import { isNativeApp } from "@/lib/native";
 
 const BASE = apiUrl("/api/v1");
 
@@ -94,9 +95,18 @@ async function request<T>(
   }
 
   const doFetch = () =>
-    fetch(`${BASE}${path}`, { ...init, headers });
+    fetch(`${BASE}${path}`, { ...init, headers, mode: "cors" });
 
-  let res = await doFetch();
+  let res: Response;
+  try {
+    res = await doFetch();
+  } catch (err) {
+    const hint = isNativeApp()
+      ? ` Cannot reach ${getApiOrigin() || "API"}. Check network and rebuild APK with npm run apk -- --api http://YOUR_SERVER`
+      : "";
+    const msg = err instanceof Error ? err.message : "Network error";
+    throw new Error(`${msg}${hint}`);
+  }
 
   if (res.status === 401 && auth) {
     const ok = await refreshSession();
@@ -775,6 +785,7 @@ export const api = {
   getPlayback(trackId: string): Promise<{
     format: "hls" | "mp3";
     playlist_url?: string;
+    direct_url?: string;
     fallback_url?: string;
     expires_in?: number;
     duration_ms: number;

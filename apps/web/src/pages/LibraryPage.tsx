@@ -82,10 +82,11 @@ export function LibraryPage() {
         {!isAuthenticated && (
           <div className="mb-6 rounded-lg bg-spotify-highlight p-4 text-sm">
             <p className="text-spotify-muted">
+              Гостевой режим: лайки и плейлисты сохраняются на этом устройстве.{" "}
               <Link to="/login" className="font-semibold text-white underline">
-                Log in
+                Войти
               </Link>{" "}
-              to sync liked tracks and playlists across devices.
+              — чтобы синхронизировать между устройствами.
             </p>
           </div>
         )}

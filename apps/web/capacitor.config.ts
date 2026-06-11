@@ -16,9 +16,10 @@ const config: CapacitorConfig = {
     allowMixedContent: true,
   },
   plugins: {
-    // Native fetch — no browser CORS (Capacitor WebView origin != your API host)
+    // Off: the HTTP interceptor breaks JSON fetch on many Android builds.
+    // API CORS allows http://localhost (androidScheme).
     CapacitorHttp: {
-      enabled: true,
+      enabled: false,
     },
     SplashScreen: {
       launchAutoHide: true,

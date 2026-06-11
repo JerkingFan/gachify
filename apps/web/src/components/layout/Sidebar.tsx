@@ -130,6 +130,11 @@ export function Sidebar({ mobile }: SidebarProps) {
 
         <div className="flex-1 overflow-y-auto px-1">
           {!isAuthenticated ? (
+            <p className="px-3 py-1 text-xs text-spotify-muted">
+              Гость — музыка доступна без входа
+            </p>
+          ) : null}
+          {!isAuthenticated ? (
             <Link
               to="/login"
               onClick={() => mobile && setSidebarOpen(false)}

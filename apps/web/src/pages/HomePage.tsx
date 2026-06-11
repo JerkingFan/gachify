@@ -19,6 +19,7 @@ import { useFeed } from "@/hooks/useFeed";
 import { useForYou } from "@/hooks/useForYou";
 import { useFilterPresets } from "@/hooks/useFilterPresets";
 import { filtersToSearchParams, type TrackFilterParams } from "@/lib/trackFilters";
+import { isMobileBuild } from "@/lib/apiOrigin";
 import { useAuthStore } from "@/store/authStore";
 import { usePlayerStore } from "@/store/playerStore";
 
@@ -77,6 +78,11 @@ export function HomePage() {
           <>
             <div className="bg-gradient-gachi px-6 pb-6 pt-4">
               <p className="text-sm font-semibold text-white">{greeting()}</p>
+              {!isAuthenticated && (
+                <p className="mt-2 text-sm text-white/80">
+                  Слушай без регистрации — нажми Play на любом треке.
+                </p>
+              )}
               <div className="mt-4 flex items-end justify-between gap-4">
                 <h1 className="text-5xl font-black tracking-tight md:text-7xl">
                   Dungeon Mix
@@ -97,7 +103,11 @@ export function HomePage() {
                 <EmptyState
                   icon={ServerCrash}
                   title="Can't reach the API"
-                  description={`${error} — run docker compose up -d && go run ./cmd/api`}
+                  description={
+                    isMobileBuild()
+                      ? `${error} — проверь интернет и пересобери APK: npm run apk -- --api http://5.83.140.179`
+                      : `${error} — run docker compose up -d && go run ./cmd/api`
+                  }
                   actionLabel="Retry"
                   onAction={() => refresh()}
                 />
@@ -107,9 +117,13 @@ export function HomePage() {
                 <EmptyState
                   icon={Music2}
                   title="No remixes yet"
-                  description="Seed the database or upload your first gachi remix."
-                  actionLabel="Upload remix"
-                  actionTo="/upload"
+                  description={
+                    isAuthenticated
+                      ? "Seed the database or upload your first gachi remix."
+                      : "Пока нет треков на сервере. Зайди позже или открой Discover."
+                  }
+                  actionLabel={isAuthenticated ? "Upload remix" : "Discover"}
+                  actionTo={isAuthenticated ? "/upload" : "/discover"}
                 />
               )}
 

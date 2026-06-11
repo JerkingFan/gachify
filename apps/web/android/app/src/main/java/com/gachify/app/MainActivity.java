@@ -9,10 +9,10 @@ public class MainActivity extends BridgeActivity {
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         if (getBridge() != null && getBridge().getWebView() != null) {
-            getBridge()
-                .getWebView()
-                .getSettings()
-                .setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
+            WebSettings settings = getBridge().getWebView().getSettings();
+            settings.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
+            // Allow play() after async HLS load (otherwise WebView plays muted: timer runs, no sound).
+            settings.setMediaPlaybackRequiresUserGesture(false);
         }
     }
 }

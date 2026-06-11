@@ -35,6 +35,7 @@ func NewService(cat *catalog.Repository, st *storage.Client, signer *streamtoken
 type PlaybackResponse struct {
 	Format      string `json:"format"`
 	PlaylistURL string `json:"playlist_url"`
+	DirectURL   string `json:"direct_url,omitempty"`
 	ExpiresIn   int64  `json:"expires_in"`
 	DurationMs  int    `json:"duration_ms"`
 	FallbackURL string `json:"fallback_url,omitempty"`
@@ -50,6 +51,10 @@ func (s *Service) KeyURL(trackID, token string) string {
 
 func (s *Service) SegmentURL(trackID, token, objectKey string) string {
 	return segmentURL("/api/v1/stream", trackID, token, objectKey)
+}
+
+func (s *Service) AudioURL(trackID, token string) string {
+	return audioURL("/api/v1/stream", trackID, token)
 }
 
 // AdminPlaylistURL is the moderation preview entry playlist (pending_review only).
@@ -78,6 +83,10 @@ func segmentURL(basePath, trackID, token, objectKey string) string {
 	return fmt.Sprintf("%s/segment?track_id=%s&pt=%s&object=%s", basePath, trackID, url.QueryEscape(token), url.QueryEscape(objectKey))
 }
 
+func audioURL(basePath, trackID, token string) string {
+	return fmt.Sprintf("%s/audio?track_id=%s&pt=%s", basePath, trackID, url.QueryEscape(token))
+}
+
 // AdminSegmentURL is the moderation preview segment proxy path.
 func AdminSegmentURL(trackID, token, objectKey string) string {
 	return segmentURL("/internal/admin/stream", trackID, token, objectKey)
@@ -85,9 +94,27 @@ func AdminSegmentURL(trackID, token, objectKey string) string {
 
 func (s *Service) GetPlayback(_ context.Context, _ string, track domain.Track, userID *uuid.UUID) (PlaybackResponse, error) {
 	manifestKey, fallback := hlsManifestKey(track.GachiMetadata)
+	masterKey := ""
+	if track.MasterObjectKey != nil {
+		masterKey = strings.TrimSpace(*track.MasterObjectKey)
+	}
+
 	if manifestKey == "" {
-		if fallback == "" {
+		if masterKey == "" && fallback == "" {
 			return PlaybackResponse{}, fmt.Errorf("track has no streaming package")
+		}
+		if masterKey != "" {
+			token, exp, err := s.signer.Issue(track.ID, userID)
+			if err != nil {
+				return PlaybackResponse{}, err
+			}
+			return PlaybackResponse{
+				Format:      "mp3",
+				DirectURL:   s.AudioURL(track.ID.String(), token),
+				ExpiresIn:   int64(time.Until(exp).Seconds()),
+				DurationMs:  track.DurationMs,
+				FallbackURL: fallback,
+			}, nil
 		}
 		return PlaybackResponse{
 			Format:      "mp3",
@@ -101,13 +128,17 @@ func (s *Service) GetPlayback(_ context.Context, _ string, track domain.Track, u
 		return PlaybackResponse{}, err
 	}
 
-	return PlaybackResponse{
+	out := PlaybackResponse{
 		Format:      "hls",
 		PlaylistURL: s.PlaylistURL(track.ID.String(), token, ""),
 		ExpiresIn:   int64(time.Until(exp).Seconds()),
 		DurationMs:  track.DurationMs,
 		FallbackURL: fallback,
-	}, nil
+	}
+	if masterKey != "" {
+		out.DirectURL = s.AudioURL(track.ID.String(), token)
+	}
+	return out, nil
 }
 
 // HLSManifestKey returns the object-store manifest key and optional preview URL from track metadata.
@@ -196,6 +227,10 @@ func (s *Service) GetHLSKey(ctx context.Context, trackID uuid.UUID) ([]byte, err
 
 func (s *Service) GetObjectBytes(ctx context.Context, objectKey string) ([]byte, error) {
 	return s.storage.GetObjectBytes(ctx, objectKey)
+}
+
+func (s *Service) OpenObject(ctx context.Context, objectKey string) (storage.ObjectStream, error) {
+	return s.storage.OpenObject(ctx, objectKey)
 }
 
 func (s *Service) PresignObject(ctx context.Context, objectKey string, ttl time.Duration) (string, error) {

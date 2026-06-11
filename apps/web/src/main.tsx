@@ -4,8 +4,8 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { HelmetProvider } from "react-helmet-async";
 import App from "./App";
 import { initLocale } from "./lib/i18n";
+import { assertMobileApiConfigured } from "./lib/apiOrigin";
 import { isNativeApp } from "./lib/native";
-import { patchMobileStreamUrls } from "./lib/mobileMedia";
 import { registerPwaServiceWorker } from "./lib/pwaRegister";
 import { queryClient } from "./lib/queryClient";
 import "./index.css";
@@ -14,7 +14,7 @@ initLocale();
 registerPwaServiceWorker();
 
 if (isNativeApp()) {
-  patchMobileStreamUrls();
+  assertMobileApiConfigured();
   void import("@capacitor/status-bar").then(({ StatusBar, Style }) => {
     void StatusBar.setStyle({ style: Style.Dark });
     void StatusBar.setBackgroundColor({ color: "#121212" });

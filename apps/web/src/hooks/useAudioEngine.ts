@@ -2,7 +2,8 @@ import Hls from "hls.js";
 import { type RefObject, useEffect, useRef } from "react";
 import { api } from "@/api/client";
 import { apiUrl } from "@/lib/apiOrigin";
-import { configureAudioForPlatform, createHls } from "@/lib/mobileMedia";
+import { configureAudioForPlatform, createHls, ensureAudible } from "@/lib/mobileMedia";
+import { isNativeApp } from "@/lib/native";
 import { crossfadeAudio } from "@/lib/crossfade";
 import { useAudioEffects } from "@/hooks/useAudioEffects";
 import { getOfflinePlayback } from "@/lib/offlineTracks";
@@ -37,8 +38,20 @@ async function attachPlayback(
   }
 
   const playback = await api.getPlayback(track.id);
+  const directUrl = playback.direct_url ? apiUrl(playback.direct_url) : null;
   const playlistUrl = playback.playlist_url ? apiUrl(playback.playlist_url) : null;
   const fallbackUrl = playback.fallback_url ? apiUrl(playback.fallback_url) : null;
+
+  // Native WebView: progressive MP3 via API is far more reliable than MSE/HLS.
+  if (isNativeApp() && directUrl) {
+    audio.src = directUrl;
+    return;
+  }
+
+  if (playback.format === "mp3" && directUrl) {
+    audio.src = directUrl;
+    return;
+  }
 
   if (playback.format === "hls" && playlistUrl && Hls.isSupported()) {
     const hls = createHls(audio);
@@ -87,17 +100,23 @@ export function useAudioEngine(audioRef: RefObject<HTMLAudioElement | null>) {
     const onEnded = () => next();
     const onPlay = () => usePlayerStore.setState({ isPlaying: true });
     const onPause = () => usePlayerStore.setState({ isPlaying: false });
+    const onPlaying = () => {
+      if (!isNativeApp()) return;
+      ensureAudible(audio, usePlayerStore.getState().volume);
+    };
 
     audio.addEventListener("timeupdate", onTime);
     audio.addEventListener("ended", onEnded);
     audio.addEventListener("play", onPlay);
     audio.addEventListener("pause", onPause);
+    audio.addEventListener("playing", onPlaying);
 
     return () => {
       audio.removeEventListener("timeupdate", onTime);
       audio.removeEventListener("ended", onEnded);
       audio.removeEventListener("play", onPlay);
       audio.removeEventListener("pause", onPause);
+      audio.removeEventListener("playing", onPlaying);
     };
   }, [audioRef, bindAudio, tick, next]);
 
@@ -113,19 +132,29 @@ export function useAudioEngine(audioRef: RefObject<HTMLAudioElement | null>) {
     const rate = usePlayerStore.getState().playbackRate;
     audio.playbackRate = rate;
 
+    const playAudible = () => {
+      ensureAudible(audio, usePlayerStore.getState().volume);
+      audio.playbackRate = rate;
+      void audio.play().catch(() => usePlayerStore.setState({ isPlaying: false }));
+    };
+
     const loadPlain = async () => {
       try {
         await attachPlayback(audio, track, hlsRef);
         if (cancelled) return;
         usePlayerStore.setState({ progressMs: 0, crossfadeOnLoad: false, gaplessOnLoad: false });
-        audio.playbackRate = rate;
-        void audio.play().catch(() => usePlayerStore.setState({ isPlaying: false }));
+        playAudible();
       } catch {
-        const legacy = getPreviewUrl(track);
-        if (!cancelled && legacy) {
-          audio.src = legacy;
+        const retry = await api.getPlayback(track.id).catch(() => null);
+        const preview = getPreviewUrl(track);
+        const url =
+          (retry?.direct_url ? apiUrl(retry.direct_url) : null) ??
+          (retry?.fallback_url ? apiUrl(retry.fallback_url) : null) ??
+          (preview ? apiUrl(preview) : null);
+        if (!cancelled && url) {
+          audio.src = url;
           usePlayerStore.setState({ progressMs: 0, crossfadeOnLoad: false });
-          void audio.play().catch(() => usePlayerStore.setState({ isPlaying: false }));
+          playAudible();
         }
       }
     };
@@ -142,8 +171,7 @@ export function useAudioEngine(audioRef: RefObject<HTMLAudioElement | null>) {
           );
           if (cancelled) return;
           usePlayerStore.setState({ crossfadeOnLoad: false, gaplessOnLoad: false });
-          audio.playbackRate = rate;
-          void audio.play().catch(() => usePlayerStore.setState({ isPlaying: false }));
+          playAudible();
         } catch {
           if (!cancelled) await loadPlain();
         }
