@@ -106,10 +106,16 @@ func (h *Handler) previewPlayback(w http.ResponseWriter, r *http.Request) {
 		httpserver.Error(w, http.StatusNotFound, "no_stream", err.Error())
 		return
 	}
-	if out.Format == "hls" && out.PlaylistURL != "" {
-		token := extractPlaybackToken(out.PlaylistURL)
-		if token != "" {
+	token := extractPlaybackToken(out.PlaylistURL)
+	if token == "" {
+		token = extractPlaybackToken(out.DirectURL)
+	}
+	if token != "" {
+		if out.PlaylistURL != "" {
 			out.PlaylistURL = streaming.AdminPlaylistURL(id.String(), token, "")
+		}
+		if track.MasterObjectKey != nil && strings.TrimSpace(*track.MasterObjectKey) != "" {
+			out.DirectURL = streaming.AdminAudioURL(id.String(), token)
 		}
 	}
 	httpserver.JSON(w, http.StatusOK, out)
@@ -172,6 +178,30 @@ func (h *Handler) adminHLSKey(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write(key)
+}
+
+func (h *Handler) adminAudio(w http.ResponseWriter, r *http.Request) {
+	if h.stream == nil || h.signer == nil {
+		httpserver.Error(w, http.StatusServiceUnavailable, "unavailable", "streaming not configured")
+		return
+	}
+	_, trackID, ok := h.verifyPlaybackToken(w, r)
+	if !ok {
+		return
+	}
+	track, ok := h.loadPendingReviewTrack(w, r, trackID)
+	if !ok {
+		return
+	}
+	if track.MasterObjectKey == nil || strings.TrimSpace(*track.MasterObjectKey) == "" {
+		httpserver.Error(w, http.StatusNotFound, "no_audio", "source file not found")
+		return
+	}
+	ct := ""
+	if track.SourceContentType != nil {
+		ct = strings.TrimSpace(*track.SourceContentType)
+	}
+	streaming.ServeObjectAudio(w, r, h.stream, *track.MasterObjectKey, ct)
 }
 
 func (h *Handler) adminSegment(w http.ResponseWriter, r *http.Request) {

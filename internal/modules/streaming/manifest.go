@@ -67,6 +67,11 @@ func AdminKeyURL(trackID, token string) string {
 	return KeyURL("/internal/admin/stream", trackID, token)
 }
 
+// AdminAudioURL is the moderation preview MP3 proxy (pending_review only).
+func AdminAudioURL(trackID, token string) string {
+	return audioURL("/internal/admin/stream", trackID, token)
+}
+
 func playlistURL(basePath, trackID, token, relPath string) string {
 	u := fmt.Sprintf("%s/playlist.m3u8?track_id=%s&pt=%s", basePath, trackID, url.QueryEscape(token))
 	if relPath != "" {

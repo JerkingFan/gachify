@@ -1,5 +1,6 @@
 import Hls from "hls.js";
 import { Loader2, Pause, Play, X } from "lucide-react";
+import { attachAdminPlayback, stopAdminPlayback } from "@/lib/adminPlayback";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   adminApi,
@@ -138,14 +139,7 @@ export function AdminPendingTrackPanel({
   }, []);
 
   const stopPlayback = () => {
-    const audio = audioRef.current;
-    hlsRef.current?.destroy();
-    hlsRef.current = null;
-    if (audio) {
-      audio.pause();
-      audio.removeAttribute("src");
-      audio.load();
-    }
+    stopAdminPlayback(audioRef.current, hlsRef);
     setPlaying(false);
   };
 
@@ -161,43 +155,7 @@ export function AdminPendingTrackPanel({
     setPlayError(null);
     try {
       const playback = await adminApi.getPlayback(trackId);
-      hlsRef.current?.destroy();
-      hlsRef.current = null;
-      audio.pause();
-      audio.removeAttribute("src");
-      audio.load();
-
-      if (
-        playback.format === "hls" &&
-        playback.playlist_url &&
-        Hls.isSupported()
-      ) {
-        const hls = new Hls({ enableWorker: true });
-        hlsRef.current = hls;
-        hls.loadSource(playback.playlist_url);
-        hls.attachMedia(audio);
-        hls.on(Hls.Events.MANIFEST_PARSED, () => {
-          void audio.play().catch(() => setPlayError("Playback blocked"));
-        });
-        hls.on(Hls.Events.ERROR, (_event: string, data: { fatal?: boolean }) => {
-          if (data.fatal && playback.fallback_url) {
-            hls.destroy();
-            hlsRef.current = null;
-            audio.src = playback.fallback_url;
-            void audio.play();
-          } else if (data.fatal) {
-            setPlayError("HLS playback failed");
-          }
-        });
-        return;
-      }
-
-      const src = playback.fallback_url;
-      if (!src) {
-        setPlayError("No preview stream available (transcode may still be running)");
-        return;
-      }
-      audio.src = src;
+      await attachAdminPlayback(audio, playback, hlsRef);
       await audio.play();
     } catch (err) {
       setPlayError(err instanceof Error ? err.message : "Playback failed");

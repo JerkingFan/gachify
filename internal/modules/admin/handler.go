@@ -43,6 +43,7 @@ func (h *Handler) Routes() chi.Router {
 	r.Get("/stream/playlist.m3u8", h.adminPlaylist)
 	r.Get("/stream/hls.key", h.adminHLSKey)
 	r.Get("/stream/segment", h.adminSegment)
+	r.Get("/stream/audio", h.adminAudio)
 	r.Post("/tracks/{id}/publish", h.publishTrack)
 	r.Post("/tracks/{id}/approve", h.approveTrack)
 	r.Post("/tracks/{id}/reject", h.rejectTrack)

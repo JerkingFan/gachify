@@ -2,6 +2,7 @@ import { RefreshCw, Shield } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { AdminPendingTrackPanel } from "@/components/admin/AdminPendingTrackPanel";
+import { AdminTrackPlayButton } from "@/components/admin/AdminTrackPlayButton";
 import {
   adminApi,
   clearAdminKey,
@@ -184,7 +185,8 @@ export function AdminPage() {
                     {t.creator?.display_name ?? t.creator?.handle ?? "Unknown"} · {t.id.slice(0, 8)}
                   </p>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  <AdminTrackPlayButton trackId={t.id} />
                   <button
                     type="button"
                     onClick={() => setSelectedId(t.id)}

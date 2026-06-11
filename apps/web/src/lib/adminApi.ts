@@ -52,6 +52,7 @@ export type AdminTrack = {
 export type AdminPlayback = {
   format: "hls" | "mp3";
   playlist_url?: string;
+  direct_url?: string;
   fallback_url?: string;
   expires_in?: number;
   duration_ms?: number;
