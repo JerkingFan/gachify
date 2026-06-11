@@ -10,7 +10,6 @@
 }
 
 {$GACHIFY_DOMAIN:localhost} {
-	encode gzip
 	header {
 		Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
 		X-Content-Type-Options "nosniff"
@@ -19,7 +18,7 @@
 		-Server
 	}
 
-	# Presigned PUT/GET (upload + HLS segments) — do not gzip binary bodies
+	# Presigned PUT/GET (upload + HLS segments + covers) — no gzip on binary
 	handle /gachify-masters/* {
 		reverse_proxy minio:9000
 	}
@@ -28,6 +27,7 @@
 	}
 
 	handle {
+		encode gzip
 		reverse_proxy web:80
 	}
 }

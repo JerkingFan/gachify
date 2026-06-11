@@ -78,6 +78,11 @@ export default defineConfig(({ mode }) => {
                     },
                   },
                   {
+                    urlPattern: ({ url }) =>
+                      /\/api\/v1\/tracks\/[^/]+\/cover$/.test(url.pathname),
+                    handler: "NetworkOnly",
+                  },
+                  {
                     urlPattern: ({ url }) => /^\/api\/v1\/tracks\/[^/]+$/.test(url.pathname),
                     handler: "NetworkFirst",
                     options: {
@@ -87,7 +92,9 @@ export default defineConfig(({ mode }) => {
                     },
                   },
                   {
-                    urlPattern: ({ url }) => url.pathname.startsWith("/api/v1/tracks"),
+                    urlPattern: ({ url }) =>
+                      url.pathname.startsWith("/api/v1/tracks") &&
+                      !url.pathname.endsWith("/cover"),
                     handler: "StaleWhileRevalidate",
                     options: {
                       cacheName: "gachify-tracks",
