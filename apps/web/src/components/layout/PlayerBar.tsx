@@ -44,6 +44,7 @@ export function PlayerBar({ hasLyrics = false }: PlayerBarProps) {
   const next = usePlayerStore((s) => s.next);
   const previous = usePlayerStore((s) => s.previous);
   const seek = usePlayerStore((s) => s.seek);
+  const setScrubbing = usePlayerStore((s) => s.setScrubbing);
   const setVolume = usePlayerStore((s) => s.setVolume);
   const toggleShuffle = usePlayerStore((s) => s.toggleShuffle);
   const cycleRepeat = usePlayerStore((s) => s.cycleRepeat);
@@ -186,6 +187,10 @@ export function PlayerBar({ hasLyrics = false }: PlayerBarProps) {
             max={duration || 100}
             value={progressMs}
             disabled={!track}
+            onPointerDown={() => setScrubbing(true)}
+            onPointerUp={() => setScrubbing(false)}
+            onPointerCancel={() => setScrubbing(false)}
+            onInput={(e) => seek(Number(e.currentTarget.value))}
             onChange={(e) => seek(Number(e.target.value))}
             className="player-scrubber h-2 min-h-[8px] flex-1 accent-white disabled:opacity-40"
           />
@@ -261,6 +266,10 @@ export function PlayerBar({ hasLyrics = false }: PlayerBarProps) {
             max={duration || 100}
             value={progressMs}
             disabled={!track}
+            onPointerDown={() => setScrubbing(true)}
+            onPointerUp={() => setScrubbing(false)}
+            onPointerCancel={() => setScrubbing(false)}
+            onInput={(e) => seek(Number(e.currentTarget.value))}
             onChange={(e) => seek(Number(e.target.value))}
             className="player-scrubber h-2 min-h-[8px] flex-1 accent-white disabled:opacity-40"
           />

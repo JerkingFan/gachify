@@ -233,6 +233,14 @@ func (s *Service) OpenObject(ctx context.Context, objectKey string) (storage.Obj
 	return s.storage.OpenObject(ctx, objectKey)
 }
 
+func (s *Service) OpenObjectRange(ctx context.Context, objectKey string, start, end int64) (storage.ObjectStream, error) {
+	return s.storage.OpenObjectRange(ctx, objectKey, start, end)
+}
+
+func (s *Service) HeadObject(ctx context.Context, objectKey string) (storage.ObjectInfo, error) {
+	return s.storage.HeadObject(ctx, objectKey)
+}
+
 func (s *Service) PresignObject(ctx context.Context, objectKey string, ttl time.Duration) (string, error) {
 	return s.storage.PresignGet(ctx, objectKey, ttl)
 }

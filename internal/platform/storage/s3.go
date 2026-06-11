@@ -185,10 +185,26 @@ type ObjectStream struct {
 }
 
 func (c *Client) OpenObject(ctx context.Context, objectKey string) (ObjectStream, error) {
-	out, err := c.s3.GetObject(ctx, &s3.GetObjectInput{
+	return c.openObject(ctx, objectKey, "")
+}
+
+// OpenObjectRange reads object bytes [start, end] inclusive (HTTP Range semantics).
+func (c *Client) OpenObjectRange(ctx context.Context, objectKey string, start, end int64) (ObjectStream, error) {
+	if start < 0 || end < start {
+		return ObjectStream{}, fmt.Errorf("invalid byte range")
+	}
+	return c.openObject(ctx, objectKey, fmt.Sprintf("bytes=%d-%d", start, end))
+}
+
+func (c *Client) openObject(ctx context.Context, objectKey, byteRange string) (ObjectStream, error) {
+	in := &s3.GetObjectInput{
 		Bucket: aws.String(c.bucket),
 		Key:    aws.String(objectKey),
-	})
+	}
+	if byteRange != "" {
+		in.Range = aws.String(byteRange)
+	}
+	out, err := c.s3.GetObject(ctx, in)
 	if err != nil {
 		return ObjectStream{}, fmt.Errorf("get object: %w", err)
 	}

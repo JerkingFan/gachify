@@ -41,6 +41,8 @@ interface PlayerState {
   progressMs: number;
   /** Real duration from the audio element when known (HLS/MP3). */
   playbackDurationMs: number | null;
+  /** True while user drags the seek bar — ignore timeupdate ticks. */
+  isScrubbing: boolean;
   volume: number;
   shuffle: boolean;
   repeat: RepeatMode;
@@ -63,6 +65,7 @@ interface PlayerState {
   next: () => void;
   previous: () => void;
   seek: (ms: number) => void;
+  setScrubbing: (v: boolean) => void;
   setVolume: (v: number) => void;
   toggleShuffle: () => void;
   cycleRepeat: () => void;
@@ -97,6 +100,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   isPlaying: false,
   progressMs: 0,
   playbackDurationMs: null,
+  isScrubbing: false,
   volume: 0.8,
   shuffle: false,
   repeat: "off",
@@ -206,13 +210,26 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
     get().playTrack(queue[prevIdx], queue);
   },
 
+  setScrubbing(v) {
+    set({ isScrubbing: v });
+  },
+
   seek(ms) {
     const audio = get().audio;
     const { playbackDurationMs, currentTrack } = get();
     const cap = playbackDurationMs ?? currentTrack?.duration_ms ?? 0;
     const clamped = Math.max(0, cap > 0 ? Math.min(ms, cap) : ms);
     if (audio && Number.isFinite(clamped)) {
-      audio.currentTime = clamped / 1000;
+      const sec = clamped / 1000;
+      if (typeof audio.fastSeek === "function") {
+        try {
+          audio.fastSeek(sec);
+        } catch {
+          audio.currentTime = sec;
+        }
+      } else {
+        audio.currentTime = sec;
+      }
     }
     set({ progressMs: clamped });
   },
@@ -257,6 +274,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   },
 
   tick(ms) {
+    if (get().isScrubbing) return;
     set({ progressMs: ms });
   },
 

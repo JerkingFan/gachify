@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { fetchWaveformPeaks } from "@/lib/waveform";
 import { formatDuration } from "@/lib/tracks";
+import { usePlayerStore } from "@/store/playerStore";
 
 type WaveformSeekBarProps = {
   audioUrl: string | null;
@@ -22,7 +23,12 @@ export function WaveformSeekBar({
 }: WaveformSeekBarProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [peaks, setPeaks] = useState<number[]>([]);
+  const setScrubbing = usePlayerStore((s) => s.setScrubbing);
   const maxMs = Math.max(durationMs, 1);
+
+  const handleSeek = (ms: number) => {
+    onSeek(ms);
+  };
 
   useEffect(() => {
     if (!audioUrl) {
@@ -85,7 +91,11 @@ export function WaveformSeekBar({
           step={100}
           value={Math.min(progressMs, maxMs)}
           disabled={durationMs <= 0}
-          onChange={(e) => onSeek(Number(e.target.value))}
+          onPointerDown={() => setScrubbing(true)}
+          onPointerUp={() => setScrubbing(false)}
+          onPointerCancel={() => setScrubbing(false)}
+          onInput={(e) => handleSeek(Number(e.currentTarget.value))}
+          onChange={(e) => handleSeek(Number(e.target.value))}
           className={`player-scrubber relative z-10 w-full ${large ? "h-3" : "h-2"}`}
           aria-label="Seek"
           aria-valuemin={0}
