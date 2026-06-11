@@ -27,6 +27,7 @@ import { AddToPlaylistMenu } from "@/components/ui/AddToPlaylistMenu";
 import { CoverArt } from "@/components/ui/CoverArt";
 import { RadioStartButton } from "@/components/ui/RadioStartButton";
 import { ShareButton } from "@/components/ui/ShareButton";
+import { usePlaybackDuration } from "@/hooks/usePlaybackDuration";
 import { useTrackLyrics } from "@/hooks/useTrackLyrics";
 import {
   coverGradient,
@@ -79,7 +80,7 @@ export function NowPlayingView() {
   const [waveUrl, setWaveUrl] = useState<string | null>(null);
   const playlistRef = useRef<HTMLDivElement>(null);
 
-  const duration = track?.duration_ms ?? 0;
+  const duration = usePlaybackDuration();
   const meta = track ? parseGachiMeta(track) : null;
 
   useEffect(() => {

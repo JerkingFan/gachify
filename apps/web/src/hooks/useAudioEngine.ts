@@ -96,12 +96,19 @@ export function useAudioEngine(audioRef: RefObject<HTMLAudioElement | null>) {
     configureAudioForPlatform(audio);
     bindAudio(audio);
 
+    const syncDuration = () => {
+      const d = audio.duration;
+      if (Number.isFinite(d) && d > 0) {
+        usePlayerStore.setState({ playbackDurationMs: Math.round(d * 1000) });
+      }
+    };
     const onTime = () => tick(audio.currentTime * 1000);
     const onEnded = () => next();
     const onPlay = () => usePlayerStore.setState({ isPlaying: true });
     const onPause = () => usePlayerStore.setState({ isPlaying: false });
     const onPlaying = () => {
       ensureAudible(audio, usePlayerStore.getState().volume);
+      syncDuration();
     };
 
     audio.addEventListener("timeupdate", onTime);
@@ -109,6 +116,8 @@ export function useAudioEngine(audioRef: RefObject<HTMLAudioElement | null>) {
     audio.addEventListener("play", onPlay);
     audio.addEventListener("pause", onPause);
     audio.addEventListener("playing", onPlaying);
+    audio.addEventListener("loadedmetadata", syncDuration);
+    audio.addEventListener("durationchange", syncDuration);
 
     return () => {
       audio.removeEventListener("timeupdate", onTime);
@@ -116,6 +125,8 @@ export function useAudioEngine(audioRef: RefObject<HTMLAudioElement | null>) {
       audio.removeEventListener("play", onPlay);
       audio.removeEventListener("pause", onPause);
       audio.removeEventListener("playing", onPlaying);
+      audio.removeEventListener("loadedmetadata", syncDuration);
+      audio.removeEventListener("durationchange", syncDuration);
     };
   }, [audioRef, bindAudio, tick, next]);
 

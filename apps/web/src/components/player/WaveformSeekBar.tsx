@@ -11,6 +11,7 @@ type WaveformSeekBarProps = {
   large?: boolean;
 };
 
+/** Visible range scrubber; optional waveform decoration when audio URL is available. */
 export function WaveformSeekBar({
   audioUrl,
   progressMs,
@@ -21,7 +22,7 @@ export function WaveformSeekBar({
 }: WaveformSeekBarProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [peaks, setPeaks] = useState<number[]>([]);
-  const [dragging, setDragging] = useState(false);
+  const maxMs = Math.max(durationMs, 1);
 
   useEffect(() => {
     if (!audioUrl) {
@@ -43,6 +44,7 @@ export function WaveformSeekBar({
     const dpr = window.devicePixelRatio || 1;
     const w = canvas.clientWidth;
     const h = canvas.clientHeight;
+    if (w <= 0 || h <= 0) return;
     canvas.width = w * dpr;
     canvas.height = h * dpr;
     const ctx = canvas.getContext("2d");
@@ -63,37 +65,34 @@ export function WaveformSeekBar({
     });
   }, [peaks, progressMs, durationMs]);
 
-  const seekFromEvent = (clientX: number, rect: DOMRect) => {
-    if (!durationMs) return;
-    const ratio = Math.min(1, Math.max(0, (clientX - rect.left) / rect.width));
-    onSeek(Math.round(ratio * durationMs));
-  };
-
   return (
     <div className={`flex items-center gap-2 ${className}`}>
       <span className="w-10 shrink-0 text-right text-xs tabular-nums text-white/60">
         {formatDuration(progressMs)}
       </span>
-      <canvas
-        ref={canvasRef}
-        role="slider"
-        aria-label="Seek"
-        aria-valuemin={0}
-        aria-valuemax={durationMs}
-        aria-valuenow={progressMs}
-        className={`w-full cursor-pointer touch-none ${large ? "h-16" : "h-10"}`}
-        onPointerDown={(e) => {
-          setDragging(true);
-          seekFromEvent(e.clientX, e.currentTarget.getBoundingClientRect());
-          e.currentTarget.setPointerCapture(e.pointerId);
-        }}
-        onPointerMove={(e) => {
-          if (!dragging) return;
-          seekFromEvent(e.clientX, e.currentTarget.getBoundingClientRect());
-        }}
-        onPointerUp={() => setDragging(false)}
-        onPointerCancel={() => setDragging(false)}
-      />
+      <div className={`relative min-w-0 flex-1 ${large ? "py-1" : ""}`}>
+        {peaks.length > 0 && (
+          <canvas
+            ref={canvasRef}
+            aria-hidden
+            className={`pointer-events-none absolute inset-x-0 top-1/2 w-full -translate-y-1/2 opacity-90 ${large ? "h-12" : "h-8"}`}
+          />
+        )}
+        <input
+          type="range"
+          min={0}
+          max={maxMs}
+          step={100}
+          value={Math.min(progressMs, maxMs)}
+          disabled={durationMs <= 0}
+          onChange={(e) => onSeek(Number(e.target.value))}
+          className={`player-scrubber relative z-10 w-full ${large ? "h-3" : "h-2"}`}
+          aria-label="Seek"
+          aria-valuemin={0}
+          aria-valuemax={durationMs}
+          aria-valuenow={progressMs}
+        />
+      </div>
       <span className="w-10 shrink-0 text-xs tabular-nums text-white/60">
         {formatDuration(durationMs)}
       </span>

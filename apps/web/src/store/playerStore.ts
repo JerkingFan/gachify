@@ -39,6 +39,8 @@ interface PlayerState {
   queueIndex: number;
   isPlaying: boolean;
   progressMs: number;
+  /** Real duration from the audio element when known (HLS/MP3). */
+  playbackDurationMs: number | null;
   volume: number;
   shuffle: boolean;
   repeat: RepeatMode;
@@ -94,6 +96,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   queueIndex: 0,
   isPlaying: false,
   progressMs: 0,
+  playbackDurationMs: null,
   volume: 0.8,
   shuffle: false,
   repeat: "off",
@@ -139,6 +142,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
       queue: q,
       queueIndex: idx >= 0 ? idx : 0,
       progressMs: 0,
+      playbackDurationMs: null,
       isPlaying: true,
       crossfadeOnLoad: crossfade,
       gaplessOnLoad: gapless,
@@ -204,10 +208,13 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
 
   seek(ms) {
     const audio = get().audio;
-    if (audio && !Number.isNaN(ms)) {
-      audio.currentTime = ms / 1000;
+    const { playbackDurationMs, currentTrack } = get();
+    const cap = playbackDurationMs ?? currentTrack?.duration_ms ?? 0;
+    const clamped = Math.max(0, cap > 0 ? Math.min(ms, cap) : ms);
+    if (audio && Number.isFinite(clamped)) {
+      audio.currentTime = clamped / 1000;
     }
-    set({ progressMs: ms });
+    set({ progressMs: clamped });
   },
 
   setVolume(v) {

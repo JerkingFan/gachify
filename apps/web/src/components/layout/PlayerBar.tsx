@@ -24,6 +24,7 @@ import { usePlayerStore } from "@/store/playerStore";
 import { useUIStore } from "@/store/uiStore";
 import { PlayerComfortMenu } from "@/components/player/PlayerComfortMenu";
 import { CoverArt } from "@/components/ui/CoverArt";
+import { usePlaybackDuration } from "@/hooks/usePlaybackDuration";
 
 type PlayerBarProps = {
   hasLyrics?: boolean;
@@ -59,7 +60,7 @@ export function PlayerBar({ hasLyrics = false }: PlayerBarProps) {
   const [liked, setLiked] = useState(false);
   const expandedPlayerTitle = t("player.openExpanded", locale);
   const rateLabel = playbackRate !== 1 ? `${playbackRate}×` : null;
-  const duration = track?.duration_ms ?? 0;
+  const duration = usePlaybackDuration();
   useEffect(() => {
     if (track) setLiked(isLikedFn(track.id));
     else setLiked(false);
@@ -186,7 +187,7 @@ export function PlayerBar({ hasLyrics = false }: PlayerBarProps) {
             value={progressMs}
             disabled={!track}
             onChange={(e) => seek(Number(e.target.value))}
-            className="player-scrubber h-2 flex-1 accent-white disabled:opacity-40"
+            className="player-scrubber h-2 min-h-[8px] flex-1 accent-white disabled:opacity-40"
           />
           <span className="w-9 tabular-nums">{formatDuration(duration)}</span>
         </div>
@@ -261,7 +262,7 @@ export function PlayerBar({ hasLyrics = false }: PlayerBarProps) {
             value={progressMs}
             disabled={!track}
             onChange={(e) => seek(Number(e.target.value))}
-            className="player-scrubber h-1 flex-1 cursor-pointer appearance-none rounded-full bg-white/30 accent-white disabled:opacity-40"
+            className="player-scrubber h-2 min-h-[8px] flex-1 accent-white disabled:opacity-40"
           />
           <span className="w-10 tabular-nums">{formatDuration(duration)}</span>
         </div>

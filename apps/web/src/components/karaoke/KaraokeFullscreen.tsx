@@ -1,5 +1,6 @@
 import { Minimize2 } from "lucide-react";
 import { KaraokeLyrics } from "@/components/player/KaraokeLyrics";
+import { usePlaybackDuration } from "@/hooks/usePlaybackDuration";
 import { formatDuration } from "@/lib/tracks";
 import { usePlayerStore } from "@/store/playerStore";
 import { useUIStore } from "@/store/uiStore";
@@ -13,7 +14,7 @@ export function KaraokeFullscreen({ doc }: Props) {
   const close = useUIStore((s) => s.closeKaraokeFullscreen);
   const track = usePlayerStore((s) => s.currentTrack);
   const progressMs = usePlayerStore((s) => s.progressMs);
-  const duration = track?.duration_ms ?? 0;
+  const duration = usePlaybackDuration();
   const seek = usePlayerStore((s) => s.seek);
 
   return (
@@ -46,7 +47,7 @@ export function KaraokeFullscreen({ doc }: Props) {
             max={duration || 100}
             value={progressMs}
             onChange={(e) => seek(Number(e.target.value))}
-            className="player-scrubber h-2 flex-1 accent-spotify-green"
+            className="player-scrubber h-2 min-h-[8px] flex-1 accent-spotify-green"
             aria-label="Seek"
           />
           <span className="w-10 tabular-nums">{formatDuration(duration)}</span>
