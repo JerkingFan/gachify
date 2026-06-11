@@ -16,6 +16,7 @@ function toTrack(row: ChartTrack): Track {
     duration_ms: row.duration_ms,
     status: row.status,
     gachi_metadata: row.gachi_metadata,
+    creator: row.creator,
     play_count: row.play_count,
     created_at: row.created_at,
     updated_at: row.updated_at,

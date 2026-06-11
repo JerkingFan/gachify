@@ -117,7 +117,7 @@ func New(ctx context.Context) (*App, error) {
 	playbackSigner := streamtoken.NewTokenSigner(cfg.JWTSecret, cfg.PlaybackTokenTTL)
 	streamSvc := streaming.NewService(catalogRepo, s3, playbackSigner, redisQ.Client(), cfg.PlaybackSegmentTTL)
 	streamH := streaming.NewHandler(streamSvc, catalogRepo, playbackSigner, cfg.PublicAPIBaseURL)
-	adminH := admin.NewHandler(catalogRepo, userRepo, redisQ, streamSvc, s3, playbackSigner, socialNotify, socialRepo)
+	adminH := admin.NewHandler(catalogRepo, userRepo, redisQ, streamSvc, s3, playbackSigner, socialNotify, socialRepo, cacheStore)
 
 	importSvc := imports.NewService(imports.Config{
 		SpotifyClientID:     cfg.SpotifyClientID,

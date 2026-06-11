@@ -78,7 +78,7 @@ func (h *Handler) getByID(w http.ResponseWriter, r *http.Request) {
 		httpserver.Error(w, http.StatusBadRequest, "invalid_id", "track id must be a UUID")
 		return
 	}
-	t, err := h.repo.GetByID(r.Context(), id)
+	t, err := h.repo.GetByIDWithCreator(r.Context(), id)
 	if errors.Is(err, ErrNotFound) {
 		httpserver.Error(w, http.StatusNotFound, "not_found", "track not found")
 		return
@@ -87,7 +87,7 @@ func (h *Handler) getByID(w http.ResponseWriter, r *http.Request) {
 		httpserver.Error(w, http.StatusInternalServerError, "internal_error", "failed to load track")
 		return
 	}
-	trackcover.Enrich(r.Context(), h.storage, &t)
+	trackcover.Enrich(r.Context(), h.storage, &t.Track)
 	httpserver.JSON(w, http.StatusOK, t)
 }
 

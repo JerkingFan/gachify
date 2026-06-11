@@ -60,6 +60,7 @@ export type AdminPlayback = {
 
 export type AdminTrackUpdate = {
   title: string;
+  artist_name?: string;
   gachi_power_level?: number;
   deepness_score?: number;
   dominant_male_sample?: string;

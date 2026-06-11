@@ -1,6 +1,7 @@
 package admin
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -10,6 +11,7 @@ import (
 	"github.com/gachify/gachify/internal/modules/social"
 	"github.com/gachify/gachify/internal/modules/streaming"
 	"github.com/gachify/gachify/internal/modules/users"
+	"github.com/gachify/gachify/internal/platform/cache"
 	"github.com/gachify/gachify/internal/platform/httpserver"
 	"github.com/gachify/gachify/internal/platform/queue"
 	"github.com/gachify/gachify/internal/platform/storage"
@@ -28,10 +30,17 @@ type Handler struct {
 	signer   *streamtoken.TokenSigner
 	notify   *social.PublishNotifier
 	social   *social.Repository
+	cache    *cache.Store
 }
 
-func NewHandler(cat *catalog.Repository, userRepo *users.Repository, q *queue.RedisQueue, stream *streaming.Service, st *storage.Client, signer *streamtoken.TokenSigner, notify *social.PublishNotifier, socialRepo *social.Repository) *Handler {
-	return &Handler{catalog: cat, users: userRepo, queue: q, stream: stream, storage: st, signer: signer, notify: notify, social: socialRepo}
+func NewHandler(cat *catalog.Repository, userRepo *users.Repository, q *queue.RedisQueue, stream *streaming.Service, st *storage.Client, signer *streamtoken.TokenSigner, notify *social.PublishNotifier, socialRepo *social.Repository, cacheStore *cache.Store) *Handler {
+	return &Handler{catalog: cat, users: userRepo, queue: q, stream: stream, storage: st, signer: signer, notify: notify, social: socialRepo, cache: cacheStore}
+}
+
+func (h *Handler) invalidateTrackCache(ctx context.Context) {
+	if h.cache != nil {
+		_ = h.cache.InvalidateTracks(ctx)
+	}
 }
 
 func (h *Handler) Routes() chi.Router {
@@ -102,6 +111,7 @@ func (h *Handler) approveTrack(w http.ResponseWriter, r *http.Request) {
 		httpserver.Error(w, http.StatusInternalServerError, "internal_error", "approve failed")
 		return
 	}
+	h.invalidateTrackCache(r.Context())
 	httpserver.JSON(w, http.StatusOK, map[string]string{"status": "approved"})
 }
 

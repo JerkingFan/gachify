@@ -95,10 +95,11 @@ export default defineConfig(({ mode }) => {
                     urlPattern: ({ url }) =>
                       url.pathname.startsWith("/api/v1/tracks") &&
                       !url.pathname.endsWith("/cover"),
-                    handler: "StaleWhileRevalidate",
+                    handler: "NetworkFirst",
                     options: {
                       cacheName: "gachify-tracks",
-                      expiration: { maxEntries: 64, maxAgeSeconds: 60 * 60 },
+                      networkTimeoutSeconds: 5,
+                      expiration: { maxEntries: 64, maxAgeSeconds: 60 * 30 },
                     },
                   },
                   {

@@ -2,10 +2,12 @@ package admin
 
 import (
 	"encoding/json"
+	"strings"
 )
 
 type updateTrackBody struct {
 	Title             string   `json:"title"`
+	ArtistName        *string  `json:"artist_name"`
 	GachiPowerLevel   *int     `json:"gachi_power_level"`
 	DeepnessScore     *float32 `json:"deepness_score"`
 	DominantSample    *string  `json:"dominant_male_sample"`
@@ -65,6 +67,14 @@ func mergeGachiMetadata(existing json.RawMessage, patch updateTrackBody) (json.R
 	}
 	if patch.WackinessScore != nil {
 		m["wackiness_score"] = *patch.WackinessScore
+	}
+	if patch.ArtistName != nil {
+		name := strings.TrimSpace(*patch.ArtistName)
+		if name != "" {
+			m["artist_name"] = name
+		} else {
+			delete(m, "artist_name")
+		}
 	}
 	return json.Marshal(m)
 }

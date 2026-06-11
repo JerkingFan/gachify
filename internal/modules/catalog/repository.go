@@ -148,6 +148,21 @@ func (r *Repository) GetByID(ctx context.Context, id uuid.UUID) (domain.Track, e
 	return t, nil
 }
 
+func (r *Repository) GetByIDWithCreator(ctx context.Context, id uuid.UUID) (domain.TrackWithCreator, error) {
+	q := `SELECT ` + trackColumnsAliased + `, u.handle, u.display_name
+		FROM tracks t
+		JOIN users u ON u.id = t.creator_id
+		WHERE t.id = $1`
+	item, err := scanTrackWithCreator(r.pool.QueryRow(ctx, q, id))
+	if errors.Is(err, pgx.ErrNoRows) {
+		return domain.TrackWithCreator{}, ErrNotFound
+	}
+	if err != nil {
+		return domain.TrackWithCreator{}, fmt.Errorf("get track with creator: %w", err)
+	}
+	return item, nil
+}
+
 func (r *Repository) GetOwned(ctx context.Context, id, creatorID uuid.UUID) (domain.Track, error) {
 	q := `SELECT ` + trackColumns + ` FROM tracks WHERE id = $1 AND creator_id = $2`
 	t, err := scanTrack(r.pool.QueryRow(ctx, q, id, creatorID))

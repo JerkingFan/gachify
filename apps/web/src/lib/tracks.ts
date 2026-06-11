@@ -83,8 +83,16 @@ export function coverGradient(track: Track): string {
 }
 
 export function getArtistName(track: Track): string {
-  if (track.creator?.display_name) return track.creator.display_name;
-  if (track.creator?.handle) return track.creator.handle;
+  const displayName = track.creator?.display_name?.trim();
+  if (displayName) return displayName;
+  const handle = track.creator?.handle?.trim();
+  if (handle) return handle;
+  const meta = parseGachiMeta(track);
+  const metaArtist =
+    (typeof meta.artist_name === "string" && meta.artist_name.trim()) ||
+    (typeof meta.source_artist === "string" && meta.source_artist.trim()) ||
+    "";
+  if (metaArtist) return metaArtist;
   return "Unknown artist";
 }
 

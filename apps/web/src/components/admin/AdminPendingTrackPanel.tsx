@@ -89,6 +89,11 @@ export function AdminPendingTrackPanel({
       typeof meta.wessratost_level === "number" ? meta.wessratost_level : 5,
     );
     setContinuousMix(Boolean(meta.is_continuous_mix));
+    const savedArtist =
+      typeof meta.artist_name === "string" ? meta.artist_name.trim() : "";
+    if (savedArtist) {
+      setArtistName(savedArtist);
+    }
   }, []);
 
   useEffect(() => {
@@ -163,6 +168,7 @@ export function AdminPendingTrackPanel({
   };
 
   const buildMeta = (): GachiMetadata => ({
+    artist_name: artistName.trim() || undefined,
     gachi_power_level: gachiPower,
     deepness_score: deepness,
     dominant_male_sample: dominantSample.trim() || undefined,

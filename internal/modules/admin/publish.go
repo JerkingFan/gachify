@@ -71,6 +71,11 @@ func (h *Handler) publishTrack(w http.ResponseWriter, r *http.Request) {
 		httpserver.Error(w, http.StatusBadRequest, "invalid_metadata", "invalid metadata")
 		return
 	}
+	meta, err = mergeGachiMetadata(meta, updateTrackBody{ArtistName: &artistName})
+	if err != nil {
+		httpserver.Error(w, http.StatusBadRequest, "invalid_metadata", "invalid metadata")
+		return
+	}
 	if err := h.catalog.AdminPublish(r.Context(), id, artist.ID, title, meta); err != nil {
 		if errors.Is(err, catalog.ErrNotFound) {
 			httpserver.Error(w, http.StatusConflict, "invalid_state", "track cannot be published")
@@ -88,6 +93,7 @@ func (h *Handler) publishTrack(w http.ResponseWriter, r *http.Request) {
 	if h.notify != nil {
 		h.notify.NotifyPublished(r.Context(), artist.ID, updated.ID, updated.Title)
 	}
+	h.invalidateTrackCache(r.Context())
 	httpserver.JSON(w, http.StatusOK, map[string]any{
 		"status":  "published",
 		"track":   updated,

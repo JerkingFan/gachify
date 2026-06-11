@@ -35,6 +35,9 @@ export interface GachiMetadata {
   preview_url?: string;
   cover_gradient?: string;
   cover_url?: string;
+  /** Display artist (set in admin publish / moderation). */
+  artist_name?: string;
+  source_artist?: string;
   hls?: { manifest_key?: string };
   lyrics?: LyricsDocument;
   lyrics_lrc?: string;
