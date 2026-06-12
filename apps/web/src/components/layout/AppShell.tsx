@@ -4,7 +4,7 @@ import { KeyboardShortcutsModal } from "@/components/help/KeyboardShortcutsModal
 import { OnboardingOverlay } from "@/components/onboarding/OnboardingOverlay";
 import { KaraokeFullscreen } from "@/components/karaoke/KaraokeFullscreen";
 import { KaraokePanel } from "@/components/karaoke/KaraokePanel";
-import { InstallPwaBanner } from "@/components/pwa/InstallPwaBanner";
+import { MobileInstallPrompt } from "@/components/pwa/MobileInstallPrompt";
 import { useAudioEngine } from "@/hooks/useAudioEngine";
 import { useAudioUnlock } from "@/hooks/useAudioUnlock";
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
@@ -75,7 +75,7 @@ export function AppShell() {
       </div>
       <KeyboardShortcutsModal />
       <OnboardingOverlay />
-      <InstallPwaBanner />
+      <MobileInstallPrompt />
       <MobileBottomNav />
       <NowPlayingView />
       <QueuePanel />

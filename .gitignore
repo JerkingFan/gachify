@@ -45,3 +45,4 @@ apps/web/android/.gradle/
 apps/web/android/build/
 apps/web/android/local.properties
 gachify-debug.apk
+apps/web/public/gachify.apk

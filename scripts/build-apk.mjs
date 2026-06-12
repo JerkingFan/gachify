@@ -17,6 +17,7 @@ const web = join(root, "apps", "web");
 const androidDir = join(web, "android");
 const apkOut = join(androidDir, "app", "build", "outputs", "apk", "debug", "app-debug.apk");
 const apkCopy = join(root, "gachify-debug.apk");
+const publicApk = join(web, "public", "gachify.apk");
 
 const args = process.argv.slice(2);
 const runOnDevice = args.includes("--run");
@@ -169,11 +170,13 @@ if (!existsSync(apkOut)) {
 }
 
 cpSync(apkOut, apkCopy, { force: true });
+cpSync(apkOut, publicApk, { force: true });
 
 console.log(`
   Done!
 
   APK:  ${apkCopy}
+  Web:  ${publicApk}  (served at /gachify.apk for the install prompt)
 
   Install on phone (USB debugging on):
     npm run apk:install

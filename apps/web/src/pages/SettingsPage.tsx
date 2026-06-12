@@ -8,8 +8,10 @@ import { PLAYER_SYNC_STORAGE_KEY } from "@/hooks/usePlayerStateSync";
 import { useOfflineDownloads } from "@/hooks/useOfflineDownloads";
 import { useWebPush } from "@/hooks/useWebPush";
 import { getLocale, setLocale, t, type Locale } from "@/lib/i18n";
+import { isNativeApp } from "@/lib/native";
 import { isIOS, isStandalonePwa } from "@/lib/pwa";
 import { useAuthStore } from "@/store/authStore";
+import { useUIStore } from "@/store/uiStore";
 import { useLibraryStore } from "@/store/libraryStore";
 import type { AccountUser } from "@/types";
 
@@ -452,17 +454,29 @@ export function SettingsPage() {
               App &amp; mobile
             </h2>
             <p className="text-sm text-spotify-muted">
-              {isStandalonePwa()
-                ? "Running as installed app — lock-screen controls and background play are enabled."
-                : isIOS()
-                  ? "Install via Safari → Share → Add to Home Screen for the best iOS experience (background audio + lock screen)."
-                  : "Use the install banner or browser menu → Install app for lock-screen controls and offline liked previews."}
+              {isNativeApp()
+                ? "You are using the installed Android app."
+                : isStandalonePwa()
+                  ? "Running as installed app — lock-screen controls and background play are enabled."
+                  : isIOS()
+                    ? "Install via Safari → Share → Add to Home Screen for the best iOS experience (background audio + lock screen)."
+                    : "Install the app for lock-screen controls and offline liked previews."}
             </p>
             <ul className="mt-3 list-inside list-disc text-xs text-spotify-muted">
               <li>Media Session — title, artist, play/pause, skip on lock screen</li>
               <li>Offline downloads — full liked tracks in IndexedDB (Settings)</li>
               <li>Streaming radio needs network when tracks aren&apos;t downloaded</li>
             </ul>
+            {!isNativeApp() && !isStandalonePwa() && (
+              <button
+                type="button"
+                onClick={() => useUIStore.getState().setMobileInstallOpen(true)}
+                className="mt-4 inline-flex items-center gap-2 rounded-full bg-spotify-green px-5 py-2 text-sm font-bold text-black"
+              >
+                <Download className="h-4 w-4" />
+                {t("install.openFromSettings", getLocale())}
+              </button>
+            )}
           </section>
         </div>
       </div>

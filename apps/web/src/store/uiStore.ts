@@ -22,6 +22,8 @@ interface UIState {
   closeKaraokeFullscreen: () => void;
   shortcutsHelpOpen: boolean;
   setShortcutsHelpOpen: (open: boolean) => void;
+  mobileInstallOpen: boolean;
+  setMobileInstallOpen: (open: boolean) => void;
 }
 
 export const useUIStore = create<UIState>((set) => ({
@@ -69,4 +71,6 @@ export const useUIStore = create<UIState>((set) => ({
   closeKaraokeFullscreen: () => set({ karaokeFullscreenOpen: false }),
   shortcutsHelpOpen: false,
   setShortcutsHelpOpen: (open) => set({ shortcutsHelpOpen: open }),
+  mobileInstallOpen: false,
+  setMobileInstallOpen: (open) => set({ mobileInstallOpen: open }),
 }));

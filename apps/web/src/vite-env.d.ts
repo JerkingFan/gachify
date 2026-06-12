@@ -4,6 +4,7 @@
 interface ImportMetaEnv {
   readonly VITE_API_ORIGIN?: string;
   readonly VITE_MOBILE?: string;
+  readonly VITE_APK_URL?: string;
 }
 
 interface ImportMeta {
