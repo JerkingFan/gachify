@@ -31,13 +31,14 @@
   body {
     overflow: hidden;
   }
-
-  html.native-app body {
-    padding-top: env(safe-area-inset-top, 0px);
-  }
 }
 
 @layer components {
+  /* Status bar / notch — use on sticky headers and full-screen drawers */
+  .safe-top {
+    padding-top: env(safe-area-inset-top, 0px);
+  }
+
   .btn-icon {
     @apply flex h-8 w-8 items-center justify-center rounded-full text-spotify-muted transition hover:text-white;
   }

@@ -19,8 +19,8 @@ if (isNativeApp()) {
   void import("@capacitor/status-bar").then(({ StatusBar, Style }) => {
     void StatusBar.setStyle({ style: Style.Dark });
     void StatusBar.setBackgroundColor({ color: "#121212" });
-    // Let env(safe-area-inset-*) match the real display on notched Android devices.
-    void StatusBar.setOverlaysWebView({ overlay: true });
+    // false = WebView starts below status bar (Android safe-area inset is often 0).
+    void StatusBar.setOverlaysWebView({ overlay: false });
   });
 }
 

@@ -46,13 +46,13 @@ export function Sidebar({ mobile }: SidebarProps) {
   const [playlistModalOpen, setPlaylistModalOpen] = useState(false);
 
   const asideClass = mobile
-    ? "flex h-full w-[min(280px,85vw)] shrink-0 flex-col gap-2 bg-black p-2"
+    ? "safe-top flex h-full w-[min(280px,85vw)] shrink-0 flex-col gap-2 bg-black p-2 pb-[env(safe-area-inset-bottom,0px)]"
     : "hidden h-full w-[280px] shrink-0 flex-col gap-2 bg-black p-2 md:flex";
 
   return (
     <aside className={asideClass}>
       {mobile && (
-        <div className="flex justify-end px-1 pt-1">
+        <div className="flex justify-end px-1 pt-0">
           <button
             type="button"
             className="btn-icon touch-target"
