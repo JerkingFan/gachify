@@ -5,23 +5,7 @@ import { api } from "@/api/client";
 import { TopBar } from "@/components/layout/TopBar";
 import { PageMeta } from "@/components/ui/PageMeta";
 import { TrackRow } from "@/components/ui/TrackRow";
-import type { ChartTrack, Track } from "@/types";
-
-function toTrack(row: ChartTrack): Track {
-  return {
-    id: row.id,
-    creator_id: row.creator_id,
-    title: row.title,
-    description: row.description,
-    duration_ms: row.duration_ms,
-    status: row.status,
-    gachi_metadata: row.gachi_metadata,
-    creator: row.creator,
-    play_count: row.play_count,
-    created_at: row.created_at,
-    updated_at: row.updated_at,
-  };
-}
+import type { ChartTrack } from "@/types";
 
 export function ChartsPage() {
   const [items, setItems] = useState<ChartTrack[]>([]);
@@ -34,7 +18,6 @@ export function ChartsPage() {
       .finally(() => setLoading(false));
   }, []);
 
-  const tracks = items.map(toTrack);
   const maxWeekly = Math.max(1, ...items.map((i) => i.weekly_plays ?? 0));
 
   return (
@@ -70,7 +53,7 @@ export function ChartsPage() {
                   {i + 1}
                 </span>
                 <div className="min-w-0 flex-1">
-                  <TrackRow track={toTrack(row)} index={i} queue={tracks} />
+                  <TrackRow track={row} index={i} queue={items} />
                 </div>
                 <div className="hidden w-24 shrink-0 text-right sm:block">
                   <p className="text-sm font-bold tabular-nums">{row.weekly_plays.toLocaleString()}</p>
