@@ -69,7 +69,7 @@ export function AppShell() {
             </div>
           </>
         )}
-        <main className="relative flex min-w-0 flex-1 flex-col overflow-hidden rounded-lg bg-spotify-base pb-[calc(72px+52px)] md:pb-0">
+        <main className="relative flex min-w-0 flex-1 flex-col overflow-hidden rounded-lg bg-spotify-base pb-[var(--gachify-mobile-chrome-h)] md:pb-0">
           <Outlet />
         </main>
       </div>

@@ -14,10 +14,13 @@ initLocale();
 registerPwaServiceWorker();
 
 if (isNativeApp()) {
+  document.documentElement.classList.add("native-app");
   assertMobileApiConfigured();
   void import("@capacitor/status-bar").then(({ StatusBar, Style }) => {
     void StatusBar.setStyle({ style: Style.Dark });
     void StatusBar.setBackgroundColor({ color: "#121212" });
+    // Let env(safe-area-inset-*) match the real display on notched Android devices.
+    void StatusBar.setOverlaysWebView({ overlay: true });
   });
 }
 

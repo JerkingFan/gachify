@@ -14,7 +14,7 @@ export function KaraokePanel({ doc }: Props) {
   const currentTrack = usePlayerStore((s) => s.currentTrack);
 
   return (
-    <div className="fixed inset-x-0 bottom-[90px] z-50 mx-auto max-h-[45vh] w-full max-w-3xl rounded-t-2xl border border-white/10 bg-spotify-elevated/95 shadow-2xl backdrop-blur-md md:bottom-[100px]">
+    <div className="fixed inset-x-0 bottom-[var(--gachify-mobile-chrome-h)] z-50 mx-auto max-h-[45vh] w-full max-w-3xl rounded-t-2xl border border-white/10 bg-spotify-elevated/95 shadow-2xl backdrop-blur-md md:bottom-[100px]">
       <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
         <div className="min-w-0">
           <p className="text-xs uppercase text-spotify-muted">♂️ Karaoke</p>

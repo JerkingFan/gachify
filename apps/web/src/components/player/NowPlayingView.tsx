@@ -15,6 +15,7 @@ import {
   SkipForward,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { useSwipeToDismiss } from "@/hooks/useSwipeToDismiss";
 import { Link } from "react-router-dom";
 import { api } from "@/api/client";
 import { KaraokeLyrics } from "@/components/player/KaraokeLyrics";
@@ -149,6 +150,8 @@ export function NowPlayingView() {
     }
   }, [open, expandKaraoke, lyricsDoc, clearExpandKaraoke]);
 
+  const swipeDismiss = useSwipeToDismiss(closeNowPlaying);
+
   if (!open || !track) return null;
 
   const bg = coverGradient(track);
@@ -161,6 +164,7 @@ export function NowPlayingView() {
       aria-modal="true"
       aria-label="Now playing"
       data-testid="now-playing"
+      {...swipeDismiss}
     >
       <div
         className="pointer-events-none absolute inset-0 opacity-90"
@@ -169,7 +173,9 @@ export function NowPlayingView() {
       />
       <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-black/20 via-black/50 to-spotify-black" />
 
-      <header className="relative z-10 flex shrink-0 items-center justify-between px-4 pb-2 pt-[max(0.75rem,env(safe-area-inset-top))]">
+      <header className="relative z-10 flex shrink-0 flex-col items-center px-4 pb-2 pt-[max(0.75rem,env(safe-area-inset-top))]">
+        <div className="mb-3 h-1 w-10 rounded-full bg-white/30 md:hidden" aria-hidden />
+        <div className="flex w-full items-center justify-between">
         <button
           type="button"
           onClick={closeNowPlaying}
@@ -189,6 +195,7 @@ export function NowPlayingView() {
         >
           <ListMusic className="h-6 w-6" />
         </button>
+        </div>
       </header>
 
       <div className="relative z-10 min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-4">

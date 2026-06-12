@@ -6,6 +6,7 @@ import { PlaylistCollabPanel } from "@/components/playlist/PlaylistCollabPanel";
 import { TopBar } from "@/components/layout/TopBar";
 import { CoverArt } from "@/components/ui/CoverArt";
 import { PageMeta } from "@/components/ui/PageMeta";
+import { PageScroll } from "@/components/ui/PageScroll";
 import { RadioStartButton } from "@/components/ui/RadioStartButton";
 import { ShareButton } from "@/components/ui/ShareButton";
 import { TrackRow } from "@/components/ui/TrackRow";
@@ -150,10 +151,10 @@ export function PlaylistPage() {
 
   if (!playlist) {
     return (
-      <>
+      <PageScroll>
         <TopBar />
         <p className="p-8 text-spotify-muted">Playlist not found</p>
-      </>
+      </PageScroll>
     );
   }
 
@@ -168,6 +169,7 @@ export function PlaylistPage() {
         description={playlist.description || `${playlistTracks.length} tracks on Gachify`}
         url={pageUrl}
       />
+      <PageScroll>
       <div className="bg-gradient-gachi">
         <TopBar gradient />
         <div className="flex flex-col gap-6 px-6 pb-6 md:flex-row md:items-end">
@@ -362,7 +364,7 @@ export function PlaylistPage() {
           >
             <TrackRow track={t} index={i} queue={playlistTracks} />
             {canEdit && (
-              <div className="absolute right-2 top-1/2 flex -translate-y-1/2 gap-1 opacity-0 group-hover:opacity-100">
+              <div className="absolute right-2 top-1/2 flex -translate-y-1/2 gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100">
                 <button
                   type="button"
                   disabled={busy || i === 0}
@@ -404,6 +406,7 @@ export function PlaylistPage() {
           </div>
         ))}
       </div>
+      </PageScroll>
     </>
   );
 }

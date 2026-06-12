@@ -4,6 +4,7 @@ import { Link, useParams } from "react-router-dom";
 import { api } from "@/api/client";
 import { TopBar } from "@/components/layout/TopBar";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { PageScroll } from "@/components/ui/PageScroll";
 import { PlaylistCard } from "@/components/ui/PlaylistCard";
 import { TrackRow } from "@/components/ui/TrackRow";
 import { UserAvatar } from "@/components/ui/UserAvatar";
@@ -67,24 +68,24 @@ export function ProfilePage() {
 
   if (loading) {
     return (
-      <>
+      <PageScroll>
         <TopBar />
         <p className="p-8 text-spotify-muted">Loading profile…</p>
-      </>
+      </PageScroll>
     );
   }
 
   if (error || !profile) {
     return (
-      <>
+      <PageScroll>
         <TopBar />
         <EmptyState icon={UserCircle} title="Profile not found" description={error ?? undefined} actionTo="/" />
-      </>
+      </PageScroll>
     );
   }
 
   return (
-    <>
+    <PageScroll>
       <div className="bg-gradient-gachi">
         <TopBar gradient title={isOwn ? "My profile" : undefined} />
         <div className="flex flex-col gap-6 px-6 pb-8 md:flex-row md:items-end">
@@ -251,6 +252,6 @@ export function ProfilePage() {
             />
           )}
       </div>
-    </>
+    </PageScroll>
   );
 }

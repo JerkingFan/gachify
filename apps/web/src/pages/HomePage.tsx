@@ -8,6 +8,7 @@ import type { ServerPlaylist } from "@/types";
 import { HomeQuickLinks } from "@/components/home/HomeQuickLinks";
 import { Section } from "@/components/ui/Section";
 import { TrackCard } from "@/components/ui/TrackCard";
+import { TrackShelf, TrackShelfItem } from "@/components/ui/TrackShelf";
 import { TopBar } from "@/components/layout/TopBar";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { HeroSkeleton, TrackGridSkeleton } from "@/components/ui/Skeleton";
@@ -136,11 +137,13 @@ export function HomePage() {
                       {recentLoading && recent.length === 0 ? (
                         <TrackGridSkeleton count={5} />
                       ) : (
-                        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+                        <TrackShelf>
                           {recent.map((t) => (
-                            <TrackCard key={t.id} track={t} queue={recent} />
+                            <TrackShelfItem key={t.id}>
+                              <TrackCard track={t} queue={recent} />
+                            </TrackShelfItem>
                           ))}
-                        </div>
+                        </TrackShelf>
                       )}
                     </Section>
                   )}
@@ -153,11 +156,13 @@ export function HomePage() {
                       {forYouLoading && forYouTracks.length === 0 ? (
                         <TrackGridSkeleton count={10} />
                       ) : (
-                        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+                        <TrackShelf>
                           {forYouTracks.map((t) => (
-                            <TrackCard key={t.id} track={t} queue={forYouTracks} showRadio />
+                            <TrackShelfItem key={t.id}>
+                              <TrackCard track={t} queue={forYouTracks} showRadio />
+                            </TrackShelfItem>
                           ))}
-                        </div>
+                        </TrackShelf>
                       )}
                     </Section>
                   )}
@@ -201,11 +206,13 @@ export function HomePage() {
                         </Link>
                       }
                     >
-                      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+                      <TrackShelf>
                         {(feedLoading ? tracks : feedTracks).slice(0, 10).map((t) => (
-                          <TrackCard key={t.id} track={t} queue={feedTracks} />
+                          <TrackShelfItem key={t.id}>
+                            <TrackCard track={t} queue={feedTracks} />
+                          </TrackShelfItem>
                         ))}
-                      </div>
+                      </TrackShelf>
                     </Section>
                   )}
 
@@ -218,40 +225,48 @@ export function HomePage() {
                       </Link>
                     }
                   >
-                    <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+                    <TrackShelf>
                       {(trendingLoading ? tracks : trending).slice(0, 10).map((t) => (
-                        <TrackCard key={t.id} track={t} queue={trending.length ? trending : tracks} />
+                        <TrackShelfItem key={t.id}>
+                          <TrackCard
+                            track={t}
+                            queue={trending.length ? trending : tracks}
+                          />
+                        </TrackShelfItem>
                       ))}
-                    </div>
+                    </TrackShelf>
                   </Section>
 
                   {publicPlaylists.length > 0 && (
                     <Section title="Public playlists" subtitle="Community mixes">
-                      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+                      <TrackShelf desktopCols="md:grid-cols-3 lg:grid-cols-4">
                         {publicPlaylists.map((pl) => (
-                          <PlaylistCard
-                            key={pl.id}
-                            id={pl.id}
-                            title={pl.title}
-                            description={
-                              pl.owner_display_name
-                                ? `by ${pl.owner_display_name}`
-                                : pl.description
-                            }
-                            coverSeed={coverSeedFromPlaylist(pl)}
-                          />
+                          <TrackShelfItem key={pl.id}>
+                            <PlaylistCard
+                              id={pl.id}
+                              title={pl.title}
+                              description={
+                                pl.owner_display_name
+                                  ? `by ${pl.owner_display_name}`
+                                  : pl.description
+                              }
+                              coverSeed={coverSeedFromPlaylist(pl)}
+                            />
+                          </TrackShelfItem>
                         ))}
-                      </div>
+                      </TrackShelf>
                     </Section>
                   )}
 
                   {byPower.length > 0 && (
                     <Section title="Maximum ♂️ power level">
-                      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+                      <TrackShelf>
                         {byPower.slice(0, 5).map((t) => (
-                          <TrackCard key={t.id} track={t} queue={byPower} />
+                          <TrackShelfItem key={t.id}>
+                            <TrackCard track={t} queue={byPower} />
+                          </TrackShelfItem>
                         ))}
-                      </div>
+                      </TrackShelf>
                     </Section>
                   )}
 
@@ -278,11 +293,13 @@ export function HomePage() {
                         </Link>
                       }
                     >
-                      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+                      <TrackShelf>
                         {deep.map((t) => (
-                          <TrackCard key={t.id} track={t} queue={deep} />
+                          <TrackShelfItem key={t.id}>
+                            <TrackCard track={t} queue={deep} />
+                          </TrackShelfItem>
                         ))}
-                      </div>
+                      </TrackShelf>
                     </Section>
                   )}
 

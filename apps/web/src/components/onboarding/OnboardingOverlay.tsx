@@ -63,7 +63,7 @@ export function OnboardingOverlay() {
   };
 
   return (
-    <div className="pointer-events-none fixed inset-x-0 bottom-[calc(72px+64px)] z-[70] flex justify-center px-4 md:bottom-24">
+    <div className="pointer-events-none fixed inset-x-0 bottom-[calc(var(--gachify-mobile-chrome-h)+12px)] z-[70] flex justify-center px-4 md:bottom-24">
       <div className="pointer-events-auto w-full max-w-lg rounded-xl border border-white/10 bg-spotify-elevated/95 p-4 shadow-2xl backdrop-blur-md">
         <div className="mb-3 flex items-start justify-between gap-2">
           <div>

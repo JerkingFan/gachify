@@ -56,7 +56,7 @@ export function InstallPwaBanner() {
   const ios = isIOS();
 
   return (
-    <div className="fixed bottom-[calc(72px+52px+8px)] left-2 right-2 z-40 md:bottom-4 md:left-auto md:right-4 md:max-w-sm">
+    <div className="fixed bottom-[calc(var(--gachify-mobile-chrome-h)+8px)] left-2 right-2 z-40 md:bottom-4 md:left-auto md:right-4 md:max-w-sm">
       <div className="flex gap-3 rounded-xl border border-spotify-green/40 bg-spotify-elevated p-4 shadow-2xl">
         <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-spotify-green text-xl font-bold text-black">
           ♂

@@ -4,6 +4,7 @@ import { Link, useParams } from "react-router-dom";
 import { api } from "@/api/client";
 import { TopBar } from "@/components/layout/TopBar";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { PageScroll } from "@/components/ui/PageScroll";
 import { PageHeaderSkeleton, TrackRowSkeleton } from "@/components/ui/Skeleton";
 import { TrackRow } from "@/components/ui/TrackRow";
 import { useAuthStore } from "@/store/authStore";
@@ -49,7 +50,7 @@ export function ArtistPage() {
 
   if (loading) {
     return (
-      <>
+      <PageScroll>
         <TopBar />
         <PageHeaderSkeleton />
         <div className="px-6">
@@ -57,13 +58,13 @@ export function ArtistPage() {
             <TrackRowSkeleton key={i} />
           ))}
         </div>
-      </>
+      </PageScroll>
     );
   }
 
   if (error || !artist) {
     return (
-      <>
+      <PageScroll>
         <TopBar />
         <EmptyState
           icon={UserCircle}
@@ -72,14 +73,14 @@ export function ArtistPage() {
           actionLabel="Browse home"
           actionTo="/"
         />
-      </>
+      </PageScroll>
     );
   }
 
   const published = tracks.filter((t) => t.status === "published");
 
   return (
-    <>
+    <PageScroll>
       <div className="bg-gradient-gachi">
         <TopBar gradient />
         <div className="flex flex-col gap-6 px-6 pb-8 md:flex-row md:items-end">
@@ -151,6 +152,6 @@ export function ArtistPage() {
           </>
         )}
       </div>
-    </>
+    </PageScroll>
   );
 }

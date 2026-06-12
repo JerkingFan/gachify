@@ -13,6 +13,7 @@ import { CoverArt } from "@/components/ui/CoverArt";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { PageMeta } from "@/components/ui/PageMeta";
 import { ShareButton } from "@/components/ui/ShareButton";
+import { PageScroll } from "@/components/ui/PageScroll";
 import { PageHeaderSkeleton } from "@/components/ui/Skeleton";
 import { TrackRow } from "@/components/ui/TrackRow";
 import { TrackRowSkeleton } from "@/components/ui/Skeleton";
@@ -84,7 +85,7 @@ export function TrackPage() {
 
   if (loading) {
     return (
-      <>
+      <PageScroll>
         <TopBar />
         <PageHeaderSkeleton />
         <div className="px-6">
@@ -92,13 +93,13 @@ export function TrackPage() {
             <TrackRowSkeleton key={i} />
           ))}
         </div>
-      </>
+      </PageScroll>
     );
   }
 
   if (error || !track) {
     return (
-      <>
+      <PageScroll>
         <TopBar />
         <EmptyState
           icon={Music2}
@@ -107,7 +108,7 @@ export function TrackPage() {
           actionLabel="Go home"
           actionTo="/"
         />
-      </>
+      </PageScroll>
     );
   }
 
@@ -130,6 +131,7 @@ export function TrackPage() {
             : undefined
         }
       />
+      <PageScroll>
       <div className="bg-gradient-gachi">
         <TopBar gradient />
         <div className="flex flex-col gap-6 px-6 pb-8 md:flex-row md:items-end">
@@ -298,6 +300,7 @@ export function TrackPage() {
           </section>
         )}
       </div>
+      </PageScroll>
     </>
   );
 }

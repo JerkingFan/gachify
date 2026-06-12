@@ -67,15 +67,18 @@ export function TrackRow({ track, index, queue, showIndex = true }: TrackRowProp
       tabIndex={0}
       onClick={() => playTrack(track, queue)}
       onKeyDown={(e) => e.key === "Enter" && playTrack(track, queue)}
-      className={`group grid grid-cols-[16px_4fr_3fr_1fr_40px] items-center gap-4 rounded-md border-b border-white/5 px-4 py-2 text-sm hover:bg-white/10 ${
+      className={`group grid grid-cols-[32px_minmax(0,1fr)_48px] items-center gap-2 rounded-md border-b border-white/5 px-3 py-2.5 text-sm active:bg-white/10 md:grid-cols-[16px_4fr_3fr_1fr_40px] md:gap-4 md:px-4 md:py-2 md:hover:bg-white/10 ${
         isCurrent ? "text-spotify-green" : "text-spotify-muted"
       }`}
     >
       <div className="flex justify-center">
         {showIndex ? (
           <>
-            <span className="group-hover:hidden">{isActive ? "🔊" : index + 1}</span>
-            <span className="hidden group-hover:block">
+            <span className="hidden md:inline md:group-hover:hidden">{isActive ? "🔊" : index + 1}</span>
+            <span className="md:hidden">
+              <PlayButton size="sm" onClick={handlePlay} isPlaying={isActive} className="!h-8 !w-8 !opacity-100" />
+            </span>
+            <span className="hidden md:group-hover:block">
               <PlayButton size="sm" onClick={handlePlay} isPlaying={isActive} className="!h-4 !w-4 !opacity-100" />
             </span>
           </>
@@ -99,10 +102,12 @@ export function TrackRow({ track, index, queue, showIndex = true }: TrackRowProp
         </div>
       </div>
 
-      <div className="hidden truncate md:block">{getArtistName(track)}</div>
-      <div className="text-right tabular-nums">{formatDuration(track.duration_ms)}</div>
-
-      <div className="relative flex justify-end gap-1 opacity-0 group-hover:opacity-100">
+      <div className="flex flex-col items-end justify-center gap-0.5 md:contents">
+        <div className="hidden truncate md:block">{getArtistName(track)}</div>
+        <div className="text-right text-xs tabular-nums md:text-sm">
+          {formatDuration(track.duration_ms)}
+        </div>
+        <div className="relative flex justify-end gap-0.5 opacity-100 md:opacity-0 md:group-hover:opacity-100">
         <button
           type="button"
           className={`btn-icon ${liked ? "text-spotify-green" : ""}`}
@@ -132,6 +137,7 @@ export function TrackRow({ track, index, queue, showIndex = true }: TrackRowProp
             <AddToPlaylistMenu track={track} onClose={() => setMenuOpen(false)} />
           </div>
         )}
+        </div>
       </div>
     </div>
   );

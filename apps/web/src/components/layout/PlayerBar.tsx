@@ -116,10 +116,13 @@ export function PlayerBar({ hasLyrics = false }: PlayerBarProps) {
   );
 
   return (
-    <footer data-testid="player-bar" className="fixed bottom-0 left-0 right-0 z-40 border-t border-white/10 bg-spotify-highlight px-3 py-2 md:static md:grid md:h-[90px] md:grid-cols-3 md:items-center md:px-4 md:py-0">
+    <footer
+      data-testid="player-bar"
+      className="fixed bottom-0 left-0 right-0 z-40 border-t border-white/10 bg-spotify-highlight px-3 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2 md:static md:grid md:h-[90px] md:grid-cols-3 md:items-center md:px-4 md:py-0"
+    >
       {/* Mobile layout */}
       <div className="flex flex-col gap-2 md:hidden">
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
           {track ? (
             <>
               <button
@@ -138,6 +141,14 @@ export function PlayerBar({ hasLyrics = false }: PlayerBarProps) {
                   </span>
                 </div>
               </button>
+              <button
+                type="button"
+                onClick={toggleQueuePanel}
+                className={`btn-icon touch-target shrink-0 ${queuePanelOpen ? "text-spotify-green" : ""}`}
+                aria-label="Queue"
+              >
+                <ListMusic className="h-5 w-5" />
+              </button>
               {isAuthenticated ? (
                 <button
                   type="button"
@@ -145,34 +156,29 @@ export function PlayerBar({ hasLyrics = false }: PlayerBarProps) {
                   onClick={() =>
                     track && void toggleLiked(track.id, true).then(setLiked)
                   }
+                  aria-label="Like"
                 >
                   <Heart className="h-5 w-5" fill={liked ? "currentColor" : "none"} />
                 </button>
               ) : null}
-              <KaraokeButton hasLyrics={hasLyrics} size="lg" />
-              {track && <PlayerComfortMenu />}
-              {track && (
-                <button
-                  type="button"
-                  onClick={openNowPlaying}
-                  className="btn-icon touch-target shrink-0 relative"
-                  title={`${expandedPlayerTitle} — waveform, EQ`}
-                  aria-label={expandedPlayerTitle}
-                >
-                  <Maximize2 className="h-5 w-5" />
-                </button>
-              )}
+              <button type="button" onClick={previous} className="btn-icon touch-target shrink-0" aria-label="Previous">
+                <SkipBack className="h-5 w-5" fill="currentColor" />
+              </button>
               <button
                 type="button"
                 onClick={togglePlay}
                 disabled={!track}
                 className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white text-black disabled:opacity-50"
+                aria-label={isPlaying ? "Pause" : "Play"}
               >
                 {isPlaying ? (
                   <Pause className="h-5 w-5" fill="currentColor" />
                 ) : (
                   <Play className="h-5 w-5 ml-0.5" fill="currentColor" />
                 )}
+              </button>
+              <button type="button" onClick={next} className="btn-icon touch-target shrink-0" aria-label="Next">
+                <SkipForward className="h-5 w-5" fill="currentColor" />
               </button>
             </>
           ) : (

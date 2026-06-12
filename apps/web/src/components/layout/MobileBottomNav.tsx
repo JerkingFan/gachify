@@ -1,4 +1,4 @@
-import { Compass, Home, Library, Search, TrendingUp, UserCircle, Users } from "lucide-react";
+import { Compass, Home, Library, Search, TrendingUp } from "lucide-react";
 import { NavLink } from "react-router-dom";
 import { getLocale, t } from "@/lib/i18n";
 import { useAuthStore } from "@/store/authStore";
@@ -10,28 +10,19 @@ type NavItem = {
   labelKey?: string;
   label?: string;
   end?: boolean;
-  auth?: boolean;
-  guestOnly?: boolean;
 };
 
 function buildItems(isAuthenticated: boolean): NavItem[] {
   const core: NavItem[] = [
     { to: "/", icon: Home, label: "Home", end: true },
     { to: "/charts", icon: TrendingUp, labelKey: "nav.charts" },
-    { to: "/party", icon: Users, labelKey: "nav.party" },
     { to: "/discover", icon: Compass, labelKey: "nav.discover" },
+    { to: "/search", icon: Search, labelKey: "nav.search" },
   ];
   if (isAuthenticated) {
-    return [
-      ...core,
-      { to: "/library", icon: Library, labelKey: "nav.library_short" },
-      { to: "/me", icon: UserCircle, labelKey: "nav.profile", auth: true },
-    ];
+    return [...core, { to: "/library", icon: Library, labelKey: "nav.library_short" }];
   }
-  return [
-    ...core,
-    { to: "/search", icon: Search, labelKey: "nav.search", guestOnly: true },
-  ];
+  return core;
 }
 
 export function MobileBottomNav() {
@@ -42,13 +33,11 @@ export function MobileBottomNav() {
 
   return (
     <nav
-      className="fixed bottom-[72px] left-0 right-0 z-30 border-t border-white/10 bg-spotify-black/95 backdrop-blur-md md:hidden"
+      className="fixed bottom-[var(--gachify-mobile-player-h)] left-0 right-0 z-30 border-t border-white/10 bg-spotify-black/95 pb-[env(safe-area-inset-bottom)] backdrop-blur-md md:hidden"
       aria-label="Main navigation"
     >
       <ul className="flex items-stretch justify-around px-0.5 py-1">
-        {items.map(({ to, icon: Icon, label, labelKey, end, auth, guestOnly }) => {
-          if (auth && !isAuthenticated) return null;
-          if (guestOnly && isAuthenticated) return null;
+        {items.map(({ to, icon: Icon, label, labelKey, end }) => {
           const text = labelKey ? t(labelKey, locale) : (label ?? to);
           return (
             <li key={to} className="min-w-0 flex-1">
@@ -57,7 +46,7 @@ export function MobileBottomNav() {
                 end={end}
                 onClick={() => setSidebarOpen(false)}
                 className={({ isActive }) =>
-                  `flex min-h-[52px] flex-col items-center justify-center gap-0.5 rounded-md px-1 text-[9px] font-semibold leading-tight transition sm:text-[10px] ${
+                  `flex min-h-[48px] flex-col items-center justify-center gap-0.5 rounded-md px-1 text-[10px] font-semibold leading-tight transition ${
                     isActive ? "text-white" : "text-spotify-muted"
                   }`
                 }

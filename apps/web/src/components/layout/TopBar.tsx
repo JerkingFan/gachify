@@ -1,5 +1,5 @@
-import { ChevronLeft, ChevronRight, Keyboard, Menu } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { ChevronLeft, ChevronRight, Keyboard, Menu, Search } from "lucide-react";
+import { Link, useNavigate } from "react-router-dom";
 import { useUIStore } from "@/store/uiStore";
 import { NotificationsBell } from "@/components/social/NotificationsBell";
 import { UserMenu } from "./UserMenu";
@@ -55,6 +55,13 @@ export function TopBar({ title, gradient }: TopBarProps) {
       )}
 
       <div className="ml-auto flex items-center gap-2 md:gap-3">
+        <Link
+          to="/search"
+          className="btn-icon touch-target md:hidden"
+          aria-label="Search"
+        >
+          <Search className="h-5 w-5" />
+        </Link>
         <button
           type="button"
           onClick={() => useUIStore.getState().setShortcutsHelpOpen(true)}

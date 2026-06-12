@@ -35,7 +35,7 @@ export function QueuePanel() {
         onClick={() => setOpen(false)}
       />
       <aside
-        className="fixed bottom-[90px] right-0 top-0 z-50 flex w-full max-w-[420px] flex-col border-l border-white/10 bg-spotify-elevated shadow-2xl"
+        className="fixed inset-x-0 bottom-[var(--gachify-mobile-chrome-h)] top-0 z-50 flex flex-col bg-spotify-elevated shadow-2xl md:inset-x-auto md:bottom-[90px] md:right-0 md:max-w-[420px] md:border-l md:border-white/10"
         aria-label="Queue"
       >
         <header className="flex items-center justify-between border-b border-white/10 px-6 py-4">
@@ -161,7 +161,7 @@ function QueueItem({
       <button
         type="button"
         onClick={onRemove}
-        className="btn-icon mr-1 opacity-0 group-hover:opacity-100"
+        className="btn-icon mr-1 opacity-100 md:opacity-0 md:group-hover:opacity-100"
         aria-label="Remove from queue"
       >
         <X className="h-4 w-4" />

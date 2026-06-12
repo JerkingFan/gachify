@@ -4,6 +4,7 @@ import { Link } from "react-router-dom";
 import { api } from "@/api/client";
 import { TopBar } from "@/components/layout/TopBar";
 import { PageMeta } from "@/components/ui/PageMeta";
+import { PageScroll } from "@/components/ui/PageScroll";
 import { TrackRow } from "@/components/ui/TrackRow";
 import type { ChartTrack } from "@/types";
 
@@ -27,8 +28,9 @@ export function ChartsPage() {
         description="Gachify weekly charts — most played remixes in the last 7 days."
         url={typeof window !== "undefined" ? `${window.location.origin}/charts` : "/charts"}
       />
+      <PageScroll>
       <TopBar title="Top this week" />
-      <div className="flex-1 overflow-y-auto px-6 pb-10">
+      <div className="px-6 pb-10">
         <div className="mb-8 flex items-center gap-3">
           <TrendingUp className="h-8 w-8 text-spotify-green" />
           <div>
@@ -81,6 +83,7 @@ export function ChartsPage() {
           ))}
         </p>
       </div>
+      </PageScroll>
     </>
   );
 }
